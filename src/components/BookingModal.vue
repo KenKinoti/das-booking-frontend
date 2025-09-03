@@ -33,9 +33,51 @@
 
         <!-- Main Content Area -->
         <div class="main-content">
-          <!-- Step 1: Service Selection -->
-          <div v-if="currentStep === 1" class="step-content"
-               key="step-1">
+          <!-- Step 1: Organization Selection -->
+          <div v-if="currentStep === 1" class="step-content" key="step-1">
+            <div class="content-header">
+              <h3>Select Organization</h3>
+              <p>Choose which organization this booking belongs to</p>
+            </div>
+
+            <div class="organization-grid">
+              <div 
+                v-for="org in availableOrganizations" 
+                :key="org.id"
+                :class="['organization-card', { selected: selectedOrganization?.id === org.id }]"
+                @click="selectOrganization(org)"
+              >
+                <div class="org-icon">
+                  <i class="fas fa-building"></i>
+                </div>
+                <div class="org-info">
+                  <h4>{{ org.name }}</h4>
+                  <p>{{ org.email }}</p>
+                  <div v-if="org.status === 'pending'" class="org-status pending">
+                    <i class="fas fa-clock"></i>
+                    Pending Approval
+                  </div>
+                  <div v-else class="org-status active">
+                    <i class="fas fa-check-circle"></i>
+                    Active
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-actions">
+              <button @click="closeModal" class="btn-secondary">
+                <i class="fas fa-times"></i>
+              </button>
+              <button @click="nextStep" :disabled="!selectedOrganization" class="btn-primary">
+                <i class="fas fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 2: Service Selection -->
+          <div v-if="currentStep === 2" class="step-content"
+               key="step-2">
             <div class="content-header">
               <h3>Select Service</h3>
               <p>Choose from our available services</p>
@@ -88,8 +130,8 @@
           </div>
 
           <!-- Step 2: Staff Selection -->
-          <div v-if="currentStep === 2" class="step-content"
-               key="step-2">
+          <div v-if="currentStep === 3" class="step-content"
+               key="step-3">
             <div class="content-header">
               <h3>Select Staff</h3>
               <p>Choose your preferred staff member</p>
@@ -125,8 +167,8 @@
           </div>
 
           <!-- Step 3: Date & Time Selection -->
-          <div v-if="currentStep === 3" class="step-content"
-               key="step-3">
+          <div v-if="currentStep === 4" class="step-content"
+               key="step-4">
             <div class="content-header">
               <h3>Date & Time</h3>
               <p>Select your preferred date and time</p>
@@ -168,11 +210,11 @@
               </div>
 
               <!-- Time Slots -->
-              <div class="time-section">
+              <div v-if="hasAvailableTimeSlots()" class="time-section">
                 <h4>Available Times</h4>
-                <div class="time-slots">
+                <div class="time-slots" :key="timeSlotsKey">
                   <button 
-                    v-for="time in availableTimeSlots" 
+                    v-for="time in getAvailableTimeSlots()" 
                     :key="time.value"
                     :class="['time-slot', { 
                       selected: selectedTime === time.value,
@@ -193,12 +235,22 @@
                   </button>
                 </div>
               </div>
+              
+              <!-- No Time Slots Available -->
+              <div v-else-if="selectedDate" class="time-section">
+                <h4>Available Times</h4>
+                <div class="no-slots-message">
+                  <i class="fas fa-clock"></i>
+                  <p>No available time slots for this date.</p>
+                  <p class="hint">Please select a future date or try tomorrow.</p>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Step 4: Basic Details -->
-          <div v-if="currentStep === 4" class="step-content"
-               key="step-4">
+          <div v-if="currentStep === 5" class="step-content"
+               key="step-5">
             <div class="content-header">
               <h3>Basic Details</h3>
               <p>Provide additional information for your booking</p>
@@ -385,7 +437,7 @@
                 ></textarea>
               </div>
 
-              <div v-if="selectedService?.requiresVehicle" class="form-group vehicle-group">
+              <div v-if="selectedService?.category === 'automotive'" class="form-group vehicle-group">
                 <label for="vehicle">
                   <i class="fas fa-car"></i>
                   Vehicle Information
@@ -406,8 +458,8 @@
           </div>
 
           <!-- Step 5: Summary -->
-          <div v-if="currentStep === 5" class="step-content summary-step"
-               key="step-5">
+          <div v-if="currentStep === 6" class="step-content summary-step"
+               key="step-6">
             <!-- Summary Header -->
             <div class="summary-header">
               <div class="summary-icon">
@@ -417,58 +469,110 @@
               <p>Your appointment booking summary</p>
             </div>
 
-            <div class="summary-container">
-              <!-- Customer Info -->
-              <div class="summary-customer-card">
-                <div class="customer-label">Customer</div>
-                <div class="customer-name">{{ selectedCustomerName || 'Walk-in Customer' }}</div>
+            <div class="summary-scrollable">
+              <div class="summary-container">
+                <!-- Customer Info -->
+                <div class="summary-customer-card">
+                <div class="customer-avatar">
+                  <i class="fas fa-user"></i>
+                </div>
+                <div class="customer-details">
+                  <div class="customer-label">Customer</div>
+                  <div class="customer-name">{{ selectedCustomerName || 'Walk-in Customer' }}</div>
+                </div>
               </div>
 
-              <!-- Booking Details Grid -->
-              <div class="summary-details-grid">
-                <!-- Service Card -->
-                <div class="summary-detail-card service-card">
-                  <div class="detail-label">Service</div>
-                  <div class="detail-value">{{ selectedService?.name || 'Service Selected' }}</div>
-                  <div class="detail-extra" v-if="selectedStaff">
-                    with {{ selectedStaff.first_name }} {{ selectedStaff.last_name }}
+              <!-- Organization Card -->
+              <div class="summary-detail-card org-card">
+                <div class="card-icon org-icon">
+                  <i class="fas fa-building"></i>
+                </div>
+                <div class="card-content">
+                  <div class="detail-label">Organization</div>
+                  <div class="detail-value">{{ selectedOrganization?.name || 'Not selected' }}</div>
+                  <div v-if="selectedOrganization?.email" class="detail-extra">{{ selectedOrganization.email }}</div>
+                </div>
+              </div>
+
+              <!-- Main Details Grid -->
+              <div class="summary-main-grid">
+                <!-- Service & Staff Card -->
+                <div class="summary-detail-card service-staff-card">
+                  <div class="card-icon service-icon">
+                    <i class="fas fa-wrench"></i>
+                  </div>
+                  <div class="card-content">
+                    <div class="detail-label">Service & Provider</div>
+                    <div class="detail-value">{{ selectedService?.name || 'Service Selected' }}</div>
+                    <div class="detail-extra" v-if="selectedStaff">
+                      <i class="fas fa-user-tie"></i>
+                      {{ selectedStaff.first_name }} {{ selectedStaff.last_name }}
+                    </div>
                   </div>
                 </div>
 
                 <!-- Date & Time Card -->
                 <div class="summary-detail-card datetime-card">
-                  <div class="detail-label">Date & Time</div>
-                  <div class="detail-value">{{ formatSummaryDateTime }}</div>
-                  <div class="detail-extra" v-if="selectedService?.duration">
-                    {{ selectedService.duration }} minutes
+                  <div class="card-icon datetime-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                  </div>
+                  <div class="card-content">
+                    <div class="detail-label">Appointment</div>
+                    <div class="detail-value">{{ formatSummaryDateTime }}</div>
+                    <div class="detail-extra" v-if="selectedService?.duration">
+                      <i class="fas fa-clock"></i>
+                      {{ selectedService.duration }} minutes
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <!-- Special Notes -->
-              <div v-if="formData.notes" class="summary-notes-card">
-                <div class="detail-label">Special Notes</div>
-                <div class="detail-value">{{ formData.notes }}</div>
-              </div>
+              <!-- Additional Information Grid -->
+              <div class="summary-additional-grid" v-if="formData.notes || formData.vehicle_info">
+                <!-- Vehicle Info -->
+                <div v-if="formData.vehicle_info" class="summary-info-card vehicle-card">
+                  <div class="card-icon vehicle-icon">
+                    <i class="fas fa-car"></i>
+                  </div>
+                  <div class="card-content">
+                    <div class="detail-label">Vehicle Information</div>
+                    <div class="detail-value">{{ formData.vehicle_info }}</div>
+                  </div>
+                </div>
 
-              <!-- Vehicle Info -->
-              <div v-if="formData.vehicle_info" class="summary-notes-card">
-                <div class="detail-label">Vehicle Information</div>
-                <div class="detail-value">{{ formData.vehicle_info }}</div>
+                <!-- Special Notes -->
+                <div v-if="formData.notes" class="summary-info-card notes-card">
+                  <div class="card-icon notes-icon">
+                    <i class="fas fa-sticky-note"></i>
+                  </div>
+                  <div class="card-content">
+                    <div class="detail-label">Special Notes</div>
+                    <div class="detail-value">{{ formData.notes }}</div>
+                  </div>
+                </div>
               </div>
 
               <!-- Pricing Summary -->
               <div class="summary-pricing">
-                <div class="pricing-row subtotal">
-                  <span>Subtotal</span>
-                  <span>${{ selectedService?.price?.toFixed(2) || '0.00' }}</span>
+                <div class="pricing-header">
+                  <i class="fas fa-receipt"></i>
+                  <span>Pricing Details</span>
                 </div>
-                
-                <div class="pricing-row total">
-                  <span>Total Amount Payable</span>
-                  <span>${{ selectedService?.price?.toFixed(2) || '0.00' }}</span>
+                <div class="pricing-content">
+                  <div class="pricing-row subtotal">
+                    <span>Service Fee</span>
+                    <span>${{ selectedService?.price?.toFixed(2) || '0.00' }}</span>
+                  </div>
+                  
+                  <div class="pricing-divider"></div>
+                  
+                  <div class="pricing-row total">
+                    <span>Total Amount</span>
+                    <span>${{ selectedService?.price?.toFixed(2) || '0.00' }}</span>
+                  </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -512,6 +616,9 @@
 </template>
 
 <script>
+import { useAuthStore } from '../stores/auth'
+import { useOrganizationContextStore } from '../stores/organizationContext'
+
 export default {
   name: 'BookingModal',
   props: {
@@ -540,12 +647,14 @@ export default {
     return {
       currentStep: 1,
       selectedCategory: 'ALL',
+      selectedOrganization: null,
       selectedService: null,
       selectedStaff: null,
-      selectedDate: null,
+      selectedDate: new Date(),
       selectedTime: null,
       currentMonth: new Date().getMonth(),
       currentYear: new Date().getFullYear(),
+      timeSlotsKey: 0,
       formData: {
         customer_id: '',
         notes: '',
@@ -562,6 +671,7 @@ export default {
       newCustomerData: null,
       
       steps: [
+        { title: 'Organization', icon: 'fas fa-building' },
         { title: 'Service', icon: 'fas fa-concierge-bell' },
         { title: 'Staff', icon: 'fas fa-user-tie' },
         { title: 'Date & Time', icon: 'fas fa-calendar-alt' },
@@ -695,25 +805,35 @@ export default {
     },
     
     customersWithMockData() {
+      let customerList = []
+      
       if (this.customers && this.customers.length > 0) {
-        return this.customers
+        customerList = [...this.customers]
+      } else {
+        customerList = [
+          {
+            id: '1',
+            first_name: 'John',
+            last_name: 'Doe',
+            phone: '(555) 123-4567',
+            email: 'john.doe@example.com'
+          },
+          {
+            id: '2',
+            first_name: 'Jane',
+            last_name: 'Smith',
+            phone: '(555) 987-6543',
+            email: 'jane.smith@example.com'
+          }
+        ]
       }
-      return [
-        {
-          id: '1',
-          first_name: 'John',
-          last_name: 'Doe',
-          phone: '(555) 123-4567',
-          email: 'john.doe@example.com'
-        },
-        {
-          id: '2',
-          first_name: 'Jane',
-          last_name: 'Smith',
-          phone: '(555) 987-6543',
-          email: 'jane.smith@example.com'
-        }
-      ]
+      
+      // Add new customer to the list if it exists and isn't already in the list
+      if (this.newCustomerData && !customerList.find(c => c.id === this.newCustomerData.id)) {
+        customerList.unshift(this.newCustomerData)
+      }
+      
+      return customerList
     },
     
     filteredServices() {
@@ -737,7 +857,7 @@ export default {
     
     calendarDays() {
       const firstDay = new Date(this.currentYear, this.currentMonth, 1)
-      const lastDay = new Date(this.currentYear, this.currentMonth + 1, 0)
+      // const lastDay = new Date(this.currentYear, this.currentMonth + 1, 0) // unused variable
       const startDate = new Date(firstDay)
       startDate.setDate(startDate.getDate() - firstDay.getDay())
       
@@ -757,47 +877,6 @@ export default {
       return days
     },
     
-    availableTimeSlots() {
-      const slots = []
-      const startHour = 9
-      const endHour = 17
-      const serviceDuration = this.selectedService?.duration || 90 // Default 90 minutes
-      
-      for (let hour = startHour; hour < endHour; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-          const startTime = new Date()
-          startTime.setHours(hour, minute, 0, 0)
-          
-          const endTime = new Date(startTime)
-          endTime.setMinutes(endTime.getMinutes() + serviceDuration)
-          
-          // Don't show slots that would end after business hours
-          if (endTime.getHours() >= endHour) continue
-          
-          const timeValue = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-          const isAvailable = Math.random() > 0.3 // Mock availability
-          const slotsLeft = isAvailable ? Math.floor(Math.random() * 5) + 1 : 0
-          
-          slots.push({
-            value: timeValue,
-            startTime: startTime.toLocaleTimeString('en-US', { 
-              hour: 'numeric', 
-              minute: '2-digit',
-              hour12: true 
-            }),
-            endTime: endTime.toLocaleTimeString('en-US', { 
-              hour: 'numeric', 
-              minute: '2-digit',
-              hour12: true 
-            }),
-            available: isAvailable,
-            slotsLeft: slotsLeft
-          })
-        }
-      }
-      
-      return slots
-    },
     
     formatSelectedDateTime() {
       if (!this.selectedDate || !this.selectedTime) return ''
@@ -853,24 +932,125 @@ export default {
     
     canProceedToNext() {
       switch (this.currentStep) {
-        case 1: return !!this.selectedService
-        case 2: return !!this.selectedStaff
-        case 3: return !!this.selectedDate && !!this.selectedTime
-        case 4: return !!this.formData.customer_id
+        case 1: return !!this.selectedOrganization
+        case 2: return !!this.selectedService
+        case 3: return !!this.selectedStaff
+        case 4: return !!this.selectedDate && !!this.selectedTime
+        case 5: return !!this.formData.customer_id
         default: return true
       }
     },
     
     canSubmit() {
-      return this.selectedService && 
-             this.selectedStaff && 
-             this.selectedDate && 
-             this.selectedTime && 
-             this.formData.customer_id
+      if (!this.selectedOrganization || !this.selectedService || !this.selectedStaff || !this.selectedDate || !this.selectedTime || !this.formData.customer_id) {
+        return false
+      }
+      
+      // For new bookings, prevent submitting if time is in the past
+      if (!this.isEditing) {
+        const startDateTime = new Date(
+          this.selectedDate.getFullYear(),
+          this.selectedDate.getMonth(),
+          this.selectedDate.getDate(),
+          parseInt(this.selectedTime.split(':')[0]),
+          parseInt(this.selectedTime.split(':')[1])
+        )
+        const now = new Date()
+        if (startDateTime <= now) {
+          return false
+        }
+      }
+      
+      return true
+    },
+    
+    availableOrganizations() {
+      const authStore = useAuthStore()
+      const orgContextStore = useOrganizationContextStore()
+      
+      if (authStore.isSuperAdmin) {
+        return orgContextStore.organizations
+      }
+      
+      // Non-super admin users only see their own organization
+      return orgContextStore.organizations.filter(org => org.id === authStore.user?.organization_id)
     }
   },
   
   methods: {
+    getAvailableTimeSlots() {
+      const slots = []
+      const startHour = 9
+      const endHour = 17
+      const serviceDuration = this.selectedService?.duration || 90 // Default 90 minutes
+      
+      // If no date is selected, return empty array
+      if (!this.selectedDate) {
+        return slots
+      }
+      
+      const now = new Date()
+      const oneHourFromNow = new Date(now.getTime() + 60 * 60000) // 1 hour minimum
+      const twoHoursFromNow = new Date(now.getTime() + 120 * 60000) // 2 hours for active slots
+      
+      // Check if selected date is today
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const selectedDateOnly = new Date(this.selectedDate)
+      selectedDateOnly.setHours(0, 0, 0, 0)
+      const isToday = today.getTime() === selectedDateOnly.getTime()
+      
+      for (let hour = startHour; hour < endHour; hour++) {
+        for (let minute = 0; minute < 60; minute += 30) {
+          // Create the actual booking time for this slot
+          const bookingDateTime = new Date(this.selectedDate)
+          bookingDateTime.setHours(hour, minute, 0, 0)
+          
+          // Skip if booking time is in the past (with 1 hour buffer)
+          if (isToday && bookingDateTime < oneHourFromNow) {
+            continue
+          }
+          
+          const endTime = new Date(bookingDateTime)
+          endTime.setMinutes(endTime.getMinutes() + serviceDuration)
+          
+          // Don't show slots that would end after business hours
+          if (endTime.getHours() >= endHour && endTime.getMinutes() > 0) continue
+          
+          const timeValue = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+          
+          // Determine if slot is available (active) - within 2 hours for today
+          let isAvailable = true
+          if (isToday && bookingDateTime > twoHoursFromNow) {
+            isAvailable = false // Make inactive if more than 2 hours away on today
+          }
+          
+          slots.push({
+            value: timeValue,
+            startTime: bookingDateTime.toLocaleTimeString('en-US', { 
+              hour: 'numeric', 
+              minute: '2-digit',
+              hour12: true 
+            }),
+            endTime: endTime.toLocaleTimeString('en-US', { 
+              hour: 'numeric', 
+              minute: '2-digit',
+              hour12: true 
+            }),
+            available: isAvailable,
+            slotsLeft: isAvailable ? 3 : 0
+          })
+        }
+      }
+      
+      return slots
+    },
+
+    hasAvailableTimeSlots() {
+      const slots = this.getAvailableTimeSlots()
+      return slots.length > 0
+    },
+
     closeModal() {
       this.$emit('close')
       // Only reset form if not editing to preserve form state during edit process
@@ -882,6 +1062,7 @@ export default {
     resetForm() {
       this.currentStep = 1
       this.selectedCategory = 'ALL'
+      this.selectedOrganization = null
       this.selectedService = null
       this.selectedStaff = null
       this.selectedDate = null
@@ -924,6 +1105,11 @@ export default {
       }
     },
     
+    selectOrganization(org) {
+      this.selectedOrganization = org
+      console.log('🏢 Organization selected:', org)
+    },
+    
     selectService(service) {
       this.selectedService = service
     },
@@ -935,6 +1121,8 @@ export default {
     selectDate(date) {
       if (this.isDateAvailable(date)) {
         this.selectedDate = date
+        this.timeSlotsKey++ // Force re-render of time slots
+        console.log('📅 Date selected:', date.toLocaleDateString(), 'Key:', this.timeSlotsKey)
       }
     },
     
@@ -1110,23 +1298,6 @@ export default {
       console.log('📊 Set current step to:', this.currentStep)
     },
     
-    resetForm() {
-      console.log('🔄 Resetting form for new booking')
-      this.currentStep = 1
-      this.selectedCategory = 'ALL'
-      this.selectedService = null
-      this.selectedStaff = null
-      this.selectedDate = null
-      this.selectedTime = null
-      this.formData = {
-        customer_id: '',
-        notes: '',
-        vehicle_info: ''
-      }
-      this.showNewCustomerForm = false
-      this.newCustomerData = null
-    },
-    
     submitBooking() {
       console.log('🚀 Starting submitBooking()')
       console.log('📋 Current formData:', this.formData)
@@ -1141,6 +1312,13 @@ export default {
         parseInt(this.selectedTime.split(':')[1])
       )
       
+      // Prevent booking appointments in the past
+      const now = new Date()
+      if (!this.isEditing && startDateTime <= now) {
+        alert('Cannot create appointments for past times. Please select a future time.')
+        return
+      }
+      
       // Format as ISO string but preserve local time
       const year = startDateTime.getFullYear()
       const month = String(startDateTime.getMonth() + 1).padStart(2, '0')
@@ -1154,12 +1332,13 @@ export default {
       console.log('📅 Local ISO string:', localISOString)
       
       const bookingData = {
+        organization_id: this.selectedOrganization.id,
         service_id: this.selectedService.id,
         staff_id: this.selectedStaff.id,
         customer_id: parseInt(this.formData.customer_id) || this.formData.customer_id,
         start_time: localISOString,
         duration: this.selectedService.duration,
-        price: this.selectedService.price,
+        total_price: this.selectedService.price,
         notes: this.formData.notes,
         vehicle_info: this.formData.vehicle_info,
         status: this.isEditing ? this.booking.status : 'scheduled'
@@ -1195,7 +1374,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1100;
   padding: 20px;
   overflow: hidden;
 }
@@ -1211,7 +1390,6 @@ export default {
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
   position: relative;
 }
 
@@ -1371,7 +1549,6 @@ export default {
   width: 100% !important;
   max-width: none !important;
   background: white;
-  overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1385,10 +1562,10 @@ export default {
 }
 
 .step-content {
-  flex: 1 1 auto;
+  flex: 1;
   width: 100% !important;
   max-width: none !important;
-  padding: 28px 32px 60px 32px;
+  padding: 20px 28px 40px 28px;
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -1397,6 +1574,13 @@ export default {
   margin: 0 !important;
   scroll-behavior: smooth;
   border-radius: 0 !important;
+}
+
+.summary-step {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 
@@ -1413,8 +1597,9 @@ export default {
 }
 
 .content-header {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   display: block;
+  flex-shrink: 0;
 }
 
 .content-header h3 {
@@ -1552,6 +1737,106 @@ export default {
 
 [data-bs-theme="dark"] .service-card.selected {
   background: rgba(13, 110, 253, 0.1);
+}
+
+/* Organization Cards */
+.organization-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.organization-card {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 24px;
+  cursor: pointer;
+  background: white;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+[data-bs-theme="dark"] .organization-card {
+  background: #343a40;
+  border-color: #495057;
+}
+
+.organization-card:hover {
+  border-color: #0d6efd;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.organization-card.selected {
+  border-color: #0d6efd;
+  background: #f8f9ff;
+}
+
+[data-bs-theme="dark"] .organization-card.selected {
+  background: rgba(13, 110, 253, 0.1);
+}
+
+.org-icon {
+  width: 48px;
+  height: 48px;
+  background: #0d6efd;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.org-info {
+  flex: 1;
+}
+
+.org-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #212529;
+}
+
+[data-bs-theme="dark"] .org-info h4 {
+  color: #f8f9fa;
+}
+
+.org-info p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+[data-bs-theme="dark"] .org-info p {
+  color: #adb5bd;
+}
+
+.org-status {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.org-status.pending {
+  background: #fff3cd;
+  color: #664d03;
+  border: 1px solid #ffecb5;
+}
+
+[data-bs-theme="dark"] .org-status.pending {
+  background: #332701;
+  color: #ffda6a;
+  border-color: #664d03;
 }
 
 .service-icon {
@@ -1778,24 +2063,29 @@ export default {
 
 /* Calendar & Time - Clean Minimalist Design */
 .datetime-container {
-  display: grid !important;
-  grid-template-columns: 4fr 1fr !important;
-  gap: 32px;
-  margin-bottom: 32px;
+  display: flex !important;
+  gap: 20px;
+  margin-bottom: 0;
   width: 100% !important;
-  max-width: none !important;
   padding: 0;
-  align-items: start;
+  align-items: stretch;
+  height: calc(100vh - 308px);
+  min-height: 424px;
+  max-height: 581px;
 }
 
 .calendar-section {
   background: #ffffff;
-  border-radius: 20px;
-  padding: 28px 24px;
+  border-radius: 16px;
+  padding: 14px;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   position: relative;
-  height: fit-content;
+  flex: 0 0 80%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
 [data-bs-theme="dark"] .calendar-section {
@@ -1806,14 +2096,16 @@ export default {
 
 .time-section {
   background: #ffffff;
-  border-radius: 20px;
-  padding: 20px 16px;
+  border-radius: 16px;
+  padding: 14px;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   position: relative;
-  width: 100%;
-  min-width: 200px;
-  height: fit-content;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
 [data-bs-theme="dark"] .time-section {
@@ -1823,9 +2115,9 @@ export default {
 }
 
 .calendar-section h4 {
-  margin: 0 0 20px 0;
+  margin: 0 0 12px 0;
   color: #111827;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: -0.025em;
 }
@@ -1904,11 +2196,41 @@ export default {
 
 .calendar-grid {
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   width: 100%;
   background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.calendar-days {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f3f4f6;
+}
+
+.calendar-days::-webkit-scrollbar {
+  width: 4px;
+}
+
+.calendar-days::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 2px;
+}
+
+.calendar-days::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.calendar-days::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 [data-bs-theme="dark"] .calendar-grid {
@@ -1929,11 +2251,11 @@ export default {
 }
 
 .weekday {
-  padding: 12px 8px;
+  padding: 6px 4px;
   text-align: center;
   font-weight: 500;
   color: #6b7280;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: capitalize;
   letter-spacing: 0;
 }
@@ -1948,19 +2270,18 @@ export default {
 }
 
 .calendar-day {
-  aspect-ratio: 1;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: #374151;
   font-weight: 500;
-  font-size: 15px;
+  font-size: 13px;
   transition: all 0.2s ease;
   position: relative;
-  border-radius: 12px;
-  margin: 3px;
-  min-height: 44px;
+  border-radius: 8px;
+  margin: 2px;
 }
 
 [data-bs-theme="dark"] .calendar-day {
@@ -2024,10 +2345,12 @@ export default {
 .time-slots {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  max-height: 400px;
+  flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
 }
 
 .time-slot {
@@ -2160,6 +2483,36 @@ export default {
 
 .time-slots::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+.no-slots-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+}
+
+.no-slots-message i {
+  font-size: 2rem;
+  margin-bottom: 16px;
+  color: #d1d5db;
+}
+
+.no-slots-message p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.no-slots-message .hint {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+[data-bs-theme="dark"] .no-slots-message {
+  color: #9ca3af;
+}
+
+[data-bs-theme="dark"] .no-slots-message i {
+  color: #4b5563;
 }
 
 /* Forms - Enhanced Design */
@@ -2575,13 +2928,15 @@ export default {
 
 .summary-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
+  padding-top: 4px;
+  flex-shrink: 0;
 }
 
 .summary-icon {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 20px auto;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 10px auto;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 50%;
   display: flex;
@@ -2591,7 +2946,7 @@ export default {
 }
 
 .summary-icon i {
-  font-size: 36px;
+  font-size: 22px;
   color: white;
 }
 
@@ -2600,8 +2955,8 @@ export default {
 }
 
 .summary-header h2 {
-  margin: 0 0 8px 0;
-  font-size: 2rem;
+  margin: 0 0 4px 0;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #1f2937;
   letter-spacing: -0.02em;
@@ -2613,7 +2968,7 @@ export default {
 
 .summary-header p {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   color: #6b7280;
   font-weight: 400;
 }
@@ -2622,36 +2977,77 @@ export default {
   color: #9ca3af;
 }
 
+.summary-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
 .summary-container {
-  max-width: 600px;
+  max-width: 700px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+  padding-bottom: 32px;
 }
 
 .summary-customer-card {
-  text-align: center;
-  padding: 24px;
-  background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.summary-customer-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 [data-bs-theme="dark"] .summary-customer-card {
   background: linear-gradient(145deg, #374151 0%, #1f2937 100%);
   border-color: #4b5563;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-bs-theme="dark"] .summary-customer-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.customer-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.customer-avatar i {
+  font-size: 20px;
+  color: white;
+}
+
+.customer-details {
+  flex: 1;
+  text-align: left;
 }
 
 .customer-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 [data-bs-theme="dark"] .customer-label {
@@ -2659,48 +3055,103 @@ export default {
 }
 
 .customer-name {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: #1f2937;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 [data-bs-theme="dark"] .customer-name {
   color: #f9fafb;
 }
 
-.summary-details-grid {
+.summary-main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.summary-additional-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
 .summary-detail-card {
-  padding: 24px;
-  background: #ffffff;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  background: linear-gradient(145deg, #ffffff 0%, #fefefe 100%);
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.summary-detail-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
 }
 
 .summary-detail-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
 [data-bs-theme="dark"] .summary-detail-card {
-  background: #374151;
+  background: linear-gradient(145deg, #374151 0%, #2d3748 100%);
   border-color: #4b5563;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 [data-bs-theme="dark"] .summary-detail-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  color: white;
+}
+
+.service-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.datetime-icon {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+}
+
+.vehicle-icon {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.notes-icon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+.card-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .detail-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: #6b7280;
   text-transform: uppercase;
@@ -2713,11 +3164,12 @@ export default {
 }
 
 .detail-value {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: #1f2937;
-  line-height: 1.4;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  line-height: 1.3;
+  word-wrap: break-word;
 }
 
 [data-bs-theme="dark"] .detail-value {
@@ -2726,41 +3178,102 @@ export default {
 
 .detail-extra {
   font-size: 14px;
+  font-weight: 500;
   color: #6b7280;
-  font-weight: 400;
-  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-extra i {
+  font-size: 12px;
+  opacity: 0.8;
 }
 
 [data-bs-theme="dark"] .detail-extra {
   color: #9ca3af;
 }
 
-.summary-notes-card {
-  padding: 20px 24px;
-  background: #ffffff;
+.summary-info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  background: linear-gradient(145deg, #ffffff 0%, #fefefe 100%);
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
 }
 
-[data-bs-theme="dark"] .summary-notes-card {
-  background: #374151;
+.summary-info-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="dark"] .summary-info-card {
+  background: linear-gradient(145deg, #374151 0%, #2d3748 100%);
   border-color: #4b5563;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+[data-bs-theme="dark"] .summary-info-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .summary-pricing {
-  background: #ffffff;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.summary-pricing:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
 [data-bs-theme="dark"] .summary-pricing {
-  background: #374151;
+  background: linear-gradient(145deg, #374151 0%, #1f2937 100%);
   border-color: #4b5563;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+[data-bs-theme="dark"] .summary-pricing:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.pricing-header {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.pricing-header i {
+  font-size: 18px;
+  opacity: 0.9;
+}
+
+.pricing-content {
+  padding: 20px;
+}
+
+.pricing-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #e5e7eb 20%, #e5e7eb 80%, transparent 100%);
+  margin: 20px 0;
+}
+
+[data-bs-theme="dark"] .pricing-divider {
+  background: linear-gradient(90deg, transparent 0%, #4b5563 20%, #4b5563 80%, transparent 100%);
 }
 
 .pricing-row {
@@ -2808,17 +3321,100 @@ export default {
 
 /* Responsive Summary */
 @media (max-width: 768px) {
-  .summary-details-grid {
+  .summary-main-grid, .summary-additional-grid {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 18px;
   }
   
   .summary-container {
-    gap: 20px;
+    gap: 18px;
+    max-width: 100%;
+    padding-bottom: 24px;
+  }
+  
+  .summary-header {
+    margin-bottom: 18px;
+    padding-top: 2px;
+  }
+  
+  .summary-scrollable {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  
+  .summary-icon {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 10px;
+  }
+  
+  .summary-icon i {
+    font-size: 20px;
+  }
+  
+  .summary-header h2 {
+    font-size: 1.3rem;
+  }
+  
+  .summary-customer-card {
+    padding: 16px 20px;
+    gap: 12px;
+  }
+  
+  .customer-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .customer-avatar i {
+    font-size: 18px;
+  }
+  
+  .customer-name {
+    font-size: 18px;
+  }
+  
+  .summary-detail-card, .summary-info-card {
+    padding: 16px;
+    gap: 12px;
+  }
+  
+  .card-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+  
+  .detail-value {
+    font-size: 14px;
+  }
+  
+  .detail-extra {
+    font-size: 12px;
+  }
+  
+  .pricing-header {
+    padding: 14px 18px;
+    font-size: 14px;
+  }
+  
+  .pricing-content {
+    padding: 18px;
   }
   
   .summary-step {
-    padding: 16px 20px 40px 20px !important;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .step-content {
+    flex: 1;
+    min-height: 0;
+    padding: 16px 20px 30px 20px;
+    overflow-y: auto;
   }
 }
 
@@ -3056,5 +3652,118 @@ export default {
   .time-slots {
     grid-template-columns: 1fr;
   }
+}
+
+/* Button Styles - Improved Visibility */
+.btn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  outline: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+}
+
+.btn-primary:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Dark theme button styles */
+[data-bs-theme="dark"] .btn-primary {
+  background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
+  color: white;
+  border: 2px solid #333333;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+}
+
+[data-bs-theme="dark"] .btn-primary:hover {
+  background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%);
+  border-color: #555555;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+[data-bs-theme="dark"] .btn-primary:active {
+  background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+  transform: translateY(0);
+}
+
+[data-bs-theme="dark"] .btn-primary:disabled {
+  background: #444444;
+  border-color: #333333;
+  color: #666666;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+}
+
+.btn-secondary:hover {
+  background: #e9ecef;
+  color: #495057;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+[data-bs-theme="dark"] .btn-secondary {
+  background: #495057;
+  color: #f8f9fa;
+  border: 1px solid #6c757d;
+}
+
+[data-bs-theme="dark"] .btn-secondary:hover {
+  background: #6c757d;
+  color: white;
+  border-color: #adb5bd;
+}
+
+/* Modal Footer Button Spacing */
+.modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 32px;
+  border-top: 1px solid #dee2e6;
+  background: #f8f9fa;
+}
+
+[data-bs-theme="dark"] .modal-footer {
+  border-top-color: #495057;
+  background: #343a40;
+}
+
+.footer-spacer {
+  flex: 1;
 }
 </style>

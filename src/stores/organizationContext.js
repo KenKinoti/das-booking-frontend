@@ -129,6 +129,20 @@ export const useOrganizationContextStore = defineStore('organizationContext', {
         this.currentOrganization = null
         localStorage.removeItem('selectedOrganizationId')
       }
+    },
+
+    switchToOrganization(orgId, orgName) {
+      const org = this.organizations.find(o => o.id === orgId)
+      if (org) {
+        this.setCurrentOrganization(org)
+      }
+    },
+
+    switchToAllOrganizations() {
+      const authStore = useAuthStore()
+      if (authStore.isSuperAdmin) {
+        this.setCurrentOrganization(null)
+      }
     }
   }
 })

@@ -26,19 +26,31 @@ export const useUsersStore = defineStore('users', {
 
     activeUsers: (state) => {
       return state.users.filter(user => user.is_active)
+    },
+
+    // Staff getter for Staff.vue component
+    staff: (state) => {
+      return state.users
     }
   },
 
   actions: {
     async fetchUsers(params = {}) {
+      console.log('🔄 fetchUsers called with params:', params)
       this.isLoading = true
       this.error = null
       
       try {
+        console.log('📡 Calling usersService.getAll...')
         const response = await usersService.getAll(params)
-        this.users = response.data.users || response.data
+        console.log('✅ Response received:', response)
+        
+        this.users = response.data.users || response.data.staff || response.data || []
         this.pagination = response.data.pagination || this.pagination
+        
+        console.log('👥 Users set:', this.users.length, 'users')
       } catch (error) {
+        console.error('❌ fetchUsers error:', error)
         this.error = error.response?.data?.message || 'Failed to fetch users'
         throw error
       } finally {

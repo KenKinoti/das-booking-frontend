@@ -51,66 +51,97 @@
         </div>
 
         <div v-else class="organizations-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Organization</th>
-                <th>Contact</th>
-                <th>Subscription</th>
-                <th>Status</th>
-                <th>Users</th>
-                <th>Participants</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="org in organizations" :key="org.id">
-                <td>
-                  <div class="org-info">
-                    <strong>{{ org.name }}</strong>
-                    <div class="org-details">
-                      <span v-if="org.abn">ABN: {{ org.abn }}</span>
-                      <span v-if="org.website">{{ org.website }}</span>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div class="contact-info">
-                    <div v-if="org.email">{{ org.email }}</div>
-                    <div v-if="org.phone">{{ org.phone }}</div>
-                  </div>
-                </td>
-                <td>
-                  <div class="subscription-info">
-                    <span class="plan-name">{{ getSubscriptionPlan(org) }}</span>
-                    <span class="subscription-status" :class="getSubscriptionStatus(org)">
-                      {{ getSubscriptionStatus(org) }}
+          <div class="organizations-grid">
+            <div v-for="org in organizations" :key="org.id" class="organization-card">
+              <div class="org-header">
+                <div class="org-avatar">
+                  <i class="fas fa-building"></i>
+                </div>
+                <div class="org-basic-info">
+                  <h3 class="org-name">{{ org.name }}</h3>
+                  <div class="org-details">
+                    <span v-if="org.abn" class="detail-item">
+                      <i class="fas fa-file-alt"></i>
+                      ABN: {{ org.abn }}
+                    </span>
+                    <span v-if="org.website" class="detail-item">
+                      <i class="fas fa-globe"></i>
+                      {{ org.website }}
                     </span>
                   </div>
-                </td>
-                <td>
-                  <span class="status-badge" :class="`status-${getSubscriptionStatus(org)}`">
+                </div>
+                <div class="org-status">
+                  <span class="status-badge" :class="`status-${getSubscriptionStatus(org).toLowerCase()}`">
                     {{ formatStatus(getSubscriptionStatus(org)) }}
                   </span>
-                  <button @click="editStatus(org)" class="btn btn-xs btn-edit-status" title="Edit Status">
-                    <i class="fas fa-edit"></i>
-                  </button>
-                </td>
-                <td>{{ org.users?.length || 0 }}</td>
-                <td>{{ org.participants?.length || 0 }}</td>
-                <td>{{ formatDate(org.created_at) }}</td>
-                <td>
-                  <div class="action-buttons">
-                    <button @click="viewOrganization(org)" class="btn btn-sm btn-info">
-                      <i class="fas fa-eye"></i>
-                      View
-                    </button>
+                </div>
+              </div>
+
+              <div class="org-stats">
+                <div class="stat-item">
+                  <div class="stat-icon users">
+                    <i class="fas fa-users"></i>
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <div class="stat-content">
+                    <div class="stat-number">{{ org.users?.length || 0 }}</div>
+                    <div class="stat-label">Users</div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-icon participants">
+                    <i class="fas fa-user-friends"></i>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-number">{{ org.participants?.length || 0 }}</div>
+                    <div class="stat-label">Participants</div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-icon subscription">
+                    <i class="fas fa-credit-card"></i>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-number">{{ getSubscriptionPlan(org) }}</div>
+                    <div class="stat-label">Plan</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="org-contact">
+                <div v-if="org.email" class="contact-item">
+                  <i class="fas fa-envelope"></i>
+                  <span>{{ org.email }}</span>
+                </div>
+                <div v-if="org.phone" class="contact-item">
+                  <i class="fas fa-phone"></i>
+                  <span>{{ org.phone }}</span>
+                </div>
+                <div class="contact-item">
+                  <i class="fas fa-calendar-alt"></i>
+                  <span>Created {{ formatDate(org.created_at) }}</span>
+                </div>
+              </div>
+
+              <div class="org-actions">
+                <button @click="viewOrganization(org)" class="btn-action btn-view" title="View Organization">
+                  <i class="fas fa-eye"></i>
+                  <span>View</span>
+                </button>
+                <button @click="editOrganization(org)" class="btn-action btn-edit" title="Edit Organization">
+                  <i class="fas fa-edit"></i>
+                  <span>Edit</span>
+                </button>
+                <button @click="editStatus(org)" class="btn-action btn-status" title="Edit Status">
+                  <i class="fas fa-toggle-on"></i>
+                  <span>Status</span>
+                </button>
+                <button @click="loginAsOrganization(org)" class="btn-action btn-login" title="Login As Organization">
+                  <i class="fas fa-sign-in-alt"></i>
+                  <span>Login As</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Pagination -->
@@ -778,6 +809,342 @@ export default {
 </script>
 
 <style scoped>
+/* Modern Organization Cards */
+.organizations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 2rem;
+  padding: 1rem 0;
+}
+
+.organization-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: var(--stat-card-shadow);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.organization-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 50%, #3b82f6 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.organization-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+[data-theme="dark"] .organization-card {
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(31, 41, 55, 0.85) 100%);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3), 0 8px 16px rgba(0,0,0,0.15);
+}
+
+/* Organization Header */
+.org-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.org-avatar {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: white;
+  box-shadow: 0 8px 32px rgba(79, 172, 254, 0.25);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.organization-card:hover .org-avatar {
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 12px 40px rgba(79, 172, 254, 0.35);
+}
+
+.org-basic-info {
+  flex: 1;
+}
+
+.org-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
+}
+
+[data-theme="dark"] .org-name {
+  color: #f3f4f6;
+}
+
+.org-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.detail-item i {
+  width: 14px;
+  color: var(--primary);
+}
+
+.org-status {
+  flex-shrink: 0;
+}
+
+.status-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.status-active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-badge.status-suspended {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.status-badge.status-cancelled {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Organization Stats */
+.org-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: rgba(248, 250, 252, 0.8);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .org-stats {
+  background: rgba(17, 24, 39, 0.8);
+  border-color: rgba(75, 85, 99, 0.3);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: white;
+  flex-shrink: 0;
+}
+
+.stat-icon.users {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-icon.participants {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.stat-icon.subscription {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-number {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+[data-theme="dark"] .stat-number {
+  color: #f3f4f6;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 0.25rem;
+}
+
+/* Organization Contact */
+.org-contact {
+  margin: 1.5rem 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.contact-item i {
+  width: 16px;
+  color: var(--primary);
+}
+
+/* Organization Actions */
+.org-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.btn-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  justify-content: center;
+}
+
+[data-theme="dark"] .btn-action {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(75, 85, 99, 0.3);
+  color: #e5e7eb;
+}
+
+.btn-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.btn-view {
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+}
+
+.btn-view:hover {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-edit {
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+}
+
+.btn-edit:hover {
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-status {
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.btn-status:hover {
+  background: #10b981;
+  color: white;
+}
+
+.btn-login {
+  border-color: rgba(139, 92, 246, 0.3);
+  color: #8b5cf6;
+}
+
+.btn-login:hover {
+  background: #8b5cf6;
+  color: white;
+}
+
+@media (max-width: 1200px) {
+  .organizations-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .organizations-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .org-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .org-actions {
+    grid-template-columns: 1fr;
+  }
+  
+  .organization-card {
+    padding: 1.5rem;
+  }
+}
+
 /* Component-specific styles that extend the global theme */
 
 /* Participants-style filters */

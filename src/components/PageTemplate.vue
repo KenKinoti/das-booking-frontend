@@ -57,6 +57,16 @@
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
+
+          <select 
+            v-if="showRoleFilter"
+            :value="roleFilter" 
+            @change="$emit('role-filter-updated', $event.target.value)"
+            class="form-select"
+          >
+            <option value="">All Roles</option>
+            <slot name="role-options"></slot>
+          </select>
           
           <button @click="$emit('clear-filters')" class="btn btn-outline-elegant">
             <i class="fas fa-times"></i>
@@ -515,14 +525,51 @@ export default {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  color: white;
-  border: 2px solid transparent;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--bs-body-color);
+  border-radius: 12px;
+  padding: 0.875rem 1.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--stat-card-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transition: left 0.6s;
+}
+
+.btn-primary:hover::after {
+  left: 100%;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .btn-primary {
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(31, 41, 55, 0.85) 100%);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  color: #e5e7eb;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  border-color: rgba(102, 126, 234, 0.8);
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.98) 0%, rgba(31, 41, 55, 0.9) 100%);
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.25), 0 4px 8px rgba(0,0,0,0.3);
 }
 
 .btn-outline-elegant {
@@ -648,5 +695,100 @@ export default {
     justify-content: center;
     flex-wrap: wrap;
   }
+}
+
+/* Dark Theme Support for Search and Forms */
+[data-theme="dark"] .filters-section {
+  background: rgba(31, 41, 55, 0.95);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+[data-theme="dark"] .search-box i {
+  color: rgba(156, 163, 175, 0.8);
+}
+
+[data-theme="dark"] .form-input {
+  background: rgba(17, 24, 39, 0.8);
+  border: 2px solid rgba(75, 85, 99, 0.3);
+  color: rgba(243, 244, 246, 0.95);
+}
+
+[data-theme="dark"] .form-input::placeholder {
+  color: rgba(156, 163, 175, 0.6);
+}
+
+[data-theme="dark"] .form-input:focus {
+  background: rgba(17, 24, 39, 0.95);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .form-select {
+  background: rgba(17, 24, 39, 0.8);
+  border: 2px solid rgba(75, 85, 99, 0.3);
+  color: rgba(243, 244, 246, 0.95);
+}
+
+[data-theme="dark"] .form-select:focus {
+  background: rgba(17, 24, 39, 0.95);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .form-select option {
+  background: #1f2937;
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .btn-outline-elegant {
+  background: rgba(31, 41, 55, 0.6);
+  border: 2px solid rgba(75, 85, 99, 0.4);
+  color: rgba(209, 213, 219, 0.95);
+}
+
+[data-theme="dark"] .btn-outline-elegant:hover {
+  background: rgba(55, 65, 81, 0.8);
+  border-color: rgba(107, 114, 128, 0.5);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .view-btn-elegant {
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  color: rgba(156, 163, 175, 0.8);
+}
+
+[data-theme="dark"] .view-btn-elegant:hover {
+  background: rgba(55, 65, 81, 0.8);
+  color: rgba(243, 244, 246, 0.95);
+}
+
+[data-theme="dark"] .view-btn-elegant.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-color: transparent;
+  color: white;
+}
+
+[data-theme="dark"] .content-card {
+  background: rgba(31, 41, 55, 0.95);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  color: rgba(243, 244, 246, 0.95);
+}
+
+[data-theme="dark"] .empty-state {
+  background: rgba(31, 41, 55, 0.95);
+  color: rgba(243, 244, 246, 0.95);
+}
+
+[data-theme="dark"] .empty-state h3 {
+  color: rgba(243, 244, 246, 0.95);
+}
+
+[data-theme="dark"] .empty-state p {
+  color: rgba(156, 163, 175, 0.8);
+}
+
+[data-theme="dark"] .empty-state i {
+  color: rgba(107, 114, 128, 0.6);
 }
 </style>

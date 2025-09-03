@@ -1,22 +1,14 @@
 <template>
-  <div class="services-page">
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-wrench"></i>
-          </div>
-          Service Catalog
-        </h1>
-        <p class="page-description">Manage automotive & beauty services, pricing, and availability</p>
-      </div>
-      <div class="header-actions">
-        <button @click="showAddModal = true" class="btn-primary">
-          <i class="fas fa-plus"></i>
-          Add Service
-        </button>
-      </div>
-    </div>
+  <PageTemplate
+    page-title="Service Catalog"
+    page-description="Manage automotive & beauty services, pricing, and availability"
+    header-icon="fas fa-wrench"
+    :stats-cards="statsCards"
+    :show-add-button="true"
+    add-button-text="Add Service"
+    @add-clicked="showAddModal = true"
+  >
+    <template #content>
 
     <!-- Services Grid -->
     <div class="services-grid">
@@ -96,127 +88,134 @@
       </div>
     </div>
 
-    <!-- Add/Edit Service Modal -->
-    <div v-if="showAddModal || showEditModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-header">
-          <h2>{{ isEditing ? 'Edit Service' : 'Add New Service' }}</h2>
-          <button @click="closeModal" class="btn-close">
-            <i class="fas fa-times"></i>
+    </template>
+  </PageTemplate>
+
+  <!-- Add/Edit Service Modal -->
+  <div v-if="showAddModal || showEditModal" class="modal-overlay" @click="closeModal">
+    <div class="modal-container" @click.stop>
+      <div class="modal-header">
+        <h2>{{ isEditing ? 'Edit Service' : 'Add New Service' }}</h2>
+        <button @click="closeModal" class="btn-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <form @submit.prevent="saveService" class="modal-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Service Name *</label>
+            <input 
+              type="text" 
+              v-model="serviceForm.name" 
+              class="form-input" 
+              required
+              placeholder="e.g., Oil Change, Haircut, Massage"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label>Category *</label>
+            <select v-model="serviceForm.category" class="form-input" required>
+              <option value="">Select Category</option>
+              <option v-for="cat in categories" :key="cat.name" :value="cat.name">
+                {{ cat.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea 
+            v-model="serviceForm.description" 
+            class="form-textarea" 
+            rows="3"
+            placeholder="Describe what this service includes..."
+          ></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Price ($) *</label>
+            <input 
+              type="number" 
+              v-model.number="serviceForm.price" 
+              class="form-input" 
+              required
+              min="0" 
+              step="0.01"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label>Duration (minutes) *</label>
+            <input 
+              type="number" 
+              v-model.number="serviceForm.duration" 
+              class="form-input" 
+              required
+              min="15" 
+              step="15"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Icon</label>
+            <select v-model="serviceForm.icon" class="form-input">
+              <option value="fas fa-wrench">🔧 Wrench</option>
+              <option value="fas fa-cut">✂️ Scissors</option>
+              <option value="fas fa-car">🚗 Car</option>
+              <option value="fas fa-spa">🧘 Spa</option>
+              <option value="fas fa-paint-brush">🎨 Paint</option>
+              <option value="fas fa-hammer">🔨 Repair</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label>Color</label>
+            <select v-model="serviceForm.color" class="form-input">
+              <option value="#667eea">Blue</option>
+              <option value="#4facfe">Light Blue</option>
+              <option value="#43e97b">Green</option>
+              <option value="#fa709a">Pink</option>
+              <option value="#ffc107">Yellow</option>
+              <option value="#6f42c1">Purple</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="serviceForm.active" />
+            <span class="checkmark"></span>
+            Service is active and bookable
+          </label>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" @click="closeModal" class="btn btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary">
+            {{ isEditing ? 'Update Service' : 'Create Service' }}
           </button>
         </div>
-        
-        <form @submit.prevent="saveService" class="modal-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Service Name *</label>
-              <input 
-                type="text" 
-                v-model="serviceForm.name" 
-                class="form-input" 
-                required
-                placeholder="e.g., Oil Change, Haircut, Massage"
-              />
-            </div>
-            
-            <div class="form-group">
-              <label>Category *</label>
-              <select v-model="serviceForm.category" class="form-input" required>
-                <option value="">Select Category</option>
-                <option v-for="cat in categories" :key="cat.name" :value="cat.name">
-                  {{ cat.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Description</label>
-            <textarea 
-              v-model="serviceForm.description" 
-              class="form-textarea" 
-              rows="3"
-              placeholder="Describe what this service includes..."
-            ></textarea>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Price ($) *</label>
-              <input 
-                type="number" 
-                v-model.number="serviceForm.price" 
-                class="form-input" 
-                required
-                min="0" 
-                step="0.01"
-              />
-            </div>
-            
-            <div class="form-group">
-              <label>Duration (minutes) *</label>
-              <input 
-                type="number" 
-                v-model.number="serviceForm.duration" 
-                class="form-input" 
-                required
-                min="15" 
-                step="15"
-              />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Icon</label>
-              <select v-model="serviceForm.icon" class="form-input">
-                <option value="fas fa-wrench">🔧 Wrench</option>
-                <option value="fas fa-cut">✂️ Scissors</option>
-                <option value="fas fa-car">🚗 Car</option>
-                <option value="fas fa-spa">🧘 Spa</option>
-                <option value="fas fa-paint-brush">🎨 Paint</option>
-                <option value="fas fa-hammer">🔨 Repair</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label>Color</label>
-              <select v-model="serviceForm.color" class="form-input">
-                <option value="#667eea">Blue</option>
-                <option value="#4facfe">Light Blue</option>
-                <option value="#43e97b">Green</option>
-                <option value="#fa709a">Pink</option>
-                <option value="#ffc107">Yellow</option>
-                <option value="#6f42c1">Purple</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="serviceForm.active" />
-              <span class="checkmark"></span>
-              Service is active and bookable
-            </label>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" @click="closeModal" class="btn btn-outline">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary">
-              {{ isEditing ? 'Update Service' : 'Create Service' }}
-            </button>
-          </div>
-        </form>
-      </div>
+      </form>
     </div>
   </div>
 </template>
 
 <script>
+import PageTemplate from '@/components/PageTemplate.vue'
+
 export default {
   name: 'Services',
+  components: {
+    PageTemplate
+  },
   data() {
     return {
       showAddModal: false,
@@ -306,6 +305,40 @@ export default {
   computed: {
     isEditing() {
       return this.showEditModal && this.editingService
+    },
+    
+    statsCards() {
+      const activeServices = this.services.filter(s => s.active).length
+      const avgPrice = this.services.length > 0 
+        ? (this.services.reduce((sum, s) => sum + s.price, 0) / this.services.length).toFixed(0)
+        : 0
+      
+      return [
+        {
+          value: this.services.length,
+          label: 'Total Services',
+          icon: 'fas fa-wrench',
+          type: 'info'
+        },
+        {
+          value: activeServices,
+          label: 'Active Services',
+          icon: 'fas fa-check-circle',
+          type: 'success'
+        },
+        {
+          value: this.categories.length,
+          label: 'Categories',
+          icon: 'fas fa-tags',
+          type: 'warning'
+        },
+        {
+          value: `$${avgPrice}`,
+          label: 'Average Price',
+          icon: 'fas fa-dollar-sign',
+          type: 'info'
+        }
+      ]
     }
   },
   methods: {

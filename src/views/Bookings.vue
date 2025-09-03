@@ -1,143 +1,39 @@
 <template>
-  <div class="bookings-page" :class="{ 'wp-embedded': isWordPressEmbed }">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-calendar-check"></i>
-          </div>
-          Booking Management
-        </h1>
-        <p class="page-description">Manage appointments and scheduling for your automotive & beauty services</p>
-      </div>
-      <div class="header-actions">
-        <button @click="testConnection" class="btn-secondary" title="Test API connection">
-          <i class="fas fa-bug"></i>
-          Test API
-        </button>
-        <button @click="showAddModal = true" class="btn-primary">
-          <i class="fas fa-plus"></i>
-          New Booking
-        </button>
-      </div>
-    </div>
+  <PageTemplate
+    page-title="Booking Management"
+    page-description="Manage appointments and scheduling for your automotive & beauty services"
+    header-icon="fas fa-calendar-check"
+    :stats-cards="statsCards"
+    :show-filters="true"
+    :show-status-filter="true"
+    :show-add-button="true"
+    :show-view-toggle="true"
+    add-button-text="New Booking"
+    :search-query="searchQuery"
+    :status-filter="statusFilter"
+    :current-view="currentView"
+    @add-clicked="showAddModal = true"
+    @search-updated="searchQuery = $event"
+    @status-filter-updated="statusFilter = $event"
+    @clear-filters="clearFilters"
+    @view-changed="currentView = $event"
+  >
+    <template #content>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>Loading bookings...</p>
-    </div>
-
-    <!-- Stats Overview -->
-    <div v-else class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon total">
-          <i class="fas fa-calendar-check"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ bookings.length || 0 }}</h3>
-          <p>Total Bookings</p>
-          <div class="stat-change positive">+12% this month</div>
-        </div>
-      </div>
+    <!-- Additional Filters for Bookings -->
+    <div class="additional-filters">
+      <select v-model="dateFilter" @change="filterBookings" class="form-select">
+        <option value="">All Dates</option>
+        <option value="today">📅 Today</option>
+        <option value="tomorrow">📅 Tomorrow</option>
+        <option value="this_week">📅 This Week</option>
+        <option value="next_week">📅 Next Week</option>
+      </select>
       
-      <div class="stat-card">
-        <div class="stat-icon completed">
-          <i class="fas fa-check-circle"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ completedBookings || 0 }}</h3>
-          <p>Completed</p>
-          <div class="stat-change positive">95% completion rate</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon pending">
-          <i class="fas fa-clock"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ pendingBookings || 0 }}</h3>
-          <p>Pending</p>
-          <div class="stat-change neutral">Awaiting confirmation</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon today">
-          <i class="fas fa-calendar-day"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ todayBookings || 0 }}</h3>
-          <p>Today's Bookings</p>
-          <div class="stat-change positive">{{ bookings.length > 0 ? (todayBookings / bookings.length * 100).toFixed(0) : 0 }}% of total</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Search and Filters -->
-    <div class="filters-section">
-      <div class="filters-container">
-        <div class="search-box">
-          <i class="fas fa-search"></i>
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Search by customer, service, or vehicle..." 
-            class="search-input"
-            @input="filterBookings"
-          />
-        </div>
-        
-        <div class="filter-controls">
-          <div class="filter-group">
-            <label>Status</label>
-            <select v-model="statusFilter" @change="filterBookings" class="filter-select">
-              <option value="">All Status</option>
-              <option value="scheduled">🕐 Scheduled</option>
-              <option value="confirmed">✅ Confirmed</option>
-              <option value="in_progress">🔄 In Progress</option>
-              <option value="completed">✅ Completed</option>
-              <option value="cancelled">❌ Cancelled</option>
-            </select>
-          </div>
-          
-          <div class="filter-group">
-            <label>Date Range</label>
-            <select v-model="dateFilter" @change="filterBookings" class="filter-select">
-              <option value="">All Dates</option>
-              <option value="today">📅 Today</option>
-              <option value="tomorrow">📅 Tomorrow</option>
-              <option value="this_week">📅 This Week</option>
-              <option value="next_week">📅 Next Week</option>
-            </select>
-          </div>
-          
-          <button @click="clearFilters" class="btn-secondary">
-            <i class="fas fa-times"></i>
-            Clear
-          </button>
-        </div>
-      </div>
-      
-      <!-- View Toggle -->
-      <div class="view-toggle">
-        <button 
-          @click="currentView = 'list'" 
-          :class="['view-btn', { active: currentView === 'list' }]"
-          title="List View"
-        >
-          <i class="fas fa-list"></i>
-        </button>
-        <button 
-          @click="currentView = 'calendar'" 
-          :class="['view-btn', { active: currentView === 'calendar' }]"
-          title="Calendar View"
-        >
-          <i class="fas fa-calendar-alt"></i>
-        </button>
-      </div>
+      <button @click="testConnection" class="btn btn-outline-elegant" title="Test API connection">
+        <i class="fas fa-bug"></i>
+        Test API
+      </button>
     </div>
 
     <!-- Bookings Content -->
@@ -181,7 +77,14 @@
             v-for="booking in paginatedBookings" 
             :key="booking.id" 
             class="table-row"
-            :class="{ 'urgent': isUrgent(booking), 'no-vehicle': !hasVehicleData }"
+            :class="{ 
+              'urgent': isUrgent(booking), 
+              'no-vehicle': !hasVehicleData,
+              'status-confirmed': booking.status === 'confirmed',
+              'status-completed': booking.status === 'completed',
+              'status-cancelled': booking.status === 'cancelled',
+              'status-in-progress': booking.status === 'in_progress'
+            }"
           >
             <div class="table-cell">
               <div class="booking-time">
@@ -237,6 +140,13 @@
             <div class="table-cell">
               <div class="action-buttons">
                 <button 
+                  @click="viewBookingDetails(booking)" 
+                  class="btn-icon btn-view"
+                  title="View booking details"
+                >
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button 
                   @click="editBooking(booking)" 
                   class="btn-icon btn-edit"
                   title="Edit booking"
@@ -264,9 +174,9 @@
         </div>
         
         <!-- Pagination Controls -->
-        <div class="pagination-container">
+        <div v-if="totalCount > 0" class="pagination-container">
           <div class="pagination-info">
-            Showing {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, totalCount) }} of {{ totalCount }} bookings
+            Showing {{ Math.max(1, (currentPage - 1) * itemsPerPage + 1) }} - {{ Math.min(currentPage * itemsPerPage, totalCount || 0) }} of {{ totalCount || 0 }} bookings
           </div>
           
           <div class="pagination-controls">
@@ -318,10 +228,12 @@
           <div class="page-size-selector">
             <label>Show:</label>
             <select v-model="itemsPerPage" @change="currentPage = 1; loadBookings()">
+              <option :value="8">8</option>
               <option :value="10">10</option>
               <option :value="20">20</option>
               <option :value="50">50</option>
               <option :value="100">100</option>
+              <option :value="1000">Show All</option>
             </select>
           </div>
         </div>
@@ -330,60 +242,51 @@
       <!-- Calendar View -->
       <div v-else-if="currentView === 'calendar'" class="calendar-view">
         <div class="calendar-header">
-          <button @click="previousWeek" class="btn btn-outline-elegant">
+          <button @click="previousMonth" class="btn btn-outline-elegant">
             <i class="fas fa-chevron-left"></i>
           </button>
-          <h3>{{ formatWeek(currentWeekStart) }}</h3>
-          <button @click="nextWeek" class="btn btn-outline-elegant">
+          <h3>{{ formatMonth(currentMonthStart) }}</h3>
+          <button @click="nextMonth" class="btn btn-outline-elegant">
             <i class="fas fa-chevron-right"></i>
           </button>
         </div>
         
-        <div class="calendar-grid">
-          <div class="time-column">
-            <div class="time-header"></div>
-            <div 
-              v-for="hour in businessHours" 
-              :key="hour" 
-              class="time-slot"
-            >
-              {{ formatHour(hour) }}
-            </div>
+        <div class="month-calendar">
+          <!-- Days of week header -->
+          <div class="calendar-weekdays">
+            <div class="weekday-header">Sun</div>
+            <div class="weekday-header">Mon</div>
+            <div class="weekday-header">Tue</div>
+            <div class="weekday-header">Wed</div>
+            <div class="weekday-header">Thu</div>
+            <div class="weekday-header">Fri</div>
+            <div class="weekday-header">Sat</div>
           </div>
           
-          <div 
-            v-for="day in weekDays" 
-            :key="day.toISOString()" 
-            class="day-column"
-          >
-            <div class="day-header">
-              <div class="day-name">{{ formatDayName(day) }}</div>
-              <div class="day-date">{{ formatDayDate(day) }}</div>
-            </div>
-            
-            <div class="day-slots">
-              <div 
-                v-for="hour in businessHours" 
-                :key="hour" 
-                class="hour-slot"
-                @click="quickBook(day, hour)"
-              >
+          <!-- Calendar days -->
+          <div class="calendar-days">
+            <div 
+              v-for="day in monthDays" 
+              :key="day.date.toISOString()"
+              class="calendar-day"
+              :class="{ 
+                'other-month': !day.isCurrentMonth,
+                'today': day.isToday
+              }"
+              @click="quickBook(day.date)"
+            >
+              <div class="day-number">{{ day.date.getDate() }}</div>
+              <div class="day-bookings">
                 <div 
-                  v-for="booking in getBookingsForSlot(day, hour)" 
+                  v-for="booking in getBookingsForDay(day.date)" 
                   :key="booking.id" 
-                  class="booking-block"
+                  class="booking-item"
                   :class="booking.status"
-                  @click.stop="editBooking(booking)"
+                  @click.stop="viewBookingDetails(booking)"
+                  :title="`${booking.customer?.first_name} ${booking.customer?.last_name} - ${formatTime(booking.start_time)}`"
                 >
-                  <div class="booking-title">
-                    {{ booking.customer?.first_name }} {{ booking.customer?.last_name }}
-                  </div>
-                  <div class="booking-service">
-                    {{ booking.services?.[0]?.name }}
-                  </div>
-                  <div class="booking-time">
-                    {{ formatTime(booking.start_time) }}
-                  </div>
+                  <span class="booking-time">{{ formatTime(booking.start_time) }}</span>
+                  <span class="booking-customer">{{ booking.customer?.first_name }}</span>
                 </div>
               </div>
             </div>
@@ -391,40 +294,6 @@
         </div>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="currentView === 'list' && totalPages > 1" class="pagination-container">
-        <div class="pagination-info">
-          Showing {{ (currentPage - 1) * itemsPerPage + 1 }} - {{ Math.min(currentPage * itemsPerPage, filteredBookings.length) }} of {{ filteredBookings.length }} bookings
-        </div>
-        <div class="pagination-controls">
-          <button 
-            @click="currentPage = Math.max(1, currentPage - 1)"
-            :disabled="currentPage === 1"
-            class="btn btn-outline-elegant"
-          >
-            <i class="fas fa-chevron-left"></i>
-            Previous
-          </button>
-          <span class="page-numbers">
-            <button 
-              v-for="page in visiblePages"
-              :key="page"
-              @click="currentPage = page"
-              :class="['page-number', { active: page === currentPage }]"
-            >
-              {{ page }}
-            </button>
-          </span>
-          <button 
-            @click="currentPage = Math.min(totalPages, currentPage + 1)"
-            :disabled="currentPage === totalPages"
-            class="btn btn-outline-elegant"
-          >
-            Next
-            <i class="fas fa-chevron-right"></i>
-          </button>
-        </div>
-      </div>
     </div>
 
     <!-- Add/Edit Booking Modal -->
@@ -438,6 +307,200 @@
       @close="closeModals"
       @save="saveBooking"
     />
+
+    <!-- Cancel Confirmation Modal -->
+    <div v-if="showCancelModal" class="modal-overlay cancel-modal-overlay">
+      <div class="modal-container cancel-confirmation-modal">
+        <div class="modal-header">
+          <div class="warning-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+          <h3>Cancel Booking</h3>
+        </div>
+        
+        <div class="modal-body">
+          <p>Are you sure you want to cancel this booking?</p>
+          <div v-if="bookingToCancel" class="booking-details">
+            <div class="detail-row">
+              <span class="label">Customer:</span>
+              <span class="value">{{ bookingToCancel.customer?.first_name }} {{ bookingToCancel.customer?.last_name }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Service:</span>
+              <span class="value">{{ getServiceName(bookingToCancel.service_id) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Date:</span>
+              <span class="value">{{ formatDate(bookingToCancel.start_time) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Time:</span>
+              <span class="value">{{ formatTime(bookingToCancel.start_time) }}</span>
+            </div>
+          </div>
+          <p class="warning-text">This action cannot be undone.</p>
+        </div>
+        
+        <div class="modal-footer">
+          <button @click="showCancelModal = false" class="btn btn-secondary">
+            <i class="fas fa-times"></i>
+            Keep Booking
+          </button>
+          <button @click="confirmCancelBooking" class="btn btn-danger">
+            <i class="fas fa-trash"></i>
+            Cancel Booking
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Booking Details Modal -->
+    <div v-if="showDetailsModal" class="modal-overlay details-modal-overlay">
+      <div class="modal-container booking-details-modal">
+        <div class="modal-header">
+          <div class="info-icon">
+            <i class="fas fa-info-circle"></i>
+          </div>
+          <h3>Booking Details</h3>
+          <button @click="showDetailsModal = false" class="modal-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="modal-body" v-if="selectedBooking">
+          <div class="details-container">
+            <!-- Customer Information -->
+            <div class="detail-section">
+              <h4><i class="fas fa-user"></i> Customer Information</h4>
+              <div class="detail-grid">
+                <div class="detail-row">
+                  <span class="label">Name:</span>
+                  <span class="value">{{ selectedBooking.customer?.first_name }} {{ selectedBooking.customer?.last_name }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Phone:</span>
+                  <span class="value">{{ selectedBooking.customer?.phone || 'Not provided' }}</span>
+                </div>
+                <div class="detail-row" v-if="selectedBooking.customer?.email">
+                  <span class="label">Email:</span>
+                  <span class="value">{{ selectedBooking.customer?.email }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Booking Information -->
+            <div class="detail-section">
+              <h4><i class="fas fa-calendar-alt"></i> Booking Information</h4>
+              <div class="detail-grid">
+                <div class="detail-row">
+                  <span class="label">Booking ID:</span>
+                  <span class="value">#{{ selectedBooking.id }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Date:</span>
+                  <span class="value">{{ formatDate(selectedBooking.start_time) }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Time:</span>
+                  <span class="value">{{ formatTime(selectedBooking.start_time) }} - {{ formatTime(selectedBooking.end_time) }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Duration:</span>
+                  <span class="value">{{ selectedBooking.duration }} minutes</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Status:</span>
+                  <span class="value">
+                    <span class="status-badge" :class="selectedBooking.status">
+                      {{ formatStatus(selectedBooking.status) }}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Service Information -->
+            <div class="detail-section">
+              <h4><i class="fas fa-wrench"></i> Service Information</h4>
+              <div class="detail-grid">
+                <div class="detail-row">
+                  <span class="label">Service:</span>
+                  <span class="value">{{ getServiceName(selectedBooking.service_id) || 'Service not found' }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Total Price:</span>
+                  <span class="value price-highlight">${{ selectedBooking.total_price?.toFixed(2) || '0.00' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Staff Information -->
+            <div class="detail-section" v-if="selectedBooking.staff">
+              <h4><i class="fas fa-user-tie"></i> Staff Information</h4>
+              <div class="detail-grid">
+                <div class="detail-row">
+                  <span class="label">Assigned Staff:</span>
+                  <span class="value">{{ selectedBooking.staff.first_name }} {{ selectedBooking.staff.last_name }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Vehicle Information -->
+            <div class="detail-section" v-if="selectedBooking.vehicle_info">
+              <h4><i class="fas fa-car"></i> Vehicle Information</h4>
+              <div class="detail-grid">
+                <div class="detail-row" v-if="selectedBooking.vehicle">
+                  <span class="label">Vehicle:</span>
+                  <span class="value">{{ selectedBooking.vehicle.make }} {{ selectedBooking.vehicle.model }}</span>
+                </div>
+                <div class="detail-row" v-if="selectedBooking.vehicle?.license_plate">
+                  <span class="label">License Plate:</span>
+                  <span class="value">{{ selectedBooking.vehicle.license_plate }}</span>
+                </div>
+                <div class="detail-row" v-if="selectedBooking.vehicle_info">
+                  <span class="label">Vehicle Info:</span>
+                  <span class="value">{{ selectedBooking.vehicle_info }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="detail-section" v-if="selectedBooking.notes">
+              <h4><i class="fas fa-sticky-note"></i> Notes</h4>
+              <div class="notes-content">
+                {{ selectedBooking.notes }}
+              </div>
+            </div>
+
+            <!-- Created/Updated Information -->
+            <div class="detail-section">
+              <h4><i class="fas fa-clock"></i> Timestamps</h4>
+              <div class="detail-grid">
+                <div class="detail-row">
+                  <span class="label">Created:</span>
+                  <span class="value">{{ formatDate(selectedBooking.created_at) }} {{ formatTime(selectedBooking.created_at) }}</span>
+                </div>
+                <div class="detail-row" v-if="selectedBooking.updated_at !== selectedBooking.created_at">
+                  <span class="label">Last Updated:</span>
+                  <span class="value">{{ formatDate(selectedBooking.updated_at) }} {{ formatTime(selectedBooking.updated_at) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button @click="editBooking(selectedBooking)" class="btn btn-primary">
+            <i class="fas fa-edit"></i>
+            Edit Booking
+          </button>
+          <button @click="showDetailsModal = false" class="btn btn-secondary">
+            <i class="fas fa-times"></i>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Database Error Modal -->
     <div v-if="showErrorModal" class="modal-overlay error-modal-overlay">
@@ -492,16 +555,20 @@
         </div>
       </div>
     </div>
-  </div>
+    </template>
+  </PageTemplate>
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import PageTemplate from '@/components/PageTemplate.vue'
 import BookingModal from '@/components/BookingModal.vue'
+import { useOrganizationContextStore } from '../stores/organizationContext'
 
 export default {
   name: 'Bookings',
   components: {
+    PageTemplate,
     BookingModal
   },
   setup() {
@@ -516,24 +583,41 @@ export default {
     const dateFilter = ref('')
     const currentView = ref('list')
     const currentPage = ref(1)
-    const itemsPerPage = ref(20)
+    const itemsPerPage = ref(10)
     const totalCount = ref(0)
     const totalPages = ref(1)
     const showAddModal = ref(false)
     const showEditModal = ref(false)
     const editingBooking = ref(null)
     const currentWeekStart = ref(new Date())
+    const currentMonthStart = ref(new Date())
     const isWordPressEmbed = ref(false)
+    
+    // Organization context
+    const orgContextStore = useOrganizationContextStore()
     
     // Error modal data
     const showErrorModal = ref(false)
     const errorTitle = ref('')
     const errorMessage = ref('')
+    
+    // Cancel confirmation modal data
+    const showCancelModal = ref(false)
+    const bookingToCancel = ref(null)
     const errorDetails = ref('')
+    
+    // View details modal data
+    const showDetailsModal = ref(false)
+    const selectedBooking = ref(null)
 
     // Helper functions to resolve booking data
     const getCustomerById = (customerId) => {
       return customers.value.find(c => c.id === customerId) || null
+    }
+
+    const getServiceName = (serviceId) => {
+      const service = services.value.find(s => s.id === serviceId)
+      return service ? service.name : 'Unknown Service'
     }
     
     const getServiceById = (serviceId) => {
@@ -564,36 +648,53 @@ export default {
         const customer = booking.customer || getCustomerById(booking.customer_id)
         console.log(`👤 Customer data:`, customer)
         
-        // For now, since service_id and staff_id are missing from bookings,
-        // we'll infer service from price and assign a placeholder
+        // Find the service by service_id
         let service = null
         let services = []
-        
-        // Try to match service by price (temporary fix until backend includes service_id)
         const availableServices = services.value || []
-        if (availableServices.length > 0 && booking.total_price === 85) {
-          service = availableServices.find(s => s.price === 85) // Oil Change
-        } else if (availableServices.length > 0 && booking.total_price === 180) {
-          service = availableServices.find(s => s.price === 180) // Brake Service  
-        } else if (availableServices.length > 0 && booking.total_price === 120) {
-          service = availableServices.find(s => s.price === 120) // Tire Rotation
-        } else if (availableServices.length > 0 && booking.total_price === 65) {
-          service = availableServices.find(s => s.price === 65) // Hair Cut
-        } else if (availableServices.length > 0 && booking.total_price === 95) {
-          service = availableServices.find(s => s.price === 95) // Facial Treatment
-        }
         
-        if (service) {
-          services = [service]
-          console.log(`🔧 Inferred service from price ${booking.total_price}:`, service.name)
+        if (booking.service_id && booking.service_id > 0) {
+          // Use the actual service_id from the booking
+          service = availableServices.find(s => s.id === booking.service_id)
+          if (service) {
+            services = [service]
+            console.log(`🔧 Found service by ID ${booking.service_id}:`, service.name)
+          }
         } else {
-          console.log(`🔧 Could not infer service for price: ${booking.total_price}`)
+          // Fallback: infer service from price (for old bookings without service_id)
+          if (availableServices.length > 0 && booking.total_price === 85) {
+            service = availableServices.find(s => s.price === 85) // Oil Change
+          } else if (availableServices.length > 0 && booking.total_price === 180) {
+            service = availableServices.find(s => s.price === 180) // Brake Service  
+          } else if (availableServices.length > 0 && booking.total_price === 120) {
+            service = availableServices.find(s => s.price === 120) // Tire Rotation
+          } else if (availableServices.length > 0 && booking.total_price === 65) {
+            service = availableServices.find(s => s.price === 65) // Hair Cut
+          } else if (availableServices.length > 0 && booking.total_price === 95) {
+            service = availableServices.find(s => s.price === 95) // Facial Treatment
+          }
+          
+          if (service) {
+            services = [service]
+            console.log(`🔧 Inferred service from price ${booking.total_price}:`, service.name)
+          } else {
+            console.log(`🔧 Could not infer service for price: ${booking.total_price}`)
+          }
         }
         
-        // Assign a random staff member for now (since staff_id is missing)
+        // Find the assigned staff member by staff_id
         const availableStaff = staff.value || []
-        const assignedStaff = availableStaff.length > 0 ? availableStaff[booking.id % availableStaff.length] : null
-        console.log(`👨‍💼 Assigned staff:`, assignedStaff)
+        let assignedStaff = null
+        
+        if (booking.staff_id && booking.staff_id > 0) {
+          // Use the actual staff_id from the booking
+          assignedStaff = availableStaff.find(s => s.id === booking.staff_id)
+          console.log(`👨‍💼 Found staff by ID ${booking.staff_id}:`, assignedStaff)
+        } else {
+          // Fallback: assign a staff member based on booking ID (for old bookings without staff_id)
+          assignedStaff = availableStaff.length > 0 ? availableStaff[booking.id % availableStaff.length] : null
+          console.log(`👨‍💼 Fallback assigned staff:`, assignedStaff)
+        }
         
         // Return enriched booking
         const enrichedBooking = {
@@ -612,6 +713,9 @@ export default {
         console.log('✅ Enriched booking:', enrichedBooking)
         return enrichedBooking
       })
+      
+      // Sort by start_time in ascending order (earliest dates first)
+      enriched.sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
       
       console.log('🎉 Final enriched bookings count:', enriched.length)
       return enriched
@@ -698,18 +802,58 @@ export default {
       return pages
     })
 
+    const activeBookings = computed(() => {
+      return bookings.value.filter(b => b.status !== 'cancelled').length
+    })
+
     const completedBookings = computed(() => {
       return bookings.value.filter(b => b.status === 'completed').length
     })
 
     const pendingBookings = computed(() => {
-      return bookings.value.filter(b => ['scheduled', 'confirmed'].includes(b.status)).length
+      return bookings.value.filter(b => ['scheduled', 'confirmed', 'in_progress'].includes(b.status)).length
     })
 
     const todayBookings = computed(() => {
       const today = new Date()
-      return bookings.value.filter(b => isSameDay(new Date(b.start_time), today)).length
+      return bookings.value.filter(b => 
+        isSameDay(new Date(b.start_time), today) && b.status !== 'cancelled'
+      ).length
     })
+
+    const statsCards = computed(() => [
+      {
+        value: activeBookings.value || 0,
+        label: 'Active Bookings',
+        icon: 'fas fa-calendar-check',
+        type: 'info'
+      },
+      {
+        value: completedBookings.value || 0,
+        label: 'Completed',
+        icon: 'fas fa-check-circle',
+        type: 'success'
+      },
+      {
+        value: pendingBookings.value || 0,
+        label: 'Pending',
+        icon: 'fas fa-clock',
+        type: 'warning'
+      },
+      {
+        value: todayBookings.value || 0,
+        label: 'Today\'s Bookings',
+        icon: 'fas fa-calendar-day',
+        type: 'info'
+      }
+    ])
+
+    const clearFilters = () => {
+      searchQuery.value = ''
+      statusFilter.value = ''
+      dateFilter.value = ''
+      filterBookings()
+    }
 
     const businessHours = computed(() => {
       const hours = []
@@ -876,6 +1020,11 @@ export default {
           pageSize: itemsPerPage.value
         })
         
+        // Add organization filter if selected (for non-super-admin or when org is selected)
+        if (orgContextStore.currentOrgId) {
+          queryParams.append('organization_id', orgContextStore.currentOrgId)
+        }
+        
         const url = `http://localhost:8080/api/bookings?${queryParams}`
         console.log('📡 Making request to:', url)
         
@@ -997,13 +1146,6 @@ export default {
       currentPage.value = 1
     }
 
-    const clearFilters = () => {
-      searchQuery.value = ''
-      statusFilter.value = ''
-      dateFilter.value = ''
-      filterBookings()
-    }
-
     const formatDate = (dateString) => {
       return new Date(dateString).toLocaleDateString('en-AU')
     }
@@ -1069,14 +1211,26 @@ export default {
     const editBooking = (booking) => {
       editingBooking.value = booking
       showEditModal.value = true
+      // Close details modal if it's open
+      showDetailsModal.value = false
     }
 
-    const deleteBooking = async (booking) => {
-      if (confirm('Are you sure you want to cancel this booking?')) {
+    const deleteBooking = (booking) => {
+      bookingToCancel.value = booking
+      showCancelModal.value = true
+    }
+    
+    const viewBookingDetails = (booking) => {
+      selectedBooking.value = booking
+      showDetailsModal.value = true
+    }
+
+    const confirmCancelBooking = async () => {
+      if (bookingToCancel.value) {
         try {
-          console.log('Canceling booking in database:', booking.id)
+          console.log('Canceling booking in database:', bookingToCancel.value.id)
           
-          const response = await fetch(`http://localhost:8080/api/bookings/${booking.id}`, {
+          const response = await fetch(`http://localhost:8080/api/bookings/${bookingToCancel.value.id}`, {
             method: 'DELETE',
             headers: {
               'Content-Type': 'application/json',
@@ -1088,6 +1242,8 @@ export default {
             const result = await response.json()
             if (result.success) {
               console.log('Booking canceled successfully in database:', result)
+              showCancelModal.value = false
+              bookingToCancel.value = null
               await loadBookings() // Reload to show updated list
             } else {
               throw new Error('Failed to cancel booking: ' + result.message)
@@ -1098,6 +1254,8 @@ export default {
           }
         } catch (error) {
           console.error('Failed to cancel booking:', error.message)
+          showCancelModal.value = false
+          bookingToCancel.value = null
           showError(
             'Failed to Cancel Booking',
             'Unable to cancel the booking. Please check your connection and try again.',
@@ -1289,6 +1447,21 @@ export default {
       showAddModal.value = true
     }
 
+    // Watch for organization changes and reload data
+    watch(
+      () => orgContextStore.currentOrgId,
+      (newOrgId, oldOrgId) => {
+        if (newOrgId !== oldOrgId) {
+          console.log('🏢 Organization changed in header, reloading bookings data...', { newOrgId, oldOrgId })
+          currentPage.value = 1 // Reset pagination
+          loadBookings()
+          loadCustomers()
+          loadServices()
+          loadStaff()
+        }
+      }
+    )
+
     // Lifecycle
     onMounted(async () => {
       console.log('🚀 BOOKINGS PAGE MOUNTED')
@@ -1335,6 +1508,7 @@ export default {
       customers,
       services,
       staff,
+      orgContextStore,
       isLoading,
       searchQuery,
       statusFilter,
@@ -1351,19 +1525,26 @@ export default {
       errorTitle,
       errorMessage,
       errorDetails,
+      showCancelModal,
+      bookingToCancel,
+      showDetailsModal,
+      selectedBooking,
       
       // Computed
       enrichedBookings,
       filteredBookings,
       paginatedBookings,
+      totalCount,
       totalPages,
       visiblePages,
+      activeBookings,
       completedBookings,
       pendingBookings,
       todayBookings,
       businessHours,
       weekDays,
       hasVehicleData,
+      statsCards,
       
       // Methods
       showError,
@@ -1378,11 +1559,14 @@ export default {
       formatDate,
       formatTime,
       formatStatus,
+      getServiceName,
       isUrgent,
       getStatusActionTitle,
       getStatusActionIcon,
       editBooking,
       deleteBooking,
+      viewBookingDetails,
+      confirmCancelBooking,
       updateBookingStatus,
       closeModals,
       saveBooking,
@@ -1400,11 +1584,21 @@ export default {
 </script>
 
 <style scoped>
-.bookings-page {
-  padding: 2rem;
-  width: 100%;
-  background: var(--bs-body-bg);
-  min-height: 100vh;
+/* Additional Filters */
+.additional-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(248, 250, 252, 0.95);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .additional-filters {
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(31, 41, 55, 0.85) 100%);
+  border: 1px solid rgba(75, 85, 99, 0.3);
 }
 
 /* WordPress Embed Support */
@@ -1429,9 +1623,9 @@ export default {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--card-border);
-  border-radius: 24px;
-  padding: 2rem;
-  margin-bottom: 2rem;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
   box-shadow: var(--bs-box-shadow-lg);
   display: flex;
   justify-content: space-between;
@@ -1457,26 +1651,26 @@ export default {
 }
 
 .page-title {
-  font-size: 2.25rem;
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-weight: 600;
   color: var(--bs-body-color);
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.25rem 0;
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  line-height: 1.3;
+  gap: 0.75rem;
+  line-height: 1.2;
   letter-spacing: -0.025em;
 }
 
 .title-icon {
-  width: 64px;
-  height: 64px;
+  width: 40px;
+  height: 40px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 20px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.25);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.25);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
@@ -1487,15 +1681,15 @@ export default {
 }
 
 .title-icon i {
-  font-size: 1.75rem;
+  font-size: 1.1rem;
   color: white;
 }
 
 .page-description {
-  font-size: 1.125rem;
+  font-size: 0.9rem;
   color: var(--bs-secondary);
   margin: 0;
-  line-height: 1.6;
+  line-height: 1.4;
   max-width: 640px;
   font-weight: 400;
 }
@@ -1527,21 +1721,21 @@ export default {
 /* Stats Grid */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .stat-card {
   background: var(--card-bg);
-  padding: 1.5rem;
-  border-radius: 16px;
+  padding: 0.75rem;
+  border-radius: 8px;
   box-shadow: var(--stat-card-shadow);
   border: 1px solid var(--card-border);
-  border-left: 4px solid;
+  border-left: 3px solid;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
   transition: all 0.3s ease;
   position: relative;
 }
@@ -1557,13 +1751,13 @@ export default {
 }
 
 .stat-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   color: white;
 }
 
@@ -1605,40 +1799,43 @@ export default {
 .filters-section {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
   box-shadow: var(--stat-card-shadow);
 }
 
 .filters-container {
   display: flex;
-  gap: 1.5rem;
-  align-items: end;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
 }
 
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 300px;
+  min-width: 250px;
+  max-width: 400px;
 }
 
 .search-box i {
   position: absolute;
-  left: 1rem;
+  left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
   color: var(--bs-secondary);
   z-index: 2;
+  font-size: 0.8rem;
 }
 
 .search-input {
   width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border: 2px solid var(--card-border);
-  border-radius: 8px;
-  font-size: 1rem;
+  padding: 0.3rem 0.5rem 0.3rem 1.6rem;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  font-size: 0.8rem;
   background: var(--bs-body-bg);
   color: var(--bs-body-color);
   transition: all 0.2s ease;
@@ -1652,9 +1849,9 @@ export default {
 
 .filter-controls {
   display: flex;
-  gap: 1rem;
-  align-items: end;
-  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
 .filter-group {
@@ -1687,6 +1884,51 @@ export default {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.filter-select-compact {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 120px;
+}
+
+.filter-select-compact:focus {
+  outline: none;
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.btn-clear {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--bs-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+
+.btn-clear:hover {
+  background: #f8f9fa;
+  border-color: #dc3545;
+  color: #dc3545;
+  transform: scale(1.05);
+}
+
+[data-bs-theme="dark"] .btn-clear:hover {
+  background: #495057;
+  color: #f8f9fa;
+}
+
 .btn-secondary {
   background: var(--bs-tertiary-bg);
   color: var(--bs-secondary);
@@ -1704,6 +1946,17 @@ export default {
 .btn-secondary:hover {
   background: #e9ecef;
   color: #495057;
+}
+
+[data-bs-theme="dark"] .btn-secondary {
+  background: #495057;
+  color: #f8f9fa;
+  border-color: #6c757d;
+}
+
+[data-bs-theme="dark"] .btn-secondary:hover {
+  background: #6c757d;
+  color: #ffffff;
 }
 
 .view-toggle {
@@ -1734,10 +1987,10 @@ export default {
 .content-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
+  border-radius: 8px;
   box-shadow: var(--stat-card-shadow);
   overflow: hidden;
-  margin-bottom: 2rem;
+  margin-bottom: 0.5rem;
 }
 
 .empty-state {
@@ -1764,15 +2017,6 @@ export default {
   margin: 0 0 2rem 0;
 }
 
-/* Pagination */
-.pagination-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2rem;
-  border-top: 1px solid var(--card-border);
-  background: var(--bs-tertiary-bg);
-}
 
 .pagination-info {
   color: var(--bs-secondary);
@@ -1867,10 +2111,16 @@ export default {
   
   .filter-controls {
     justify-content: stretch;
+    gap: 0.75rem;
   }
   
   .filter-select {
     min-width: auto;
+  }
+  
+  .btn-secondary {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 }
 
@@ -1887,7 +2137,7 @@ export default {
   background: var(--gradient-primary);
   color: white;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
 }
 
 .table-header.no-vehicle {
@@ -1895,7 +2145,7 @@ export default {
 }
 
 .header-cell {
-  padding: var(--spacing-md);
+  padding: 0.4rem;
   border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
 
@@ -1925,8 +2175,46 @@ export default {
   background: rgba(239, 68, 68, 0.05);
 }
 
+/* Status-based row colors */
+.table-row.status-confirmed {
+  border-left: 4px solid #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.table-row.status-confirmed:hover {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.table-row.status-completed {
+  border-left: 4px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.table-row.status-completed:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.table-row.status-cancelled {
+  border-left: 4px solid #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  opacity: 0.75;
+}
+
+.table-row.status-cancelled:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.table-row.status-in-progress {
+  border-left: 4px solid #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.table-row.status-in-progress:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
 .table-cell {
-  padding: 1rem;
+  padding: 0.4rem;
   display: flex;
   align-items: center;
   border-right: 1px solid var(--card-border);
@@ -2038,12 +2326,16 @@ export default {
 
 .action-buttons {
   display: flex;
-  gap: var(--spacing-xs);
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 140px;
+  flex-wrap: nowrap;
 }
 
 .btn-icon {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: none;
   display: flex;
@@ -2051,7 +2343,19 @@ export default {
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.btn-view {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.btn-view:hover {
+  background: #6366f1;
+  color: white;
+  transform: scale(1.1);
 }
 
 .btn-edit {
@@ -2592,10 +2896,10 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  padding: 0.75rem;
   background: var(--card-bg);
   border-top: 1px solid var(--card-border);
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 
@@ -2693,6 +2997,395 @@ export default {
   
   .page-size-selector {
     justify-content: center;
+  }
+}
+
+/* Cancel Confirmation Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+}
+
+.modal-container {
+  margin: 20px;
+}
+
+.cancel-confirmation-modal {
+  max-width: 500px;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+[data-bs-theme="dark"] .cancel-confirmation-modal {
+  background: #343a40;
+}
+
+.cancel-confirmation-modal .modal-header {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  padding: 24px 28px;
+  border-bottom: none;
+  text-align: center;
+}
+
+.warning-icon {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+  font-size: 24px;
+}
+
+.cancel-confirmation-modal h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.cancel-confirmation-modal .modal-body {
+  padding: 28px;
+  text-align: center;
+}
+
+.cancel-confirmation-modal .modal-body > p:first-child {
+  font-size: 16px;
+  color: #6b7280;
+  margin-bottom: 20px;
+}
+
+[data-bs-theme="dark"] .cancel-confirmation-modal .modal-body > p:first-child {
+  color: #9ca3af;
+}
+
+.booking-details {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  text-align: left;
+}
+
+[data-bs-theme="dark"] .booking-details {
+  background: #374151;
+  border-color: #4b5563;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-row .label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+[data-bs-theme="dark"] .detail-row .label {
+  color: #d1d5db;
+}
+
+.detail-row .value {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+[data-bs-theme="dark"] .detail-row .value {
+  color: #f3f4f6;
+}
+
+.warning-text {
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 500;
+  margin: 16px 0 0 0;
+}
+
+[data-bs-theme="dark"] .warning-text {
+  color: #f87171;
+}
+
+.cancel-confirmation-modal .modal-footer {
+  padding: 20px 28px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+[data-bs-theme="dark"] .cancel-confirmation-modal .modal-footer {
+  background: #374151;
+  border-top-color: #4b5563;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+}
+
+.btn-danger:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+}
+
+[data-bs-theme="dark"] .btn-danger {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+[data-bs-theme="dark"] .btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+}
+
+/* Booking Details Modal */
+.booking-details-modal .modal-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.booking-details-modal .modal-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-bottom: none;
+  padding: 1.5rem 2rem;
+}
+
+.booking-details-modal .modal-header h3 {
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.booking-details-modal .modal-body {
+  padding: 2rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.detail-section {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-left: 4px solid #667eea;
+  transition: all 0.3s ease;
+}
+
+.detail-section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+[data-bs-theme="dark"] .detail-section {
+  background: #343a40;
+  border-left-color: #667eea;
+}
+
+.detail-section h6 {
+  color: #495057;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+[data-bs-theme="dark"] .detail-section h6 {
+  color: #e9ecef;
+}
+
+.detail-section h6 i {
+  color: #667eea;
+  font-size: 1.1rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  min-height: 3rem;
+}
+
+.detail-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25px;
+}
+
+[data-bs-theme="dark"] .detail-label {
+  color: #adb5bd;
+}
+
+.detail-value {
+  font-weight: 600;
+  color: #212529;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+[data-bs-theme="dark"] .detail-value {
+  color: #f8f9fa;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 25px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.25px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 2px solid transparent;
+}
+
+.status-confirmed {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+}
+
+.status-scheduled {
+  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+  color: white;
+}
+
+.status-pending {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+  color: white;
+}
+
+.status-cancelled {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+}
+
+.status-in_progress {
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: white;
+}
+
+.status-completed {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+}
+
+.price-display {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #28a745;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.notes-display {
+  background: #fff;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+  font-style: italic;
+  color: #495057;
+  min-height: 3rem;
+  display: flex;
+  align-items: center;
+}
+
+[data-bs-theme="dark"] .notes-display {
+  background: #495057;
+  border-color: #6c757d;
+  color: #e9ecef;
+}
+
+.no-notes {
+  color: #adb5bd;
+  font-style: italic;
+}
+
+[data-bs-theme="dark"] .no-notes {
+  color: #6c757d;
+}
+
+.booking-details-modal .modal-footer {
+  padding: 1.5rem 2rem;
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+[data-bs-theme="dark"] .booking-details-modal .modal-footer {
+  background: #343a40;
+  border-top-color: #495057;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .booking-details-modal .modal-body {
+    padding: 1rem;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .detail-section {
+    padding: 1rem;
+  }
+  
+  .booking-details-modal .modal-footer {
+    padding: 1rem;
+    flex-direction: column;
   }
 }
 </style>

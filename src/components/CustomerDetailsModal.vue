@@ -104,7 +104,7 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+// import { computed } from 'vue' // unused import
 
 export default {
   name: 'CustomerDetailsModal',

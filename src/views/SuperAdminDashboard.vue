@@ -239,7 +239,7 @@
             <div class="progress-bar">
               <div class="progress-fill" :style="{ width: `${(500 - performance.responseTime) / 500 * 100}%` }"></div>
             </div>
-            <span class="metric-label">Target: <500ms</span>
+            <span class="metric-label">Target: &lt;500ms</span>
           </div>
         </div>
         

@@ -12,7 +12,7 @@
     <!-- Show full layout only when authenticated -->
     <div v-if="isAuthenticated" class="app-container">
       <!-- Sidebar Component (only show when authenticated) -->
-      <Sidebar 
+      <AppSidebar 
         :is-open="sidebarOpen"
         :current-page="currentPage"
         @toggle="toggleSidebar"
@@ -22,7 +22,7 @@
       <!-- Main Content -->
       <main class="main-content" :class="{ 'expanded': !sidebarOpen }">
         <!-- Header Component -->
-        <Header 
+        <AppHeader 
           :page-title="pageTitle"
           :sidebar-open="sidebarOpen"
           @toggle-sidebar="toggleSidebar"
@@ -66,8 +66,8 @@ import { useModalStore } from './stores/modal'
 export default {
   name: 'App',
   components: {
-    Sidebar,
-    Header,
+    AppSidebar: Sidebar,
+    AppHeader: Header,
     ModalNotification
   },
   data() {

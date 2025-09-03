@@ -125,7 +125,7 @@ import ThemeToggle from './ThemeToggle.vue'
 import api from '../services/api'
 
 export default {
-  name: 'Header',
+  name: 'AppHeader',
   components: {
     ThemeToggle
   },

@@ -2,12 +2,8 @@ import api from './api'
 
 export const authService = {
   async login(credentials) {
-    try {
-      const response = await api.post('/auth/login', credentials)
-      return response
-    } catch (error) {
-      throw error
-    }
+    const response = await api.post('/auth/login', credentials)
+    return response
   },
 
   async logout() {
@@ -22,27 +18,19 @@ export const authService = {
   },
 
   async refreshToken() {
-    try {
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (!refreshToken) {
-        throw new Error('No refresh token available')
-      }
-      
-      const response = await api.post('/auth/refresh', { 
-        refresh_token: refreshToken 
-      })
-      return response
-    } catch (error) {
-      throw error
+    const refreshToken = localStorage.getItem('refresh_token')
+    if (!refreshToken) {
+      throw new Error('No refresh token available')
     }
+    
+    const response = await api.post('/auth/refresh', { 
+      refresh_token: refreshToken 
+    })
+    return response
   },
 
   async getCurrentUser() {
-    try {
-      const response = await api.get('/users/me')
-      return response
-    } catch (error) {
-      throw error
-    }
+    const response = await api.get('/users/me')
+    return response
   }
 }

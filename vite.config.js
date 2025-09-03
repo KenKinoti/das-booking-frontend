@@ -72,5 +72,11 @@ export default defineConfig({
   optimizeDeps: {
     include: ['vue', 'vue-router', 'pinia', 'axios'],
     exclude: ['@fortawesome/fontawesome-free']
+  },
+  // Test configuration
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js']
   }
 })

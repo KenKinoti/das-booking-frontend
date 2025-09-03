@@ -1,129 +1,32 @@
 <template>
-  <div class="staff-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-users-cog"></i>
-          </div>
-          Staff Management
-        </h1>
-        <p class="page-description">Manage your team members, roles, and schedules for automotive & beauty services</p>
-      </div>
-      <div class="header-actions">
-        <button @click="showAddModal = true" class="btn-primary">
-          <i class="fas fa-user-plus"></i>
-          Add New Staff Member
-        </button>
-      </div>
-    </div>
-
-    <!-- Stats Grid -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon total">
-          <i class="fas fa-users-cog"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ totalStaff }}</h3>
-          <p>Total Staff</p>
-          <div class="stat-change positive">+3 new hires</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon active">
-          <i class="fas fa-user-check"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ activeStaff }}</h3>
-          <p>Active Staff</p>
-          <div class="stat-change positive">{{ Math.round(activeStaff / totalStaff * 100) }}% active</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon shifts">
-          <i class="fas fa-calendar-week"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ weeklyShifts }}</h3>
-          <p>Weekly Shifts</p>
-          <div class="stat-change neutral">This week</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon performance">
-          <i class="fas fa-star"></i>
-        </div>
-        <div class="stat-content">
-          <h3>4.8</h3>
-          <p>Avg. Rating</p>
-          <div class="stat-change positive">Excellent performance</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Filters Section -->
-    <div class="filters-section">
-      <div class="filters-container">
-        <div class="search-box">
-          <i class="fas fa-search"></i>
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Search staff members..." 
-            class="search-input"
-            @input="filterStaff"
-          />
-        </div>
-        
-        <div class="filter-controls">
-          <div class="filter-group">
-            <label>Status</label>
-            <select v-model="statusFilter" @change="filterStaff" class="filter-select">
-              <option value="">All Staff</option>
-              <option value="active">✅ Active Staff</option>
-              <option value="inactive">🔘 Inactive Staff</option>
-            </select>
-          </div>
-          
-          <div class="filter-group">
-            <label>Role</label>
-            <select v-model="roleFilter" @change="filterStaff" class="filter-select">
-              <option value="">All Roles</option>
-              <option value="technician">🔧 Technician</option>
-              <option value="stylist">💄 Stylist</option>
-              <option value="manager">👨‍💼 Manager</option>
-              <option value="admin">⚙️ Administrator</option>
-            </select>
-          </div>
-          
-          <button @click="clearFilters" class="btn-secondary">
-            <i class="fas fa-times"></i>
-        Clear Filters
-      </button>
-      
-      <div class="btn-group" role="group">
-        <button 
-          @click="currentView = 'list'" 
-          :class="['btn', currentView === 'list' ? 'btn-primary' : 'btn-outline-primary']"
-          title="List View"
-        >
-          <i class="fas fa-list"></i>
-        </button>
-        <button 
-          @click="currentView = 'grid'" 
-          :class="['btn', currentView === 'grid' ? 'btn-primary' : 'btn-outline-primary']"
-          title="Grid View"
-        >
-          <i class="fas fa-th"></i>
-        </button>
-      </div>
+  <PageTemplate
+    page-title="Staff Management"
+    page-description="Manage your team members, roles, and schedules for automotive & beauty services"
+    header-icon="fas fa-users-cog"
+    :stats-cards="statsCards"
+    :show-filters="true"
+    :show-status-filter="true"
+    :show-role-filter="true"
+    :show-add-button="true"
+    :show-view-toggle="true"
+    add-button-text="Add New Staff Member"
+    :search-query="searchQuery"
+    :status-filter="statusFilter"
+    :role-filter="roleFilter"
+    :current-view="currentView"
+    @add-clicked="showAddModal = true"
+    @search-updated="searchQuery = $event"
+    @status-filter-updated="statusFilter = $event"
+    @role-filter-updated="roleFilter = $event"
+    @clear-filters="clearFilters"
+    @view-changed="currentView = $event"
+  >
+    <template #role-options>
+      <option value="care_worker">👩‍⚕️ Care Worker</option>
+      <option value="manager">👨‍💼 Manager</option>
+      <option value="admin">⚙️ Administrator</option>
+      <option value="supervisor">👑 Supervisor</option>
     </template>
-
     <template #content>
       <div class="staff-content">
         <div v-if="isLoading" class="loading-state">
@@ -147,35 +50,57 @@
           <p class="text-muted">Try adjusting your search criteria</p>
         </div>
 
-      <!-- List View -->
-      <div v-else-if="currentView === 'list'" class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>Staff Member</th>
-              <th>Status</th>
-              <th>Role</th>
-              <th>Organization</th>
-              <th>Contact</th>
-              <th>Last Activity</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="member in filteredStaff" :key="member.id">
-              <td>
-                <div class="d-flex align-items-center">
-                  <div class="stat-icon me-3" style="width: 40px; height: 40px; font-size: 0.875rem;">
+        <!-- List View -->
+        <div v-else-if="currentView === 'list'" class="staff-list">
+          <div class="staff-table">
+            <div class="table-header">
+              <div class="header-cell">Staff Member</div>
+              <div class="header-cell">Role</div>
+              <div class="header-cell">Contact</div>
+              <div class="header-cell">Status</div>
+              <div class="header-cell">Last Activity</div>
+              <div class="header-cell">Actions</div>
+            </div>
+            
+            <div 
+              v-for="member in paginatedStaff" 
+              :key="member.id" 
+              class="table-row"
+              :class="{ 
+                'status-active': member.is_active !== false,
+                'status-inactive': member.is_active === false
+              }"
+            >
+              <div class="table-cell">
+                <div class="staff-info">
+                  <div class="staff-avatar">
                     {{ getInitials(member.first_name, member.last_name) }}
                   </div>
-                  <div>
-                    <h6 class="mb-0">{{ member.first_name }} {{ member.last_name }}</h6>
-                    <small class="text-muted">ID: {{ member.id }}</small>
+                  <div class="staff-details">
+                    <div class="name">{{ member.first_name }} {{ member.last_name }}</div>
+                    <div class="email">{{ member.email }}</div>
                   </div>
                 </div>
-              </td>
-              <td>
-                <div class="d-flex align-items-center gap-2">
+              </div>
+              
+              <div class="table-cell">
+                <div class="role-info">
+                  <span class="role-badge" :class="getRoleClass(member.role)">
+                    <i :class="getRoleIcon(member.role)"></i>
+                    {{ formatRole(member.role) }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="table-cell">
+                <div class="contact-info">
+                  <div class="phone">{{ member.phone || 'No phone' }}</div>
+                  <div class="company">{{ getCompanyName(member) }}</div>
+                </div>
+              </div>
+              
+              <div class="table-cell">
+                <div class="status-info">
                   <div class="form-check form-switch">
                     <input 
                       class="form-check-input" 
@@ -185,54 +110,39 @@
                       :disabled="isSubmitting"
                     />
                   </div>
-                  <span :class="['badge', member.is_active !== false ? 'bg-success' : 'bg-secondary']">
+                  <span :class="['status-badge', member.is_active !== false ? 'active' : 'inactive']">
                     {{ member.is_active !== false ? 'Active' : 'Inactive' }}
                   </span>
                 </div>
-              </td>
-              <td>
-                <span class="badge bg-primary">{{ formatRole(member.role) }}</span>
-              </td>
-              <td>
-                <span class="text-muted">{{ getCompanyName(member) }}</span>
-              </td>
-              <td>
-                <div class="small" v-if="isAdmin || isSuperAdmin">
-                  <div><i class="fas fa-envelope me-1"></i>{{ member.email }}</div>
-                  <div><i class="fas fa-phone me-1"></i>{{ member.phone || 'N/A' }}</div>
-                </div>
-                <div class="small" v-else>
-                  <div><i class="fas fa-envelope me-1"></i>{{ member.email ? member.email.substring(0, 3) + '***@' + member.email.split('@')[1] : 'N/A' }}</div>
-                  <div><i class="fas fa-phone me-1"></i>{{ member.phone ? '***-***-' + member.phone.slice(-4) : 'N/A' }}</div>
-                </div>
-              </td>
-              <td>
-                <div class="small text-muted">
-                  <i class="fas fa-clock me-1"></i>
+              </div>
+              
+              <div class="table-cell">
+                <div class="activity-info">
+                  <i class="fas fa-clock"></i>
                   {{ formatLastLogin(member.last_login_at) }}
                 </div>
-              </td>
-              <td>
-                <div class="action-buttons">
-                  <button @click="viewStaff(member)" class="btn btn-outline-primary btn-sm" title="View Details">
+              </div>
+              
+              <div class="table-cell">
+                <div class="actions-menu">
+                  <button @click="viewStaff(member)" class="action-btn view" title="View Details">
                     <i class="fas fa-eye"></i>
                   </button>
-                  <button @click="scheduleStaff(member)" class="btn btn-outline-success btn-sm" title="Schedule Shift">
+                  <button @click="scheduleStaff(member)" class="action-btn schedule" title="Schedule Shift">
                     <i class="fas fa-calendar-plus"></i>
                   </button>
-                  <button @click="editStaff(member)" class="btn btn-outline-secondary btn-sm" title="Edit Staff">
+                  <button @click="editStaff(member)" class="action-btn edit" title="Edit Staff">
                     <i class="fas fa-edit"></i>
                   </button>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <!-- Grid View -->
-      <div v-else class="row">
-        <div v-for="member in filteredStaff" :key="member.id" class="col-md-6 col-lg-4 mb-4">
+        <!-- Grid View -->
+        <div v-else class="row">
+        <div v-for="member in paginatedStaff" :key="member.id" class="col-md-6 col-lg-4 mb-4">
           <div class="card h-100">
             <div class="card-header d-flex align-items-center justify-content-between">
               <div class="d-flex align-items-center">
@@ -296,7 +206,8 @@
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </div> <!-- Close staff-content -->
       
       <!-- Pagination -->
       <div v-if="totalPages > 1" class="pagination-section">
@@ -347,7 +258,6 @@
           </label>
         </div>
       </div>
-      </div>
     </template>
   </PageTemplate>
 </template>
@@ -376,6 +286,8 @@ export default {
       currentView: 'list',
       showAddModal: false,
       isSubmitting: false,
+      currentPage: 1,
+      itemsPerPage: 10,
       newStaff: {
         first_name: '',
         last_name: '',
@@ -394,28 +306,28 @@ export default {
     statsCards() {
       return [
         {
-          title: 'Total Staff',
+          label: 'Total Staff',
           value: this.staff.length,
-          icon: 'fa-user-nurse',
-          color: 'info'
+          icon: 'fas fa-user-nurse',
+          type: 'info'
         },
         {
-          title: 'Active Staff', 
+          label: 'Active Staff', 
           value: this.activeStaff,
-          icon: 'fa-user-check',
-          color: 'success'
+          icon: 'fas fa-user-check',
+          type: 'success'
         },
         {
-          title: 'Available Today',
+          label: 'Available Today',
           value: this.availableToday,
-          icon: 'fa-clock',
-          color: 'warning'
+          icon: 'fas fa-clock',
+          type: 'warning'
         },
         {
-          title: 'Scheduled Today',
+          label: 'Scheduled Today',
           value: this.scheduledToday,
-          icon: 'fa-calendar-alt',
-          color: 'info'
+          icon: 'fas fa-calendar-alt',
+          type: 'info'
         }
       ]
     },
@@ -438,7 +350,8 @@ export default {
         const matchesSearch = !query || 
           `${s.first_name || ''} ${s.last_name || ''}`.toLowerCase().includes(query) ||
           (s.email && s.email.toLowerCase().includes(query)) ||
-          (s.phone && s.phone.includes(query))
+          (s.phone && s.phone.includes(query)) ||
+          this.formatRole(s.role).toLowerCase().includes(query)
         
         const matchesStatus = !this.statusFilter || 
           (this.statusFilter === 'active' && s.is_active !== false) ||
@@ -448,6 +361,41 @@ export default {
         
         return matchesSearch && matchesStatus && matchesRole
       })
+    },
+
+    totalPages() {
+      return Math.ceil(this.filteredStaff.length / this.itemsPerPage)
+    },
+
+    paginatedStaff() {
+      const start = (this.currentPage - 1) * this.itemsPerPage
+      const end = start + this.itemsPerPage
+      return this.filteredStaff.slice(start, end)
+    },
+
+    startIndex() {
+      return (this.currentPage - 1) * this.itemsPerPage
+    },
+
+    endIndex() {
+      return Math.min(this.startIndex + this.itemsPerPage, this.filteredStaff.length)
+    },
+
+    visiblePages() {
+      const pages = []
+      const maxVisible = 5
+      let start = Math.max(1, this.currentPage - 2)
+      let end = Math.min(this.totalPages, start + maxVisible - 1)
+      
+      if (end - start < maxVisible - 1) {
+        start = Math.max(1, end - maxVisible + 1)
+      }
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i)
+      }
+      
+      return pages
     }
   },
   methods: {
@@ -457,6 +405,17 @@ export default {
       this.statusFilter = 'active'
       this.roleFilter = ''
       this.searchQuery = ''
+      this.currentPage = 1
+    },
+    
+    goToPage(page) {
+      if (page >= 1 && page <= this.totalPages) {
+        this.currentPage = page
+      }
+    },
+    
+    handlePerPageChange() {
+      this.currentPage = 1
     },
 
     filterStaff() {
@@ -471,6 +430,26 @@ export default {
         admin: 'Administrator'
       }
       return roleMap[role] || role
+    },
+
+    getRoleClass(role) {
+      const classMap = {
+        care_worker: 'role-care-worker',
+        manager: 'role-manager', 
+        admin: 'role-admin',
+        supervisor: 'role-supervisor'
+      }
+      return classMap[role] || 'role-default'
+    },
+
+    getRoleIcon(role) {
+      const iconMap = {
+        care_worker: 'fas fa-user-nurse',
+        manager: 'fas fa-user-tie',
+        admin: 'fas fa-user-cog', 
+        supervisor: 'fas fa-crown'
+      }
+      return iconMap[role] || 'fas fa-user'
     },
 
     getInitials(firstName, lastName) {
@@ -524,6 +503,26 @@ export default {
       } finally {
         this.isSubmitting = false
       }
+    },
+
+    formatDate(date) {
+      if (!date) return 'N/A'
+      return new Date(date).toLocaleDateString()
+    },
+
+    viewStaff(member) {
+      // Navigate to staff detail view or show modal
+      console.log('View staff:', member)
+    },
+
+    scheduleStaff(member) {
+      // Navigate to schedule view or show modal
+      console.log('Schedule staff:', member)
+    },
+
+    editStaff(member) {
+      // Navigate to edit view or show modal
+      console.log('Edit staff:', member)
     }
   },
   async mounted() {
@@ -809,7 +808,8 @@ export default {
 .btn-secondary:hover {
   background: #e9ecef;
   color: #495057;
-}</style>
+}
+
 .staff-content {
   min-height: 400px;
 }
@@ -883,5 +883,287 @@ export default {
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 0.5rem;
+}
+/* Staff Table Styles - Matching Bookings Table */
+.staff-list {
+  background: var(--card-bg);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+
+.staff-table {
+  width: 100%;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 120px;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--table-header-bg);
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header-cell {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 120px;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.table-row:hover {
+  background: var(--hover-bg);
+}
+
+.table-row.status-active {
+  border-left: 3px solid #22c55e;
+}
+
+.table-row.status-inactive {
+  border-left: 3px solid #ef4444;
+  opacity: 0.7;
+}
+
+.table-cell {
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+}
+
+/* Staff Info */
+.staff-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.staff-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.staff-details .name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.staff-details .email {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Role Info */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.role-badge i {
+  font-size: 0.875rem;
+}
+
+.role-care-worker {
+  background: #e0f2fe;
+  color: #0277bd;
+}
+
+.role-manager {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.role-admin {
+  background: #ffecb3;
+  color: #ff8f00;
+}
+
+.role-supervisor {
+  background: #e8f5e8;
+  color: #2e7d32;
+}
+
+.role-default {
+  background: #f5f5f5;
+  color: #666;
+}
+
+[data-theme="dark"] .role-care-worker {
+  background: rgba(2, 119, 189, 0.2);
+  color: #4fc3f7;
+}
+
+[data-theme="dark"] .role-manager {
+  background: rgba(123, 31, 162, 0.2);
+  color: #ba68c8;
+}
+
+[data-theme="dark"] .role-admin {
+  background: rgba(255, 143, 0, 0.2);
+  color: #ffb74d;
+}
+
+[data-theme="dark"] .role-supervisor {
+  background: rgba(46, 125, 50, 0.2);
+  color: #81c784;
+}
+
+/* Contact Info */
+.contact-info .phone {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.contact-info .company {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Status Info */
+.status-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-badge.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.inactive {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+[data-theme="dark"] .status-badge.active {
+  background: rgba(22, 163, 74, 0.2);
+  color: #4ade80;
+}
+
+[data-theme="dark"] .status-badge.inactive {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+}
+
+/* Activity Info */
+.activity-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.activity-info i {
+  opacity: 0.6;
+}
+
+/* Actions Menu */
+.actions-menu {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.action-btn {
+  padding: 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.action-btn.view:hover {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.action-btn.schedule:hover {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.action-btn.edit:hover {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .table-header,
+  .table-row {
+    grid-template-columns: 2fr 1fr 1.2fr 1fr 100px;
+  }
+  
+  .header-cell:nth-child(3),
+  .table-cell:nth-child(3) {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .table-header,
+  .table-row {
+    grid-template-columns: 2fr 1fr 80px;
+  }
+  
+  .header-cell:nth-child(4),
+  .header-cell:nth-child(5),
+  .table-cell:nth-child(4),
+  .table-cell:nth-child(5) {
+    display: none;
+  }
+  
+  .staff-details .email {
+    display: none;
+  }
 }
 </style>

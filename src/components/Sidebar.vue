@@ -171,7 +171,7 @@ import { useAuthStore } from '../stores/auth'
 import { usePermissionsStore } from '../stores/permissions'
 
 export default {
-  name: 'Sidebar',
+  name: 'AppSidebar',
   props: {
     isOpen: {
       type: Boolean,

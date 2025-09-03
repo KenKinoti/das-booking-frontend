@@ -265,7 +265,7 @@ export default {
 }
 
 .modal-container {
-  background: white;
+  background: var(--card-bg);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-strong);
   width: 100%;
@@ -274,6 +274,12 @@ export default {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+[data-theme="dark"] .modal-container {
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(31, 41, 55, 0.85) 100%);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 8px 16px rgba(0,0,0,0.3);
 }
 
 .modal-header {
@@ -353,7 +359,21 @@ export default {
   border-radius: var(--border-radius);
   font-size: 1rem;
   transition: all 0.2s ease;
-  background: white;
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-input,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] .form-textarea {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(75, 85, 99, 0.5);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .form-input::placeholder,
+[data-theme="dark"] .form-textarea::placeholder {
+  color: #9ca3af;
 }
 
 .form-input:focus,

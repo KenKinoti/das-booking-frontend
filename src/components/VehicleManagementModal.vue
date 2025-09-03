@@ -87,7 +87,7 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import VehicleFormModal from './VehicleFormModal.vue'
 
 export default {

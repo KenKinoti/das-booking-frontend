@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { usePermissionsStore } from '../stores/permissions'
+// import { usePermissionsStore } from '../stores/permissions' // unused import
 
 // Lazy load components for better performance
 const Login = () => import('../views/Login.vue')
@@ -33,7 +33,7 @@ const routes = [
   },
   {
     path: '/',
-    redirect: to => {
+    redirect: () => {
       // If user has a stored last route, redirect there
       const lastRoute = localStorage.getItem('lastRoute')
       return lastRoute || '/dashboard'

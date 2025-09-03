@@ -23,7 +23,7 @@ import { useAuthStore } from '../stores/auth'
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: 'http://localhost:8081/api',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
@@ -33,7 +33,7 @@ const api = axios.create({
 // Login function to get real JWT tokens
 export const login = async (email, password) => {
   try {
-    const response = await axios.post('http://localhost:8080/api/v1/auth/login', {
+    const response = await axios.post('http://localhost:8081/api/auth/login', {
       email,
       password
     }, {
@@ -87,7 +87,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken) {
           const response = await axios.post(
-            'http://localhost:8080/api/v1/auth/refresh',
+            'http://localhost:8081/api/auth/refresh',
             { refresh_token: refreshToken },
             {
               headers: { 'Content-Type': 'application/json' },

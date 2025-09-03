@@ -1,117 +1,24 @@
 <template>
-  <div class="customers-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-users"></i>
-          </div>
-          Customer Management
-        </h1>
-        <p class="page-description">Manage your customers and their vehicle information for automotive & beauty services</p>
-      </div>
-      <div class="header-actions">
-        <button @click="showAddModal = true" class="btn-primary">
-          <i class="fas fa-user-plus"></i>
-          Add New Customer
-        </button>
-      </div>
-    </div>
-
-    <!-- Stats Overview -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon total">
-          <i class="fas fa-users"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ customers.length }}</h3>
-          <p>Total Customers</p>
-          <div class="stat-change positive">+8% this month</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon active">
-          <i class="fas fa-user-check"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ activeCustomers }}</h3>
-          <p>Active Customers</p>
-          <div class="stat-change positive">{{ Math.round(activeCustomers / customers.length * 100) }}% active rate</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon vehicles">
-          <i class="fas fa-car"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ totalVehicles }}</h3>
-          <p>Total Vehicles</p>
-          <div class="stat-change neutral">{{ (totalVehicles / customers.length).toFixed(1) }} per customer</div>
-        </div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon recent">
-          <i class="fas fa-calendar-plus"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ newCustomersThisMonth }}</h3>
-          <p>New This Month</p>
-          <div class="stat-change positive">Great growth!</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Search and Filters -->
-    <div class="filters-section">
-      <div class="filters-row">
-        <div class="search-box">
-          <i class="fas fa-search"></i>
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Search customers..." 
-            class="form-input"
-            @input="filterCustomers"
-          />
-        </div>
-        
-        <div class="filter-controls">
-          <select v-model="statusFilter" @change="filterCustomers" class="form-select">
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          
-          <button @click="clearFilters" class="btn btn-outline-elegant">
-            <i class="fas fa-times"></i>
-            Clear Filters
-          </button>
-          
-          <!-- View Toggle -->
-          <div class="view-toggle">
-            <button 
-              @click="currentView = 'list'" 
-              :class="['view-btn-elegant', { active: currentView === 'list' }]"
-              title="List View"
-            >
-              <i class="fas fa-list"></i>
-            </button>
-            <button 
-              @click="currentView = 'grid'" 
-              :class="['view-btn-elegant', { active: currentView === 'grid' }]"
-              title="Grid View"
-            >
-              <i class="fas fa-th"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+  <PageTemplate
+    page-title="Customer Management"
+    page-description="Manage your customers and their vehicle information for automotive & beauty services"
+    header-icon="fas fa-users"
+    :stats-cards="statsCards"
+    :show-filters="true"
+    :show-status-filter="true"
+    :show-add-button="true"
+    :show-view-toggle="true"
+    add-button-text="Add New Customer"
+    :search-query="searchQuery"
+    :status-filter="statusFilter"
+    :current-view="currentView"
+    @add-clicked="showAddModal = true"
+    @search-updated="searchQuery = $event"
+    @status-filter-updated="statusFilter = $event"
+    @clear-filters="clearFilters"
+    @view-changed="currentView = $event"
+  >
+    <template #content>
 
     <!-- Customers Content -->
     <div class="content-card">
@@ -344,44 +251,48 @@
         </div>
       </div>
     </div>
+    </template>
+  </PageTemplate>
 
-    <!-- Customer Modal -->
-    <CustomerModal
-      v-if="showAddModal || showEditModal"
-      :show="showAddModal || showEditModal"
-      :customer="editingCustomer"
-      @close="closeModals"
-      @save="saveCustomer"
-    />
+  <!-- Customer Modal -->
+  <CustomerModal
+    v-if="showAddModal || showEditModal"
+    :show="showAddModal || showEditModal"
+    :customer="editingCustomer"
+    @close="closeModals"
+    @save="saveCustomer"
+  />
 
-    <!-- Customer Details Modal -->
-    <CustomerDetailsModal
-      v-if="showDetailsModal"
-      :show="showDetailsModal"
-      :customer="viewingCustomer"
-      @close="showDetailsModal = false"
-      @edit="editCustomer"
-    />
+  <!-- Customer Details Modal -->
+  <CustomerDetailsModal
+    v-if="showDetailsModal"
+    :show="showDetailsModal"
+    :customer="viewingCustomer"
+    @close="showDetailsModal = false"
+    @edit="editCustomer"
+  />
 
-    <!-- Vehicle Management Modal -->
-    <VehicleManagementModal
-      v-if="showVehiclesModal"
-      :show="showVehiclesModal"
-      :customer="managingCustomer"
-      @close="showVehiclesModal = false"
-    />
-  </div>
+  <!-- Vehicle Management Modal -->
+  <VehicleManagementModal
+    v-if="showVehiclesModal"
+    :show="showVehiclesModal"
+    :customer="managingCustomer"
+    @close="showVehiclesModal = false"
+  />
 </template>
 
 <script>
 import { ref, computed, onMounted } from 'vue'
+import PageTemplate from '@/components/PageTemplate.vue'
 import CustomerModal from '@/components/CustomerModal.vue'
 import CustomerDetailsModal from '@/components/CustomerDetailsModal.vue'
 import VehicleManagementModal from '@/components/VehicleManagementModal.vue'
+import api from '@/services/api'
 
 export default {
   name: 'Customers',
   components: {
+    PageTemplate,
     CustomerModal,
     CustomerDetailsModal,
     VehicleManagementModal
@@ -467,68 +378,43 @@ export default {
       return customers.value.filter(c => new Date(c.created_at) >= thisMonth).length
     })
 
+    const statsCards = computed(() => [
+      {
+        value: customers.value.length,
+        label: 'Total Customers',
+        icon: 'fas fa-users',
+        type: 'total'
+      },
+      {
+        value: activeCustomers.value,
+        label: 'Active Customers',
+        icon: 'fas fa-user-check',
+        type: 'active'
+      },
+      {
+        value: totalVehicles.value,
+        label: 'Total Vehicles',
+        icon: 'fas fa-car',
+        type: 'info'
+      },
+      {
+        value: newThisMonth.value,
+        label: 'New This Month',
+        icon: 'fas fa-calendar-plus',
+        type: 'info'
+      }
+    ])
+
     // Methods
     const loadCustomers = async () => {
       isLoading.value = true
       try {
-        // Mock data for demo
-        customers.value = [
-          {
-            id: '1',
-            first_name: 'John',
-            last_name: 'Smith',
-            email: 'john.smith@email.com',
-            phone: '+61412345678',
-            is_active: true,
-            created_at: '2024-12-15T10:00:00Z',
-            address: {
-              street: '123 Main St',
-              suburb: 'Adelaide',
-              state: 'SA',
-              postcode: '5000'
-            },
-            vehicles: [
-              { id: '1', make: 'Toyota', model: 'Camry', license_plate: 'ABC123' },
-              { id: '2', make: 'Honda', model: 'Civic', license_plate: 'XYZ789' }
-            ]
-          },
-          {
-            id: '2',
-            first_name: 'Sarah',
-            last_name: 'Jones',
-            email: 'sarah.jones@email.com',
-            phone: '+61423456789',
-            is_active: true,
-            created_at: '2024-12-20T14:30:00Z',
-            address: {
-              street: '456 Oak Ave',
-              suburb: 'Adelaide',
-              state: 'SA',
-              postcode: '5001'
-            },
-            vehicles: [
-              { id: '3', make: 'Honda', model: 'Accord', license_plate: 'DEF456' }
-            ]
-          },
-          {
-            id: '3',
-            first_name: 'Emma',
-            last_name: 'Wilson',
-            email: 'emma.wilson@email.com',
-            phone: '+61434567890',
-            is_active: false,
-            created_at: '2024-11-10T09:15:00Z',
-            address: {
-              street: '789 Pine Rd',
-              suburb: 'Adelaide',
-              state: 'SA',
-              postcode: '5002'
-            },
-            vehicles: []
-          }
-        ]
+        const response = await api.get('/v1/customers')
+        customers.value = response.data || []
       } catch (error) {
         console.error('Failed to load customers:', error)
+        // Show empty state if API fails
+        customers.value = []
       } finally {
         isLoading.value = false
       }
@@ -647,6 +533,7 @@ export default {
       activeCustomers,
       totalVehicles,
       newThisMonth,
+      statsCards,
       
       // Methods
       loadCustomers,
@@ -668,6 +555,27 @@ export default {
 </script>
 
 <style scoped>
+/* CSS Variables for Theme Support */
+:root {
+  --card-bg: rgba(255, 255, 255, 0.95);
+  --card-border: rgba(0, 0, 0, 0.08);
+  --stat-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-strong: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --text-dark: #1f2937;
+  --text-medium: #6b7280;
+  --text-light: #9ca3af;
+}
+
+[data-theme="dark"] {
+  --card-bg: rgba(31, 41, 55, 0.95);
+  --card-border: rgba(75, 85, 99, 0.3);
+  --stat-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --shadow-strong: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --text-dark: #f3f4f6;
+  --text-medium: #d1d5db;
+  --text-light: #9ca3af;
+}
+
 .customers-page {
   padding: 2rem;
   width: 100%;
@@ -1156,5 +1064,108 @@ export default {
     border: none;
     display: block;
   }
+}
+
+/* Dark Theme Additional Support */
+[data-theme="dark"] .customer-avatar {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .customer-info h3 {
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .customer-contact,
+[data-theme="dark"] .customer-email {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .detail-item {
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .detail-item i {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .btn-outline-elegant {
+  background: rgba(31, 41, 55, 0.6);
+  border-color: rgba(75, 85, 99, 0.4);
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .btn-outline-elegant:hover {
+  background: rgba(55, 65, 81, 0.8);
+  border-color: rgba(107, 114, 128, 0.5);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .toggle-switch input:checked + .slider {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+[data-theme="dark"] .toggle-switch .slider {
+  background: #4b5563;
+  border: 2px solid rgba(75, 85, 99, 0.3);
+}
+
+[data-theme="dark"] .loading-state,
+[data-theme="dark"] .empty-state {
+  background: rgba(31, 41, 55, 0.95);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .loading-state p,
+[data-theme="dark"] .empty-state p {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .empty-state i {
+  color: #6b7280;
+}
+
+[data-theme="dark"] .pagination-section {
+  background: rgba(31, 41, 55, 0.95);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+[data-theme="dark"] .pagination-info {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .pagination-btn:not(:disabled) {
+  background: rgba(55, 65, 81, 0.6);
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .pagination-btn:not(:disabled):hover {
+  background: rgba(75, 85, 99, 0.8);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .pagination-number {
+  background: rgba(31, 41, 55, 0.6);
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .pagination-number:hover {
+  background: rgba(55, 65, 81, 0.8);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .pagination-number.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+[data-theme="dark"] .per-page-select {
+  background: rgba(17, 24, 39, 0.8);
+  border: 2px solid rgba(75, 85, 99, 0.3);
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .per-page-label {
+  color: #9ca3af;
 }
 </style>

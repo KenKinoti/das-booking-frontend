@@ -33,7 +33,7 @@
         </button>
 
         <!-- Profile Dropdown -->
-        <Menu as="div" class="relative">
+        <AppMenu as="div" class="relative">
           <MenuButton class="flex items-center gap-3 p-2 rounded-xl hover:bg-secondary-100 transition-colors">
             <div class="h-8 w-8 bg-gradient-to-r from-primary-500 to-primary-700 rounded-full flex items-center justify-center">
               <span class="text-white font-semibold text-sm">
@@ -104,7 +104,7 @@
               </div>
             </MenuItems>
           </transition>
-        </Menu>
+        </AppMenu>
       </div>
     </div>
   </header>
@@ -123,7 +123,7 @@ export default {
   components: {
     Bars3Icon, BellIcon, ChevronDownIcon, PlusIcon,
     UserIcon, CogIcon, ArrowRightOnRectangleIcon,
-    Menu, MenuButton, MenuItems, MenuItem
+    AppMenu: Menu, MenuButton, MenuItems, MenuItem
   },
   props: {
     pageTitle: {

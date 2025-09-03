@@ -3,7 +3,7 @@
     <!-- Show navigation only when authenticated and not on login page -->
     <div v-if="showNavigation" class="app-container">
       <!-- Sidebar Component -->
-      <Sidebar 
+      <AppSidebar 
         :is-open="sidebarOpen"
         :current-page="currentPage"
         @navigate="setCurrentPage"
@@ -12,7 +12,7 @@
       <!-- Main Content -->
       <main class="main-content" :class="{ 'expanded': !sidebarOpen }">
         <!-- Header Component -->
-        <Header 
+        <AppHeader 
           :page-title="pageTitle"
           :sidebar-open="sidebarOpen"
           @toggle-sidebar="toggleSidebar"
@@ -41,8 +41,8 @@ import { globalTheme } from './composables/useTheme'
 export default {
   name: 'App',
   components: {
-    Sidebar,
-    Header
+    AppSidebar: Sidebar,
+    AppHeader: Header
   },
   data() {
     return {

@@ -166,7 +166,7 @@
 
     <!-- Forgot Password Modal -->
     <TransitionRoot appear :show="showForgotPassword" as="template">
-      <Dialog as="div" class="relative z-50" @close="showForgotPassword = false">
+      <AppDialog as="div" class="relative z-50" @close="showForgotPassword = false">
         <TransitionChild
           as="template"
           enter="duration-300 ease-out"
@@ -250,7 +250,7 @@
             </TransitionChild>
           </div>
         </div>
-      </Dialog>
+      </AppDialog>
     </TransitionRoot>
   </div>
 </template>
@@ -273,7 +273,7 @@ export default {
     ArrowRightOnRectangleIcon, CheckCircleIcon, ExclamationCircleIcon,
     BeakerIcon, ChevronDownIcon, ArrowRightIcon, ShieldCheckIcon,
     UserIcon, CogIcon, HeartIcon, WrenchScrewdriverIcon,
-    Dialog, DialogPanel, DialogTitle, TransitionRoot, TransitionChild
+    AppDialog: Dialog, DialogPanel, DialogTitle, TransitionRoot, TransitionChild
   },
   data() {
     return {
