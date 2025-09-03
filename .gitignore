@@ -28,3 +28,6 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+nul
+NUL
+src/nul
