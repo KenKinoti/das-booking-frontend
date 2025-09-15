@@ -1,22 +1,11 @@
 <template>
   <div class="service-categories-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-th-large"></i>
-          </div>
-          Service Categories
-        </h1>
-        <p class="page-description">Manage service categories and organize your business offerings</p>
-      </div>
-      <div class="header-actions">
-        <button @click="showAddCategoryModal = true" class="btn-primary">
-          <i class="fas fa-plus"></i>
-          Add Category
-        </button>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="showAddCategoryModal = true" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Add Category
+      </button>
     </div>
 
     <!-- Categories Grid -->

@@ -1,12 +1,5 @@
 <template>
   <div class="audit-logs">
-    <div class="page-header">
-      <h1 class="page-title">
-        <i class="fas fa-history"></i>
-        Audit Logs
-      </h1>
-      <p class="page-subtitle">Track system activities and user actions across the platform</p>
-    </div>
 
     <!-- Filters Section -->
     <div class="filters-section">

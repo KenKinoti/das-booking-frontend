@@ -1,60 +1,72 @@
 <template>
   <Teleport to="body">
-    <div v-if="show" class="notification-modal-overlay" @click="handleOverlayClick">
-      <div class="notification-modal-content" :class="contentClass" @click.stop>
-        <div class="notification-modal-header" :class="headerColor">
-          <i :class="iconClass"></i>
-          <h3>{{ title }}</h3>
-          <button 
-            class="notification-modal-close" 
-            @click="$emit('close')"
-            aria-label="Close modal"
-          >
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        
-        <div class="notification-modal-body">
-          <slot name="body">
-            <p v-html="formattedMessage"></p>
-          </slot>
-        </div>
-        
-        <div class="notification-modal-actions">
-          <slot name="actions">
-            <!-- Default actions based on modal type -->
-            <template v-if="type === 'view'">
-              <button class="btn btn-view" @click="$emit('close')">
-                <i class="fas fa-times"></i>
-                Close
-              </button>
-              <button 
-                v-if="showDelete" 
-                class="btn btn-delete" 
-                @click="$emit('delete')"
-              >
-                <i class="fas fa-trash"></i>
-                Delete
-              </button>
-            </template>
-            
-            <template v-else-if="type === 'confirm'">
-              <button class="btn btn-view" @click="$emit('close')">
-                <i class="fas fa-times"></i>
-                Cancel
-              </button>
-              <button class="btn btn-delete" @click="$emit('confirm')">
-                <i class="fas fa-check"></i>
-                Confirm
-              </button>
-            </template>
-            
-            <template v-else>
-              <button class="btn btn-primary" @click="$emit('close')">
-                OK
-              </button>
-            </template>
-          </slot>
+    <div
+      v-if="show"
+      class="modal fade show d-block"
+      tabindex="-1"
+      role="dialog"
+      style="background: rgba(0, 0, 0, 0.5);"
+      @click="handleOverlayClick"
+    >
+      <div class="modal-dialog" :class="modalSizeClass" role="document" @click.stop>
+        <div class="modal-content">
+          <div class="modal-header" :class="headerClass">
+            <div class="d-flex align-items-center">
+              <i :class="iconClass + ' me-2'"></i>
+              <h5 class="modal-title mb-0">{{ title }}</h5>
+            </div>
+            <button
+              type="button"
+              class="btn-close"
+              @click="$emit('close')"
+              aria-label="Close"
+            ></button>
+          </div>
+
+          <div class="modal-body">
+            <slot name="body">
+              <p v-if="message" v-html="formattedMessage"></p>
+            </slot>
+          </div>
+
+          <div class="modal-footer" v-if="!hideFooter">
+            <slot name="footer">
+              <!-- Default actions based on modal type -->
+              <template v-if="type === 'confirm'">
+                <button type="button" class="btn btn-secondary" @click="$emit('close')">
+                  <i class="fas fa-times me-1"></i>
+                  Cancel
+                </button>
+                <button type="button" class="btn btn-danger" @click="$emit('confirm')">
+                  <i class="fas fa-check me-1"></i>
+                  Confirm
+                </button>
+              </template>
+
+              <template v-else-if="type === 'view'">
+                <button type="button" class="btn btn-secondary" @click="$emit('close')">
+                  <i class="fas fa-times me-1"></i>
+                  Close
+                </button>
+                <button
+                  v-if="showDelete"
+                  type="button"
+                  class="btn btn-danger"
+                  @click="$emit('delete')"
+                >
+                  <i class="fas fa-trash me-1"></i>
+                  Delete
+                </button>
+              </template>
+
+              <template v-else>
+                <button type="button" class="btn btn-primary" @click="$emit('close')">
+                  <i class="fas fa-check me-1"></i>
+                  OK
+                </button>
+              </template>
+            </slot>
+          </div>
         </div>
       </div>
     </div>
@@ -89,7 +101,7 @@ export default {
     size: {
       type: String,
       default: 'medium',
-      validator: (value) => ['small', 'medium', 'large'].includes(value)
+      validator: (value) => ['small', 'medium', 'large', 'xl'].includes(value)
     },
     showDelete: {
       type: Boolean,
@@ -98,6 +110,10 @@ export default {
     closeOnOverlay: {
       type: Boolean,
       default: true
+    },
+    hideFooter: {
+      type: Boolean,
+      default: false
     }
   },
   
@@ -106,39 +122,40 @@ export default {
   computed: {
     typeConfig() {
       return {
-        info: { color: 'white', icon: 'fas fa-info-circle' },
-        view: { color: 'white', icon: 'fas fa-eye' },
-        edit: { color: 'blue', icon: 'fas fa-edit' },
-        delete: { color: 'red', icon: 'fas fa-trash' },
-        shift: { color: 'green', icon: 'fas fa-calendar' },
-        success: { color: 'green', icon: 'fas fa-check-circle' },
-        error: { color: 'red', icon: 'fas fa-exclamation-circle' },
-        confirm: { color: 'yellow', icon: 'fas fa-question-circle' },
-        warning: { color: 'yellow', icon: 'fas fa-exclamation-triangle' }
+        info: { headerClass: 'bg-info text-white', icon: 'fas fa-info-circle' },
+        view: { headerClass: '', icon: 'fas fa-eye' },
+        edit: { headerClass: 'bg-primary text-white', icon: 'fas fa-edit' },
+        delete: { headerClass: 'bg-danger text-white', icon: 'fas fa-trash' },
+        shift: { headerClass: 'bg-success text-white', icon: 'fas fa-calendar' },
+        success: { headerClass: 'bg-success text-white', icon: 'fas fa-check-circle' },
+        error: { headerClass: 'bg-danger text-white', icon: 'fas fa-exclamation-circle' },
+        confirm: { headerClass: 'bg-warning text-dark', icon: 'fas fa-question-circle' },
+        warning: { headerClass: 'bg-warning text-dark', icon: 'fas fa-exclamation-triangle' }
       }
     },
-    
+
     config() {
       return this.typeConfig[this.type] || this.typeConfig.info
     },
-    
-    headerColor() {
-      return this.config.color
+
+    headerClass() {
+      return this.config.headerClass
     },
-    
+
     iconClass() {
       return this.config.icon
     },
-    
-    contentClass() {
+
+    modalSizeClass() {
       return {
-        'modal-small': this.size === 'small',
-        'modal-large': this.size === 'large'
+        'modal-sm': this.size === 'small',
+        'modal-lg': this.size === 'large',
+        'modal-xl': this.size === 'xl'
       }
     },
-    
+
     formattedMessage() {
-      return this.message.replace(/\n/g, '<br>')
+      return this.message ? this.message.replace(/\n/g, '<br>') : ''
     }
   },
   
@@ -168,36 +185,38 @@ export default {
 </script>
 
 <style scoped>
-.modal-small .notification-modal-content {
-  max-width: 400px;
+/* Custom modal animations and enhancements */
+.modal {
+  animation: fadeIn 0.2s ease-out;
 }
 
-.modal-large .notification-modal-content {
-  max-width: 800px;
+.modal-dialog {
+  animation: slideIn 0.2s ease-out;
 }
 
-/* Animation for modal entrance */
-.notification-modal-overlay {
-  animation: modalFadeIn 0.2s ease forwards;
-}
-
-.notification-modal-content {
-  animation: modalSlideIn 0.2s ease forwards;
-}
-
-@keyframes modalFadeIn {
+@keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes modalSlideIn {
-  from { 
+@keyframes slideIn {
+  from {
     transform: scale(0.9) translateY(-20px);
     opacity: 0;
   }
-  to { 
+  to {
     transform: scale(1) translateY(0);
     opacity: 1;
   }
+}
+
+/* Ensure proper z-index for modal */
+.modal {
+  z-index: 1055;
+}
+
+/* Icon spacing */
+.modal-title i {
+  margin-right: 0.5rem;
 }
 </style>

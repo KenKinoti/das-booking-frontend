@@ -1,34 +1,26 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <div class="header-content">
-        <h1>
-          <i class="fas fa-chart-line"></i>
-          Reports & Analytics
-        </h1>
-        <p>Generate comprehensive reports, track performance metrics, and analyze trends</p>
-      </div>
-      <div class="header-actions">
-        <select v-model="selectedPeriod" @change="refreshReports" class="period-select">
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-          <option value="365">Last year</option>
-          <option value="custom">Custom range</option>
-        </select>
-        <button @click="exportAllReports" class="btn btn-secondary">
-          <i class="fas fa-download"></i>
-          Export All
-        </button>
-        <button @click="showCustomReportModal = true" class="btn btn-primary">
-          <i class="fas fa-chart-bar"></i>
-          Custom Report
-        </button>
-        <button @click="forceRefresh" class="btn btn-outline" :disabled="isRefreshing" title="Refresh Data">
-          <i :class="['fas', isRefreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt']"></i>
-          {{ isRefreshing ? 'Refreshing...' : 'Refresh' }}
-        </button>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <select v-model="selectedPeriod" @change="refreshReports" class="form-select me-2" style="width: auto;">
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="365">Last year</option>
+        <option value="custom">Custom range</option>
+      </select>
+      <button @click="exportAllReports" class="btn btn-outline-primary me-2">
+        <i class="fas fa-download me-2"></i>
+        Export All
+      </button>
+      <button @click="showCustomReportModal = true" class="btn btn-primary me-2">
+        <i class="fas fa-chart-bar me-2"></i>
+        Custom Report
+      </button>
+      <button @click="forceRefresh" class="btn btn-outline-secondary" :disabled="isRefreshing" title="Refresh Data">
+        <i :class="['fas', isRefreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt']"></i>
+        {{ isRefreshing ? 'Refreshing...' : 'Refresh' }}
+      </button>
     </div>
 
     <!-- Date Range Picker for Custom -->

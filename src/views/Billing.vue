@@ -1,9 +1,9 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1>Billing & Invoices</h1>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
       <button @click="showCreateModal = true" class="btn btn-primary">
-        <i class="fas fa-plus"></i>
+        <i class="fas fa-plus me-2"></i>
         Create Invoice
       </button>
     </div>

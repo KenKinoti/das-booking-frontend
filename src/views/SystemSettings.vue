@@ -1,25 +1,15 @@
 <template>
   <div class="system-settings">
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-cogs"></i>
-          </div>
-          System Settings
-        </h1>
-        <p class="page-description">Configure platform-wide settings, features, and organization management</p>
-      </div>
-      <div class="header-actions">
-        <button @click="exportSettings" class="btn btn-outline">
-          <i class="fas fa-download"></i>
-          Export Config
-        </button>
-        <button @click="saveAllSettings" class="btn btn-primary" :disabled="isSaving">
-          <i :class="['fas', isSaving ? 'fa-spinner fa-spin' : 'fa-save']"></i>
-          {{ isSaving ? 'Saving...' : 'Save Changes' }}
-        </button>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="exportSettings" class="btn btn-outline-primary me-2">
+        <i class="fas fa-download me-2"></i>
+        Export Config
+      </button>
+      <button @click="saveAllSettings" class="btn btn-primary" :disabled="isSaving">
+        <i :class="['fas', isSaving ? 'fa-spinner fa-spin' : 'fa-save']"></i>
+        {{ isSaving ? 'Saving...' : 'Save Changes' }}
+      </button>
     </div>
 
     <!-- Settings Navigation -->

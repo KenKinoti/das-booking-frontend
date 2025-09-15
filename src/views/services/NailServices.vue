@@ -1,23 +1,11 @@
 <template>
   <div class="nail-services">
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-info">
-          <div class="category-icon">
-            <i class="fas fa-hand-paper"></i>
-          </div>
-          <div class="title-section">
-            <h1>Nail Services</h1>
-            <p class="category-description">Professional nail care, manicures, and pedicures</p>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button class="btn-primary">
-            <i class="fas fa-plus"></i>
-            Add Service
-          </button>
-        </div>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Add Service
+      </button>
     </div>
 
     <div class="content-wrapper">

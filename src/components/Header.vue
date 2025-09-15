@@ -1,28 +1,31 @@
 <template>
   <header class="header">
-    <div class="header-left">
-      <button class="menu-toggle" @click.stop="$emit('toggle-sidebar')">
-        <i class="fas fa-bars"></i>
-      </button>
-    </div>
-    
-    <div class="header-right">
-      
-      <!-- Theme Toggle -->
-      <ThemeToggle />
-      
-      <div class="search-box">
-        <input 
-          type="text" 
-          class="search-input" 
-          placeholder="Search bookings, customers, or services..."
-          v-model="searchQuery"
-          @input="handleSearch"
-          @keyup.enter="performSearch"
-          @focus="showSearchResults = true"
-          @blur="hideSearchResults"
-        >
-        <i class="fas fa-search search-icon" @click="performSearch"></i>
+    <div class="header-container">
+      <div class="header-left">
+        <button class="menu-toggle" @click.stop="$emit('toggle-sidebar')">
+          <i class="fas fa-bars"></i>
+        </button>
+        <!-- Remove breadcrumb to clean up navigation -->
+      </div>
+
+      <div class="header-center">
+        <div class="search-container">
+          <div class="search-box">
+            <i class="fas fa-search search-icon-left"></i>
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search anything..."
+              v-model="searchQuery"
+              @input="handleSearch"
+              @keyup.enter="performSearch"
+              @focus="showSearchResults = true"
+              @blur="hideSearchResults"
+            >
+            <button class="search-filters" title="Filters">
+              <i class="fas fa-sliders-h"></i>
+            </button>
+          </div>
         
         <!-- Search Results Dropdown -->
         <div v-if="showSearchResults && (searchResults.length > 0 || isSearching)" class="search-results">
@@ -47,15 +50,58 @@
             </div>
           </div>
         </div>
-      </div>
-      
-      <!-- Organization Selector for SuperAdmin -->
-      <div v-if="isSuperAdmin" class="org-selector" @click="toggleOrgDropdown">
-        <div class="org-display">
-          <i class="fas fa-building"></i>
-          <span>{{ currentOrgName }}</span>
-          <i class="fas fa-chevron-down"></i>
         </div>
+      </div>
+
+      <div class="header-right">
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+          <div class="quick-add-dropdown" @click="toggleQuickAdd">
+            <button class="action-btn" title="Quick Add">
+              <i class="fas fa-plus"></i>
+            </button>
+            <div v-if="showQuickAdd" class="quick-add-menu">
+              <div class="menu-header">Quick Add</div>
+              <a href="/bookings" class="menu-item">
+                <i class="fas fa-calendar-plus"></i>
+                New Booking
+              </a>
+              <a href="/customers" class="menu-item">
+                <i class="fas fa-user-plus"></i>
+                New Customer
+              </a>
+              <a href="/invoices" class="menu-item">
+                <i class="fas fa-file-invoice"></i>
+                New Invoice
+              </a>
+              <a href="/staff" class="menu-item">
+                <i class="fas fa-user-tie"></i>
+                New Staff Member
+              </a>
+            </div>
+          </div>
+          <button class="action-btn" title="Notifications" @click="toggleNotifications">
+            <i class="fas fa-bell"></i>
+            <span class="notification-badge" v-if="notificationCount > 0">{{ notificationCount }}</span>
+          </button>
+          <button class="action-btn" title="Help & FAQ" @click="navigateToFAQ">
+            <i class="fas fa-question-circle"></i>
+          </button>
+        </div>
+
+        <!-- Theme Toggle -->
+        <ThemeToggle />
+
+        <!-- Module Selector for SuperAdmin -->
+        <ModuleSelector />
+
+        <!-- Organization Selector for SuperAdmin -->
+        <div v-if="isSuperAdmin" class="org-selector" @click="toggleOrgDropdown">
+          <div class="org-display">
+            <i class="fas fa-building"></i>
+            <span>{{ currentOrgName }}</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
         
         <!-- Organization Dropdown -->
         <div v-if="showOrgDropdown" class="org-dropdown">
@@ -90,12 +136,17 @@
             No organizations available
           </div>
         </div>
-      </div>
-      
-      <div class="user-menu" @click="toggleUserDropdown">
-        <div class="user-avatar">{{ userInitials }}</div>
-        <span>{{ userName }}</span>
-        <i class="fas fa-chevron-down"></i>
+        </div>
+
+        <div class="user-menu" @click="toggleUserDropdown">
+          <div class="user-info">
+            <div class="user-avatar">{{ userInitials }}</div>
+            <div class="user-details">
+              <span class="user-name">{{ userName }}</span>
+              <span class="user-role">{{ userRole }}</span>
+            </div>
+          </div>
+          <i class="fas fa-chevron-down dropdown-arrow"></i>
         
         <!-- User Dropdown -->
         <div v-if="showUserDropdown" class="user-dropdown">
@@ -113,6 +164,7 @@
             Logout
           </div>
         </div>
+        </div>
       </div>
     </div>
   </header>
@@ -122,12 +174,14 @@
 import { useAuthStore } from '../stores/auth'
 import { useOrganizationContextStore } from '../stores/organizationContext'
 import ThemeToggle from './ThemeToggle.vue'
+import ModuleSelector from './ModuleSelector.vue'
 import api from '../services/api'
 
 export default {
   name: 'AppHeader',
   components: {
-    ThemeToggle
+    ThemeToggle,
+    ModuleSelector
   },
   props: {
     pageTitle: {
@@ -143,11 +197,14 @@ export default {
     return {
       showUserDropdown: false,
       showOrgDropdown: false,
+      showNotifications: false,
+      showQuickAdd: false,
       searchQuery: '',
       searchResults: [],
       showSearchResults: false,
       isSearching: false,
-      searchTimeout: null
+      searchTimeout: null,
+      notificationCount: 3
     }
   },
   computed: {
@@ -177,6 +234,9 @@ export default {
     },
     currentOrgId() {
       return this.orgContextStore.currentOrgId
+    },
+    userRole() {
+      return this.authStore.user?.role || 'User'
     }
   },
   methods: {
@@ -357,6 +417,24 @@ export default {
       this.showUserDropdown = false
       this.$router.push('/settings')
     },
+
+    toggleNotifications() {
+      this.showNotifications = !this.showNotifications
+    },
+
+    toggleQuickAdd() {
+      this.showQuickAdd = !this.showQuickAdd
+      // Close other dropdowns
+      if (this.showQuickAdd) {
+        this.showUserDropdown = false
+        this.showOrgDropdown = false
+        this.showNotifications = false
+      }
+    },
+
+    navigateToFAQ() {
+      this.$router.push('/faq')
+    },
     
   },
   async mounted() {
@@ -381,24 +459,40 @@ export default {
 
 <style scoped>
 .header {
-  background: var(--card-background);
-  backdrop-filter: blur(20px);
-  padding: var(--spacing-2xl) var(--container-padding);
-  box-shadow: var(--shadow-soft);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  background: var(--navbar-bg);
+  border-bottom: 1px solid var(--navbar-border);
   position: sticky;
   top: 0;
   z-index: 100;
-  border-bottom: 1px solid var(--border-color);
-  transition: all var(--transition-smooth);
+  height: 64px;
+  min-height: 64px;
+  box-shadow: var(--bs-box-shadow-sm);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.header-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  max-width: 100%;
+  padding: 0 1rem;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2xl);
+  gap: 1rem;
+  flex: 0 0 auto;
+}
+
+.header-center {
+  display: flex;
+  justify-content: center;
+  flex: 1;
+  max-width: 600px;
+  margin: 0 2rem;
 }
 
 .menu-toggle {
@@ -425,51 +519,83 @@ export default {
   color: var(--primary-color);
 }
 
-.page-title {
-  font-size: 1.75rem;
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.breadcrumb-item {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
   margin: 0;
-  letter-spacing: -0.025em;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xl);
+  gap: 1rem;
+  flex: 0 0 auto;
+}
+
+.search-container {
+  width: 100%;
+  max-width: 500px;
 }
 
 .search-box {
   position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--bs-form-control-bg);
+  border: 1px solid var(--bs-form-control-border-color);
+  border-radius: var(--bs-border-radius);
+  padding: 0 0.75rem;
+  height: 42px;
+  transition: all 0.15s ease-in-out;
+}
+
+.search-box:focus-within {
+  background: var(--bs-form-control-focus-bg);
+  border-color: var(--bs-form-control-focus-border-color);
+  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+.search-icon-left {
+  color: var(--bs-gray-500);
+  font-size: 0.875rem;
+  margin-right: 0.5rem;
 }
 
 .search-input {
-  padding: 12px 40px 12px 16px;
-  border: 2px solid #e2e8f0;
-  border-radius: 25px;
-  width: 300px;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-}
-
-.search-input:focus {
+  flex: 1;
+  border: none;
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: transparent;
+  font-size: 0.875rem;
+  color: var(--bs-form-control-color);
+  padding: 0;
 }
 
-.search-icon {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-light);
+.search-input::placeholder {
+  color: var(--bs-gray-500);
+}
+
+.search-filters {
+  background: none;
+  border: none;
+  color: #6b7280;
+  padding: 4px;
   cursor: pointer;
-  transition: color 0.3s ease;
+  margin-left: 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
-.search-icon:hover {
-  color: var(--primary-color);
+.search-filters:hover {
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .search-results {
@@ -574,31 +700,64 @@ export default {
 .user-menu {
   display: flex;
   align-items: center;
-  gap: 12px;
-  
-  padding: 8px 16px;
-  background: rgba(102, 126, 234, 0.1);
-  border-radius: 25px;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   position: relative;
 }
 
 .user-menu:hover {
-  background: rgba(102, 126, 234, 0.2);
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .user-avatar {
   width: 32px;
   height: 32px;
-  background: var(--primary-gradient);
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.user-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.dropdown-arrow {
+  color: #9ca3af;
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
 }
 
 .user-dropdown {
@@ -642,30 +801,132 @@ export default {
   margin: 0;
 }
 
+/* Quick Actions */
+.quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #6b7280;
+  position: relative;
+}
+
+.action-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+}
+
+/* Quick Add Dropdown */
+.quick-add-dropdown {
+  position: relative;
+}
+
+.quick-add-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.menu-header {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: #374151;
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item:hover {
+  background: #f8fafc;
+  color: #667eea;
+}
+
+.menu-item i {
+  width: 16px;
+  color: #9ca3af;
+}
+
+.menu-item:hover i {
+  color: #667eea;
+}
+
 /* Organization Selector Styles */
 .org-selector {
   position: relative;
-  margin-right: 1rem;
   cursor: pointer;
 }
 
 .org-display {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 6px 10px;
   background: rgba(102, 126, 234, 0.1);
   border: 1px solid rgba(102, 126, 234, 0.2);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text-dark);
   font-weight: 500;
   transition: all 0.3s ease;
-  min-width: 200px;
+  min-width: 160px;
+  font-size: 0.875rem;
 }
 
 .org-display:hover {
-  background: rgba(102, 126, 234, 0.15);
-  border-color: rgba(102, 126, 234, 0.3);
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 .org-display i.fa-chevron-down {
@@ -753,32 +1014,33 @@ export default {
 .icon-btn {
   background: rgba(102, 126, 234, 0.1);
   border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
   color: var(--primary-color);
-  font-size: 1.1rem;
+  font-size: 0.9rem;
 }
 
 .icon-btn:hover {
   background: rgba(102, 126, 234, 0.2);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-soft);
 }
 
 /* Responsive Design */
 @media (max-width: 1024px) {
   .search-input {
-    width: 250px;
+    width: 200px;
   }
   
   .org-display {
-    min-width: 150px;
+    min-width: 120px;
+    font-size: 0.8rem;
   }
 }
 
@@ -788,7 +1050,9 @@ export default {
   }
   
   .header {
-    padding: var(--spacing-lg) var(--spacing-lg);
+    padding: 0.5rem var(--spacing-lg);
+    height: 56px;
+    min-height: 56px;
   }
   
   .header-left {
@@ -800,11 +1064,11 @@ export default {
   }
 
   .search-input {
-    width: 180px;
+    width: 160px;
   }
 
   .page-title {
-    font-size: 1.5rem;
+    font-size: 1.1rem;
   }
   
   .user-menu span {
@@ -823,7 +1087,9 @@ export default {
 
 @media (max-width: 480px) {
   .header {
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: 0.5rem var(--spacing-lg);
+    height: 52px;
+    min-height: 52px;
   }
   
   .search-box {
@@ -831,7 +1097,8 @@ export default {
   }
   
   .page-title {
-    font-size: 1.25rem;
+    font-size: 1rem;
+    margin-left: 0.5rem;
   }
   
   .header-right {

@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <h1>My Profile</h1>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
       <button @click="saveProfile" class="btn btn-primary" :disabled="isSaving">
         <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
         <i v-else class="fas fa-save"></i>

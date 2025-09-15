@@ -1,26 +1,15 @@
 <template>
   <div class="database-management">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-database"></i>
-          </div>
-          Database Management
-        </h1>
-        <p class="page-description">Super admin database operations and system maintenance tools</p>
-      </div>
-      <div class="header-actions">
-        <button @click="refreshStats" class="btn-outline" :disabled="isLoading.stats">
-          <i :class="['fas', isLoading.stats ? 'fa-spinner fa-spin' : 'fa-sync-alt']"></i>
-          Refresh Stats
-        </button>
-        <button @click="showHealthModal = true" class="btn-primary">
-          <i class="fas fa-heartbeat"></i>
-          Health Check
-        </button>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="refreshStats" class="btn btn-outline-primary me-2" :disabled="isLoading.stats">
+        <i :class="['fas', isLoading.stats ? 'fa-spinner fa-spin' : 'fa-sync-alt']"></i>
+        Refresh Stats
+      </button>
+      <button @click="showHealthModal = true" class="btn btn-primary">
+        <i class="fas fa-heartbeat me-2"></i>
+        Health Check
+      </button>
     </div>
 
     <!-- Stats Overview -->

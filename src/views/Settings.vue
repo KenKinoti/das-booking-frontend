@@ -1,22 +1,12 @@
 <template>
   <div class="settings-page">
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-cog"></i>
-          </div>
-          System Settings
-        </h1>
-        <p class="page-description">Configure your system preferences, organization details, and security settings</p>
-      </div>
-      <div class="header-actions">
-        <button @click="saveAllSettings" class="btn btn-primary" :disabled="isSaving">
-          <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
-          <i v-else class="fas fa-save"></i>
-          {{ isSaving ? 'Saving...' : 'Save Changes' }}
-        </button>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="saveAllSettings" class="btn btn-primary" :disabled="isSaving">
+        <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
+        <i v-else class="fas fa-save"></i>
+        {{ isSaving ? 'Saving...' : 'Save Changes' }}
+      </button>
     </div>
 
     <div v-if="isLoading" class="loading-state">

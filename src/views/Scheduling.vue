@@ -2,16 +2,10 @@
   <div class="container-fluid">
     <!-- Add glassmorphism background overlay -->
     <div class="page-overlay"></div>
-    <div class="page-header">
-      <div class="header-content">
-        <h1>
-          <i class="fas fa-calendar-alt"></i>
-          Shift Scheduling
-        </h1>
-        <p>Manage staff shifts, assignments, and scheduling coordination</p>
-      </div>
-      <button @click="showAddModal = true" class="btn btn-shift">
-        <i class="fas fa-plus"></i>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="showAddModal = true" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
         Schedule New Shift
       </button>
     </div>

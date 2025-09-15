@@ -3,116 +3,229 @@
     <div class="sidebar-header">
       <div class="logo">
         <div class="logo-icon">
-          <i class="fas fa-heart-pulse"></i>
+          <i class="bi bi-building-gear"></i>
         </div>
-        <span class="logo-text">DAS CRM</span>
+        <span class="logo-text">DASYIN ERP</span>
       </div>
     </div>
     
     <div class="nav-menu">
-      <div v-if="visibleNavigation.includes('dashboard')" class="nav-item">
+      <!-- Core ERP Modules -->
+      <div v-if="shouldShowDashboard" class="nav-item">
         <a href="#" class="nav-link" :class="{ active: currentPage === 'dashboard' }" @click="navigate('dashboard')">
           <i class="fas fa-chart-line nav-icon"></i>
           Dashboard
         </a>
       </div>
-      <div v-if="visibleNavigation.includes('bookings')" class="nav-item">
-        <a href="#" class="nav-link" :class="{ active: currentPage === 'bookings' }" @click="navigate('bookings')">
-          <i class="fas fa-calendar-check nav-icon"></i>
-          Bookings
-        </a>
-      </div>
-      <div v-if="visibleNavigation.includes('customers')" class="nav-item">
-        <a href="#" class="nav-link" :class="{ active: currentPage === 'customers' }" @click="navigate('customers')">
-          <i class="fas fa-user-friends nav-icon"></i>
-          Customers
-        </a>
-      </div>
-      <!-- Service Categories Section -->
-      <div v-if="visibleNavigation.includes('services')" class="nav-item nav-expandable">
-        <div class="nav-parent">
-          <a href="#" class="nav-link" :class="{ active: isServiceCategoryActive }" @click="toggleServiceCategories">
-            <i class="fas fa-concierge-bell nav-icon"></i>
-            Service Categories
-            <i class="fas fa-chevron-right expand-icon" :class="{ expanded: serviceCategoriesExpanded }"></i>
+
+      <!-- Financial Management -->
+      <div v-if="shouldShowFinanceSection" class="nav-section">
+        <div class="nav-section-title">Financial Management</div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'finance' }" @click="navigate('finance')">
+            <i class="fas fa-calculator nav-icon"></i>
+            Finance & Accounting
           </a>
         </div>
-        <div class="nav-submenu" :class="{ expanded: serviceCategoriesExpanded }">
-          <div class="nav-item nav-sub-item">
-            <a href="#" class="nav-link nav-sub-link" 
-               :class="{ active: currentPage === 'automotive-repair' }" 
-               @click="navigate('services/automotive-repair')">
-              <i class="fas fa-tools nav-icon"></i>
-              Automotive Repair
-            </a>
-          </div>
-          <div class="nav-item nav-sub-item">
-            <a href="#" class="nav-link nav-sub-link" 
-               :class="{ active: currentPage === 'automotive-maintenance' }" 
-               @click="navigate('services/automotive-maintenance')">
-              <i class="fas fa-car nav-icon"></i>
-              Auto Maintenance
-            </a>
-          </div>
-          <div class="nav-item nav-sub-item">
-            <a href="#" class="nav-link nav-sub-link" 
-               :class="{ active: currentPage === 'hair-services' }" 
-               @click="navigate('services/hair-services')">
-              <i class="fas fa-cut nav-icon"></i>
-              Hair Services
-            </a>
-          </div>
-          <div class="nav-item nav-sub-item">
-            <a href="#" class="nav-link nav-sub-link" 
-               :class="{ active: currentPage === 'beauty-spa' }" 
-               @click="navigate('services/beauty-spa')">
-              <i class="fas fa-spa nav-icon"></i>
-              Beauty & Spa
-            </a>
-          </div>
-          <div class="nav-item nav-sub-item">
-            <a href="#" class="nav-link nav-sub-link" 
-               :class="{ active: currentPage === 'nail-services' }" 
-               @click="navigate('services/nail-services')">
-              <i class="fas fa-hand-paper nav-icon"></i>
-              Nail Services
-            </a>
-          </div>
-          <div class="nav-item nav-sub-item">
-            <a href="#" class="nav-link nav-sub-link" 
-               :class="{ active: currentPage === 'diagnostic-services' }" 
-               @click="navigate('services/diagnostic-services')">
-              <i class="fas fa-stethoscope nav-icon"></i>
-              Diagnostic Services
-            </a>
-          </div>
-          <div class="nav-item nav-sub-item">
-            <a href="#" class="nav-link nav-sub-link" 
-               :class="{ active: currentPage === 'service-categories' }" 
-               @click="navigate('services/categories')">
-              <i class="fas fa-cog nav-icon"></i>
-              Manage Categories
-            </a>
-          </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'invoices' }" @click="navigate('invoices')">
+            <i class="fas fa-file-invoice-dollar nav-icon"></i>
+            Billing & Invoicing
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'bills' }" @click="navigate('bills')">
+            <i class="fas fa-receipt nav-icon"></i>
+            Bills & Expenses
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'banking' }" @click="navigate('banking')">
+            <i class="fas fa-bank nav-icon"></i>
+            Banking & Transactions
+          </a>
         </div>
       </div>
-      <div v-if="visibleNavigation.includes('staff')" class="nav-item">
-        <a href="#" class="nav-link" :class="{ active: currentPage === 'staff' }" @click="navigate('staff')">
-          <i class="fas fa-users-cog nav-icon"></i>
-          Staff
-        </a>
+
+      <!-- Operations Management -->
+      <div v-if="shouldShowOperationsSection" class="nav-section">
+        <div class="nav-divider"></div>
+        <div class="nav-section-title">Operations</div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'inventory' }" @click="navigate('inventory')">
+            <i class="fas fa-boxes nav-icon"></i>
+            Inventory Management
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'suppliers' }" @click="navigate('suppliers')">
+            <i class="fas fa-truck nav-icon"></i>
+            Supplier Management
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'production' }" @click="navigate('production')">
+            <i class="fas fa-cogs nav-icon"></i>
+            Production & MRP
+          </a>
+        </div>
       </div>
-      <div v-if="visibleNavigation.includes('billing')" class="nav-item">
-        <a href="#" class="nav-link" :class="{ active: currentPage === 'billing' }" @click="navigate('billing')">
-          <i class="fas fa-dollar-sign nav-icon"></i>
-          Billing
-        </a>
+
+      <!-- Customer Relations -->
+      <div v-if="shouldShowCustomerSection" class="nav-section">
+        <div class="nav-divider"></div>
+        <div class="nav-section-title">Customer Relations</div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'crm' }" @click="navigate('crm')">
+            <i class="fas fa-users nav-icon"></i>
+            CRM
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'bookings' }" @click="navigate('bookings')">
+            <i class="fas fa-calendar-check nav-icon"></i>
+            Bookings & Appointments
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'customers' }" @click="navigate('customers')">
+            <i class="fas fa-user-friends nav-icon"></i>
+            Customer Management
+          </a>
+        </div>
       </div>
-      <div v-if="visibleNavigation.includes('reports')" class="nav-item">
-        <a href="#" class="nav-link" :class="{ active: currentPage === 'reports' }" @click="navigate('reports')">
-          <i class="fas fa-chart-bar nav-icon"></i>
-          Reports
-        </a>
+
+      <!-- Service Management -->
+      <div v-if="shouldShowServicesSection" class="nav-section">
+        <div class="nav-divider"></div>
+        <div class="nav-section-title">Services & Projects</div>
+        <div class="nav-item nav-expandable">
+          <div class="nav-parent">
+            <a href="#" class="nav-link" :class="{ active: isServiceCategoryActive }" @click="toggleServiceCategories">
+              <i class="fas fa-concierge-bell nav-icon"></i>
+              Service Categories
+              <i class="fas fa-chevron-right expand-icon" :class="{ expanded: serviceCategoriesExpanded }"></i>
+            </a>
+          </div>
+          <div class="nav-submenu" :class="{ expanded: serviceCategoriesExpanded }">
+            <div class="nav-item nav-sub-item">
+              <a href="#" class="nav-link nav-sub-link"
+                 :class="{ active: currentPage === 'automotive-repair' }"
+                 @click="navigate('services/automotive-repair')">
+                <i class="fas fa-tools nav-icon"></i>
+                Automotive Repair
+              </a>
+            </div>
+            <div class="nav-item nav-sub-item">
+              <a href="#" class="nav-link nav-sub-link"
+                 :class="{ active: currentPage === 'automotive-maintenance' }"
+                 @click="navigate('services/automotive-maintenance')">
+                <i class="fas fa-car nav-icon"></i>
+                Auto Maintenance
+              </a>
+            </div>
+            <div class="nav-item nav-sub-item">
+              <a href="#" class="nav-link nav-sub-link"
+                 :class="{ active: currentPage === 'hair-services' }"
+                 @click="navigate('services/hair-services')">
+                <i class="fas fa-cut nav-icon"></i>
+                Hair Services
+              </a>
+            </div>
+            <div class="nav-item nav-sub-item">
+              <a href="#" class="nav-link nav-sub-link"
+                 :class="{ active: currentPage === 'beauty-spa' }"
+                 @click="navigate('services/beauty-spa')">
+                <i class="fas fa-spa nav-icon"></i>
+                Beauty & Spa
+              </a>
+            </div>
+            <div class="nav-item nav-sub-item">
+              <a href="#" class="nav-link nav-sub-link"
+                 :class="{ active: currentPage === 'nail-services' }"
+                 @click="navigate('services/nail-services')">
+                <i class="fas fa-hand-paper nav-icon"></i>
+                Nail Services
+              </a>
+            </div>
+            <div class="nav-item nav-sub-item">
+              <a href="#" class="nav-link nav-sub-link"
+                 :class="{ active: currentPage === 'diagnostic-services' }"
+                 @click="navigate('services/diagnostic-services')">
+                <i class="fas fa-stethoscope nav-icon"></i>
+                Diagnostic Services
+              </a>
+            </div>
+            <div class="nav-item nav-sub-item">
+              <a href="#" class="nav-link nav-sub-link"
+                 :class="{ active: currentPage === 'service-categories' }"
+                 @click="navigate('services/categories')">
+                <i class="fas fa-cog nav-icon"></i>
+                Manage Categories
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'projects' }" @click="navigate('projects')">
+            <i class="fas fa-project-diagram nav-icon"></i>
+            Project Management
+          </a>
+        </div>
+      </div>
+
+      <!-- Human Resources -->
+      <div v-if="shouldShowHRSection" class="nav-section">
+        <div class="nav-divider"></div>
+        <div class="nav-section-title">Human Resources</div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'staff' }" @click="navigate('staff')">
+            <i class="fas fa-users-cog nav-icon"></i>
+            Staff Management
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'hcm' }" @click="navigate('hcm')">
+            <i class="fas fa-user-tie nav-icon"></i>
+            HCM & Payroll
+          </a>
+        </div>
+      </div>
+
+      <!-- Sales & E-commerce -->
+      <div v-if="shouldShowSalesSection" class="nav-section">
+        <div class="nav-divider"></div>
+        <div class="nav-section-title">Sales & E-commerce</div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'pos' }" @click="navigate('pos')">
+            <i class="fas fa-cash-register nav-icon"></i>
+            Point of Sale
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'pos-transactions' }" @click="navigate('pos-transactions')">
+            <i class="fas fa-receipt nav-icon"></i>
+            POS Transactions
+          </a>
+        </div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'ecommerce' }" @click="navigate('ecommerce')">
+            <i class="fas fa-shopping-cart nav-icon"></i>
+            E-commerce Integration
+          </a>
+        </div>
+      </div>
+
+      <!-- Analytics & Reports -->
+      <div v-if="shouldShowReportsSection" class="nav-section">
+        <div class="nav-divider"></div>
+        <div class="nav-section-title">Analytics & Reports</div>
+        <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'reports' }" @click="navigate('reports')">
+            <i class="fas fa-chart-bar nav-icon"></i>
+            Reports & Analytics
+          </a>
+        </div>
       </div>
       <div v-if="visibleNavigation.includes('settings')" class="nav-item">
         <a href="#" class="nav-link" :class="{ active: currentPage === 'settings' }" @click="navigate('settings')">
@@ -169,6 +282,8 @@
 <script>
 import { useAuthStore } from '../stores/auth'
 import { usePermissionsStore } from '../stores/permissions'
+import { useModuleSelectorStore } from '../stores/moduleSelector'
+import { moduleService } from '../services/moduleService'
 
 export default {
   name: 'AppSidebar',
@@ -184,7 +299,8 @@ export default {
   },
   data() {
     return {
-      serviceCategoriesExpanded: false
+      serviceCategoriesExpanded: false,
+      moduleConfig: null
     }
   },
   computed: {
@@ -193,6 +309,9 @@ export default {
     },
     permissionsStore() {
       return usePermissionsStore()
+    },
+    moduleSelectorStore() {
+      return useModuleSelectorStore()
     },
     isSuperAdmin() {
       return this.authStore.isSuperAdmin
@@ -214,10 +333,49 @@ export default {
     },
     isServiceCategoryActive() {
       const serviceCategoryPages = [
-        'automotive-repair', 'automotive-maintenance', 'hair-services', 
+        'automotive-repair', 'automotive-maintenance', 'hair-services',
         'beauty-spa', 'nail-services', 'diagnostic-services', 'service-categories'
       ]
       return serviceCategoryPages.some(page => this.currentPage.includes(page))
+    },
+    isERPEnabled() {
+      // ERP modules are now always enabled as part of the comprehensive system
+      return true
+    },
+    isPOSEnabled() {
+      // POS modules are now integrated into the main navigation
+      return true
+    },
+    shouldShowFinanceSection() {
+      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('finance')
+    },
+    shouldShowOperationsSection() {
+      return !this.isSuperAdmin ||
+        this.moduleSelectorStore.shouldShowRoute('inventory') ||
+        this.moduleSelectorStore.shouldShowRoute('production')
+    },
+    shouldShowCustomerSection() {
+      return !this.isSuperAdmin ||
+        this.moduleSelectorStore.shouldShowRoute('crm') ||
+        this.moduleSelectorStore.shouldShowRoute('bookings') ||
+        this.moduleSelectorStore.shouldShowRoute('customers')
+    },
+    shouldShowServicesSection() {
+      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('services')
+    },
+    shouldShowHRSection() {
+      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('hcm')
+    },
+    shouldShowSalesSection() {
+      return !this.isSuperAdmin ||
+        this.moduleSelectorStore.shouldShowRoute('pos') ||
+        this.moduleSelectorStore.shouldShowRoute('ecommerce')
+    },
+    shouldShowReportsSection() {
+      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('reports')
+    },
+    shouldShowDashboard() {
+      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('dashboard')
     }
   },
   methods: {
@@ -226,7 +384,18 @@ export default {
     },
     toggleServiceCategories() {
       this.serviceCategoriesExpanded = !this.serviceCategoriesExpanded
+    },
+    async fetchModuleConfig() {
+      try {
+        const response = await moduleService.getOrganizationModules()
+        this.moduleConfig = response.data.module_config
+      } catch (error) {
+        console.error('Error fetching module config:', error)
+      }
     }
+  },
+  async mounted() {
+    await this.fetchModuleConfig()
   },
   watch: {
     currentPage(newPage) {
@@ -245,7 +414,7 @@ export default {
 
 <style scoped>
 .sidebar {
-  width: 240px;
+  width: 200px;
   background: var(--card-background);
   backdrop-filter: blur(20px);
   border-right: 1px solid rgba(255,255,255,0.2);
@@ -263,7 +432,7 @@ export default {
 }
 
 .sidebar-header {
-  padding: var(--spacing-2xl) var(--spacing-xl);
+  padding: 1rem;
   border-bottom: 1px solid var(--border-color);
   background: rgba(102, 126, 234, 0.02);
   position: relative;
@@ -283,19 +452,19 @@ export default {
 .logo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .logo-icon {
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   background: var(--primary-gradient);
-  border-radius: var(--border-radius-sm);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-white);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   box-shadow: var(--shadow-soft);
   transition: var(--transition-bounce);
 }
@@ -306,7 +475,7 @@ export default {
 }
 
 .logo-text {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: var(--font-weight-bold);
   background: var(--primary-gradient);
   -webkit-background-clip: text;
@@ -317,27 +486,27 @@ export default {
 }
 
 .nav-menu {
-  padding: var(--spacing-xl) 0;
+  padding: 0.75rem 0;
   overflow-y: auto;
   flex: 1;
 }
 
 .nav-item {
-  margin: var(--spacing-xs) var(--spacing-xl);
+  margin: 0.25rem 0.75rem;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-lg) var(--spacing-xl);
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   text-decoration: none;
   color: var(--text-medium);
-  border-radius: var(--border-radius-sm);
+  border-radius: 6px;
   transition: var(--transition-smooth);
   font-weight: var(--font-weight-medium);
   font-family: var(--font-family);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   position: relative;
   overflow: hidden;
 }
@@ -392,23 +561,23 @@ export default {
 }
 
 .nav-section {
-  margin-top: var(--spacing-xl);
+  margin-top: 1rem;
 }
 
 .nav-divider {
-  height: 2px;
+  height: 1px;
   background: linear-gradient(90deg, transparent 0%, var(--primary-color) 50%, transparent 100%);
-  margin: var(--spacing-md) var(--spacing-lg);
+  margin: 0.5rem 0.75rem;
   border-radius: 1px;
 }
 
 .nav-section-title {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--primary-color);
-  padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-md) var(--spacing-lg);
+  padding: 0.5rem 0.75rem 0.25rem 0.75rem;
   margin: 0;
   font-family: var(--font-family);
   opacity: 0.8;
@@ -482,41 +651,41 @@ export default {
 /* Responsive Design */
 @media (max-width: 1024px) {
   .sidebar {
-    width: 220px;
+    width: 180px;
   }
-  
+
   .nav-link {
-    font-size: 0.875rem;
-    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
   }
 }
 
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
-    width: 280px;
+    width: 240px;
     box-shadow: var(--shadow-strong);
   }
 
   .sidebar.open {
     transform: translateX(0);
   }
-  
+
   .sidebar-header {
-    padding: var(--spacing-xl) var(--spacing-lg);
+    padding: 1rem 0.75rem;
   }
-  
+
   .nav-menu {
-    padding: var(--spacing-lg) 0;
+    padding: 0.5rem 0;
   }
-  
+
   .nav-item {
-    margin: var(--spacing-xs) var(--spacing-lg);
+    margin: 0.25rem 0.5rem;
   }
-  
+
   .nav-link {
-    padding: var(--spacing-lg) var(--spacing-xl);
-    font-size: 0.95rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
   }
 }
 </style>

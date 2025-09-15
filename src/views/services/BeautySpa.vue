@@ -1,23 +1,11 @@
 <template>
   <div class="beauty-spa">
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-info">
-          <div class="category-icon">
-            <i class="fas fa-spa"></i>
-          </div>
-          <div class="title-section">
-            <h1>Beauty & Spa Services</h1>
-            <p class="category-description">Relaxing beauty treatments and spa services for wellness and rejuvenation</p>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button class="btn-primary">
-            <i class="fas fa-plus"></i>
-            Add Service
-          </button>
-        </div>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Add Service
+      </button>
     </div>
 
     <div class="content-wrapper">

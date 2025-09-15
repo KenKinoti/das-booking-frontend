@@ -124,96 +124,100 @@
       </div>
 
       <!-- List View -->
-      <div v-else-if="currentView === 'list'" class="customers-table">
-        <div class="table-header">
-          <div class="header-cell">Customer</div>
-          <div class="header-cell">Contact</div>
-          <div class="header-cell">Address</div>
-          <div class="header-cell" v-if="businessType === 'garage'">Vehicles</div>
-          <div class="header-cell">Joined</div>
-          <div class="header-cell">Status</div>
-          <div class="header-cell">Actions</div>
-        </div>
-        
-        <div 
-          v-for="customer in paginatedCustomers" 
-          :key="customer.id" 
-          class="table-row"
-          :class="{ 'inactive': !customer.is_active }"
-        >
-          <div class="table-cell">
-            <div class="customer-info">
-              <div class="customer-avatar small">
-                {{ getInitials(customer.first_name, customer.last_name) }}
-              </div>
-              <div>
-                <div class="name">{{ customer.first_name }} {{ customer.last_name }}</div>
-                <div class="email">{{ customer.email }}</div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="table-cell">
-            <div class="contact-info">
-              <div class="phone">{{ customer.phone }}</div>
-            </div>
-          </div>
-          
-          <div class="table-cell">
-            <div class="address">{{ formatAddress(customer.address) }}</div>
-          </div>
-          
-          <div class="table-cell" v-if="businessType === 'garage'">
-            <div class="vehicles-count">
-              <i class="fas fa-car"></i>
-              {{ customer.vehicles?.length || 0 }}
-            </div>
-          </div>
-          
-          <div class="table-cell">
-            <div class="join-date">{{ formatDate(customer.created_at) }}</div>
-          </div>
-          
-          <div class="table-cell">
-            <span class="status-badge" :class="{ active: customer.is_active, inactive: !customer.is_active }">
-              {{ customer.is_active ? 'Active' : 'Inactive' }}
-            </span>
-          </div>
-          
-          <div class="table-cell">
-            <div class="action-buttons">
-              <button 
-                @click="viewCustomer(customer)" 
-                class="btn-icon btn-view"
-                title="View customer"
-              >
-                <i class="fas fa-eye"></i>
-              </button>
-              <button 
-                @click="editCustomer(customer)" 
-                class="btn-icon btn-edit"
-                title="Edit customer"
-              >
-                <i class="fas fa-edit"></i>
-              </button>
-              <button 
-                @click="manageVehicles(customer)" 
-                class="btn-icon btn-vehicles"
-                title="Manage vehicles"
-                v-if="businessType === 'garage'"
-              >
-                <i class="fas fa-car"></i>
-              </button>
-              <button 
-                @click="toggleCustomerStatus(customer)" 
-                class="btn-icon btn-toggle"
-                :title="customer.is_active ? 'Deactivate customer' : 'Activate customer'"
-              >
-                <i :class="customer.is_active ? 'fas fa-toggle-on' : 'fas fa-toggle-off'"></i>
-              </button>
-            </div>
-          </div>
-        </div>
+      <div v-else-if="currentView === 'list'" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th scope="col">Customer</th>
+              <th scope="col">Contact</th>
+              <th scope="col">Address</th>
+              <th scope="col" v-if="businessType === 'garage'">Vehicles</th>
+              <th scope="col">Joined</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="customer in paginatedCustomers"
+              :key="customer.id"
+              :class="{ 'table-secondary': !customer.is_active }"
+            >
+              <td>
+                <div class="d-flex align-items-center">
+                  <div class="avatar-circle me-3">
+                    {{ getInitials(customer.first_name, customer.last_name) }}
+                  </div>
+                  <div>
+                    <div class="fw-medium">{{ customer.first_name }} {{ customer.last_name }}</div>
+                    <div class="text-muted small">{{ customer.email }}</div>
+                  </div>
+                </div>
+              </td>
+
+              <td>
+                <div class="text-nowrap">{{ customer.phone }}</div>
+              </td>
+
+              <td>
+                <div class="text-truncate" style="max-width: 200px;" :title="formatAddress(customer.address)">
+                  {{ formatAddress(customer.address) }}
+                </div>
+              </td>
+
+              <td v-if="businessType === 'garage'">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-car text-primary me-2"></i>
+                  <span>{{ customer.vehicles?.length || 0 }}</span>
+                </div>
+              </td>
+
+              <td>
+                <div class="text-nowrap">{{ formatDate(customer.created_at) }}</div>
+              </td>
+
+              <td>
+                <span class="badge" :class="customer.is_active ? 'bg-success' : 'bg-secondary'">
+                  {{ customer.is_active ? 'Active' : 'Inactive' }}
+                </span>
+              </td>
+
+              <td>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button
+                    @click="viewCustomer(customer)"
+                    class="btn btn-outline-primary btn-sm"
+                    title="View customer"
+                  >
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  <button
+                    @click="editCustomer(customer)"
+                    class="btn btn-outline-success btn-sm"
+                    title="Edit customer"
+                  >
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button
+                    @click="manageVehicles(customer)"
+                    class="btn btn-outline-info btn-sm"
+                    title="Manage vehicles"
+                    v-if="businessType === 'garage'"
+                  >
+                    <i class="fas fa-car"></i>
+                  </button>
+                  <button
+                    @click="toggleCustomerStatus(customer)"
+                    class="btn btn-outline-warning btn-sm"
+                    :title="customer.is_active ? 'Deactivate customer' : 'Activate customer'"
+                  >
+                    <i :class="customer.is_active ? 'fas fa-toggle-on' : 'fas fa-toggle-off'"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Pagination -->

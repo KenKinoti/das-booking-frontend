@@ -1,12 +1,5 @@
 <template>
   <div class="users-admin">
-    <div class="page-header">
-      <h1 class="page-title">
-        <i class="fas fa-users-shield"></i>
-        User Management
-      </h1>
-      <p class="page-subtitle">Manage user accounts, roles, and permissions across all organizations</p>
-    </div>
 
     <!-- Search and Filters -->
     <div class="filters-section">

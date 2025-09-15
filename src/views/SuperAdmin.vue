@@ -1,9 +1,21 @@
 <template>
   <div class="page-container">
+    <!-- Page Header -->
     <div class="page-header">
-      <h1>Super Admin - Organization Management</h1>
+      <div class="page-header-content">
+        <div class="page-title-section">
+          <h1 class="page-title">
+            <i class="fas fa-building"></i>
+            Organizations Management
+          </h1>
+          <p class="page-subtitle">Manage all organizations, subscriptions, and user access in your system</p>
+        </div>
+      </div>
+    </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
       <button @click="showCreateModal = true" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Create Organization
+        <i class="fas fa-plus me-2"></i> Create Organization
       </button>
     </div>
 
@@ -12,13 +24,25 @@
       <div class="filters-row">
         <div class="search-box">
           <i class="fas fa-search"></i>
-          <input 
-            v-model="searchQuery" 
-            @input="handleSearch" 
-            placeholder="Search organizations..." 
+          <input
+            v-model="searchQuery"
+            @input="handleSearch"
+            placeholder="Search by name, email, ABN, phone..."
             class="form-input"
             type="text"
           />
+          <div v-if="searchQuery && searchResults.length > 0" class="search-dropdown">
+            <div v-for="result in searchResults.slice(0, 5)" :key="result.id" class="search-result-item" @click="selectOrganization(result)">
+              <div class="result-main">
+                <span class="result-name">{{ result.name }}</span>
+                <span class="result-type">{{ result.subscription?.plan_name || 'No Plan' }}</span>
+              </div>
+              <div class="result-details">
+                <span v-if="result.email">{{ result.email }}</span>
+                <span v-if="result.abn">ABN: {{ result.abn }}</span>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div class="filter-controls">
@@ -561,19 +585,155 @@ export default {
       reason: ''
     })
 
+    // Raw mock data for development
+    const rawOrganizations = ref([
+      {
+        id: 1,
+        name: 'Sydney Healthcare Solutions',
+        abn: '12 345 678 901',
+        email: 'admin@sydneyhealthcare.com.au',
+        phone: '+61 2 9876 5432',
+        website: 'https://sydneyhealthcare.com.au',
+        created_at: '2024-01-15T08:30:00Z',
+        subscription: {
+          plan_name: 'enterprise',
+          status: 'active',
+          monthly_rate: 299.99
+        },
+        users: [
+          { id: 1, first_name: 'Sarah', last_name: 'Johnson', email: 'sarah@sydneyhealthcare.com.au', role: 'admin' },
+          { id: 2, first_name: 'Michael', last_name: 'Chen', email: 'michael@sydneyhealthcare.com.au', role: 'manager' }
+        ],
+        participants: [
+          { id: 1, first_name: 'Emma', last_name: 'Wilson', ndis_number: 'NDIS001234' },
+          { id: 2, first_name: 'James', last_name: 'Brown', ndis_number: 'NDIS005678' }
+        ]
+      },
+      {
+        id: 2,
+        name: 'Melbourne Disability Services',
+        abn: '23 456 789 012',
+        email: 'contact@melbourneds.com.au',
+        phone: '+61 3 8765 4321',
+        website: 'https://melbourneds.com.au',
+        created_at: '2024-02-10T14:20:00Z',
+        subscription: {
+          plan_name: 'professional',
+          status: 'active',
+          monthly_rate: 149.99
+        },
+        users: [
+          { id: 3, first_name: 'Lisa', last_name: 'Taylor', email: 'lisa@melbourneds.com.au', role: 'admin' }
+        ],
+        participants: [
+          { id: 3, first_name: 'Sophie', last_name: 'Davis', ndis_number: 'NDIS009876' }
+        ]
+      },
+      {
+        id: 3,
+        name: 'Brisbane Community Care',
+        abn: '34 567 890 123',
+        email: 'info@brisbanecare.com.au',
+        phone: '+61 7 7654 3210',
+        website: 'https://brisbanecare.com.au',
+        created_at: '2024-01-28T11:45:00Z',
+        subscription: {
+          plan_name: 'starter',
+          status: 'suspended',
+          monthly_rate: 49.99
+        },
+        users: [
+          { id: 4, first_name: 'David', last_name: 'Wilson', email: 'david@brisbanecare.com.au', role: 'admin' }
+        ],
+        participants: []
+      },
+      {
+        id: 4,
+        name: 'Perth Wellness Center',
+        abn: '45 678 901 234',
+        email: 'hello@perthwellness.com.au',
+        phone: '+61 8 6543 2109',
+        website: 'https://perthwellness.com.au',
+        created_at: '2024-03-05T09:15:00Z',
+        subscription: {
+          plan_name: 'professional',
+          status: 'active',
+          monthly_rate: 149.99
+        },
+        users: [
+          { id: 5, first_name: 'Rachel', last_name: 'Green', email: 'rachel@perthwellness.com.au', role: 'admin' },
+          { id: 6, first_name: 'Tom', last_name: 'Miller', email: 'tom@perthwellness.com.au', role: 'user' }
+        ],
+        participants: [
+          { id: 4, first_name: 'Alex', last_name: 'Johnson', ndis_number: 'NDIS012345' },
+          { id: 5, first_name: 'Grace', last_name: 'Lee', ndis_number: 'NDIS054321' },
+          { id: 6, first_name: 'Oliver', last_name: 'Smith', ndis_number: 'NDIS098765' }
+        ]
+      },
+      {
+        id: 5,
+        name: 'Adelaide Support Network',
+        abn: '56 789 012 345',
+        email: 'support@adelaidenetwork.com.au',
+        phone: '+61 8 5432 1098',
+        website: null,
+        created_at: '2024-02-20T16:30:00Z',
+        subscription: {
+          plan_name: 'enterprise',
+          status: 'cancelled',
+          monthly_rate: 299.99
+        },
+        users: [
+          { id: 7, first_name: 'Mark', last_name: 'Thompson', email: 'mark@adelaidenetwork.com.au', role: 'admin' }
+        ],
+        participants: [
+          { id: 7, first_name: 'Lily', last_name: 'Anderson', ndis_number: 'NDIS067890' }
+        ]
+      }
+    ])
+
+    const searchResults = ref([])
+
     // API calls
     const fetchOrganizations = async () => {
       loading.value = true
       try {
-        const response = await superAdminOrganizationService.getAllOrganizations(
-          pagination.value.page,
-          pagination.value.limit,
-          searchQuery.value
-        )
-        
-        if (response.success) {
-          organizations.value = response.data.organizations || []
-          pagination.value = response.data.pagination || pagination.value
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+        let filteredOrgs = [...rawOrganizations.value]
+
+        // Apply search filter
+        if (searchQuery.value) {
+          const query = searchQuery.value.toLowerCase()
+          filteredOrgs = filteredOrgs.filter(org =>
+            org.name.toLowerCase().includes(query) ||
+            (org.email && org.email.toLowerCase().includes(query)) ||
+            (org.abn && org.abn.toLowerCase().includes(query)) ||
+            (org.phone && org.phone.toLowerCase().includes(query)) ||
+            (org.website && org.website.toLowerCase().includes(query))
+          )
+        }
+
+        // Apply status filter
+        if (statusFilter.value) {
+          filteredOrgs = filteredOrgs.filter(org =>
+            getSubscriptionStatus(org) === statusFilter.value
+          )
+        }
+
+        // Calculate pagination
+        const total = filteredOrgs.length
+        const totalPages = Math.ceil(total / pagination.value.limit)
+        const startIndex = (pagination.value.page - 1) * pagination.value.limit
+        const endIndex = startIndex + pagination.value.limit
+        const paginatedOrgs = filteredOrgs.slice(startIndex, endIndex)
+
+        organizations.value = paginatedOrgs
+        pagination.value = {
+          ...pagination.value,
+          total,
+          total_pages: totalPages
         }
       } catch (error) {
         showNotification('Error fetching organizations: ' + error.message, 'error')
@@ -584,10 +744,15 @@ export default {
 
     const fetchOrganizationDetails = async (orgId) => {
       try {
-        const response = await superAdminOrganizationService.getOrganizationById(orgId)
-        
-        if (response.success) {
-          orgDetails.value = response.data
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 200))
+
+        const org = rawOrganizations.value.find(o => o.id === orgId)
+        if (org) {
+          orgDetails.value = {
+            organization: org,
+            subscription: org.subscription
+          }
         }
       } catch (error) {
         showNotification('Error fetching organization details: ' + error.message, 'error')
@@ -674,6 +839,27 @@ export default {
 
     // Helper functions
     const handleSearch = () => {
+      // Update search results for dropdown
+      if (searchQuery.value) {
+        const query = searchQuery.value.toLowerCase()
+        searchResults.value = rawOrganizations.value.filter(org =>
+          org.name.toLowerCase().includes(query) ||
+          (org.email && org.email.toLowerCase().includes(query)) ||
+          (org.abn && org.abn.toLowerCase().includes(query)) ||
+          (org.phone && org.phone.toLowerCase().includes(query))
+        )
+      } else {
+        searchResults.value = []
+      }
+
+      // Reset pagination and fetch
+      pagination.value.page = 1
+      fetchOrganizations()
+    }
+
+    const selectOrganization = (org) => {
+      searchQuery.value = org.name
+      searchResults.value = []
       pagination.value.page = 1
       fetchOrganizations()
     }
@@ -735,6 +921,25 @@ export default {
       showStatusModal.value = true
     }
 
+    const editOrganization = (org) => {
+      // For now, we'll show the details modal since there's no edit modal implemented
+      viewOrganization(org)
+      showNotification('Edit functionality is not yet implemented. Use the View details for now.', 'info')
+    }
+
+    const loginAsOrganization = (org) => {
+      // This would typically switch context to the organization
+      showNotification(`Login as "${org.name}" functionality is not yet implemented.`, 'info')
+      console.log('Login as organization:', org)
+    }
+
+    const clearFilters = () => {
+      searchQuery.value = ''
+      statusFilter.value = ''
+      pagination.value.page = 1
+      fetchOrganizations()
+    }
+
     const getSubscriptionPlan = (org) => {
       return org.subscription?.plan_name || 'Unknown'
     }
@@ -787,6 +992,7 @@ export default {
       orgDetails,
       newOrganization,
       statusUpdate,
+      searchResults,
 
       // Methods
       fetchOrganizations,
@@ -796,9 +1002,13 @@ export default {
       confirmDelete,
       deleteOrganization,
       handleSearch,
+      selectOrganization,
       changePage,
       viewOrganization,
       editStatus,
+      editOrganization,
+      loginAsOrganization,
+      clearFilters,
       getSubscriptionPlan,
       getSubscriptionStatus,
       formatDate,
@@ -1146,6 +1356,113 @@ export default {
 }
 
 /* Component-specific styles that extend the global theme */
+
+/* Page Header Styles */
+.page-title {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
+}
+
+.page-subtitle {
+  font-size: 0.875rem !important;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Search Dropdown Styles */
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid rgba(102, 126, 234, 0.2);
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 2px;
+}
+
+.search-result-item {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.search-result-item:hover {
+  background: rgba(102, 126, 234, 0.08);
+  transform: translateX(4px);
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+  border-radius: 0 0 10px 10px;
+}
+
+.result-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.result-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 0.9rem;
+}
+
+.result-type {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  border-radius: 6px;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.result-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.result-details span {
+  display: flex;
+  align-items: center;
+}
+
+[data-theme="dark"] .search-dropdown {
+  background: rgba(31, 41, 55, 0.95);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+[data-theme="dark"] .search-result-item {
+  background: rgba(31, 41, 55, 0.95);
+  border-bottom-color: rgba(75, 85, 99, 0.3);
+}
+
+[data-theme="dark"] .search-result-item:hover {
+  background: rgba(102, 126, 234, 0.15);
+}
+
+[data-theme="dark"] .result-name {
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .result-details {
+  color: #9ca3af;
+}
 
 /* Participants-style filters */
 .filters-section {

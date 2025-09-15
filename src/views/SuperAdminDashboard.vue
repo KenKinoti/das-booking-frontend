@@ -1,25 +1,15 @@
 <template>
   <div class="super-admin-dashboard">
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-crown"></i>
-          </div>
-          Super Admin Dashboard
-        </h1>
-        <p class="page-description">System-wide control, monitoring, and management portal</p>
-      </div>
-      <div class="header-actions">
-        <button @click="showSystemHealthModal = true" class="btn btn-outline">
-          <i class="fas fa-heartbeat"></i>
-          System Health
-        </button>
-        <button @click="refreshDashboard" class="btn btn-primary" :disabled="isRefreshing">
-          <i :class="['fas', isRefreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt']"></i>
-          {{ isRefreshing ? 'Refreshing...' : 'Refresh' }}
-        </button>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="showSystemHealthModal = true" class="btn btn-outline-primary me-2">
+        <i class="fas fa-heartbeat me-2"></i>
+        System Health
+      </button>
+      <button @click="refreshDashboard" class="btn btn-primary" :disabled="isRefreshing">
+        <i :class="['fas', isRefreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt']"></i>
+        {{ isRefreshing ? 'Refreshing...' : 'Refresh' }}
+      </button>
     </div>
 
     <!-- Quick Stats -->

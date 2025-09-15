@@ -3,6 +3,9 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
+// Initialize global theme
+import { globalTheme } from './composables/useTheme'
+
 // Import FontAwesome icons
 import '@fortawesome/fontawesome-free/css/all.css'
 

@@ -1,23 +1,15 @@
 <template>
   <div class="page-container">
-    <div class="page-header">
-      <div class="header-content">
-        <h1>
-          <i class="fas fa-file-alt"></i>
-          Documents
-        </h1>
-        <p>Manage participant documents, file storage, and cloud integration</p>
-      </div>
-      <div class="header-actions">
-        <button @click="showCloudSettingsModal = true" class="btn btn-outline" title="Cloud Storage Settings">
-          <i class="fas fa-cloud"></i>
-          Cloud Storage
-        </button>
-        <button @click="showUploadModal = true" class="btn btn-primary">
-          <i class="fas fa-plus"></i>
-          Upload Document
-        </button>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="showCloudSettingsModal = true" class="btn btn-outline-primary me-2" title="Cloud Storage Settings">
+        <i class="fas fa-cloud me-2"></i>
+        Cloud Storage
+      </button>
+      <button @click="showUploadModal = true" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Upload Document
+      </button>
     </div>
 
     <!-- Stats Cards -->

@@ -79,7 +79,11 @@ export default {
         analytics: 'Platform Analytics',
         'auditlogs': 'Audit Logs',
         'audit-logs': 'Audit Logs',
-        database: 'Database Management'
+        database: 'Database Management',
+        inventory: 'Inventory Management',
+        suppliers: 'Supplier Management',
+        pos: 'Point of Sale',
+        'pos-transactions': 'POS Transactions'
       }
       return titles[this.currentPage] || 'Dashboard'
     }
@@ -176,6 +180,7 @@ export default {
   flex-direction: column;
   overflow: hidden;
   transition: all 0.3s ease;
+  margin-left: 200px;
 }
 
 .main-content.expanded {
@@ -185,7 +190,7 @@ export default {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 0;
+  padding: 0.5rem;
 }
 
 .auth-container {

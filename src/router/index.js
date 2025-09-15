@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useModulesStore } from '../stores/modules'
 // import { usePermissionsStore } from '../stores/permissions' // unused import
 
 // Lazy load components for better performance
@@ -23,6 +24,28 @@ const UsersAdmin = () => import('../views/UsersAdmin.vue')
 const SystemSettings = () => import('../views/SystemSettings.vue')
 const Analytics = () => import('../views/Analytics.vue')
 const AuditLogs = () => import('../views/AuditLogs.vue')
+const FAQ = () => import('../views/FAQ.vue')
+
+// Events Module Views
+const Events = () => import('../views/Events.vue')
+const EventCreate = () => import('../views/EventCreate.vue')
+
+// ERP & POS Views
+const Inventory = () => import('../views/InventoryManagement.vue')
+const Suppliers = () => import('../views/Suppliers.vue')
+const POS = () => import('../views/POS.vue')
+const ModuleManagement = () => import('../views/ModuleManagement.vue')
+
+// New ERP Module Views
+const Finance = () => import('../views/Finance.vue')
+const Invoices = () => import('../views/Invoices.vue')
+const Bills = () => import('../views/Bills.vue')
+const Banking = () => import('../views/Banking.vue')
+const CRM = () => import('../views/CRM.vue')
+const Production = () => import('../views/Production.vue')
+const Projects = () => import('../views/Projects.vue')
+const HCM = () => import('../views/HCM.vue')
+const Ecommerce = () => import('../views/Ecommerce.vue')
 
 const routes = [
   {
@@ -177,6 +200,110 @@ const routes = [
     name: 'AuditLogs',
     component: AuditLogs,
     meta: { requiresAuth: true, requiresSuperAdmin: true }
+  },
+  // ERP Module Routes
+  {
+    path: '/finance',
+    name: 'Finance',
+    component: Finance,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/invoices',
+    name: 'Invoices',
+    component: Invoices,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/bills',
+    name: 'Bills',
+    component: Bills,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/banking',
+    name: 'Banking',
+    component: Banking,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/crm',
+    name: 'CRM',
+    component: CRM,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/inventory',
+    name: 'Inventory',
+    component: Inventory,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/suppliers',
+    name: 'Suppliers',
+    component: Suppliers,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/production',
+    name: 'Production',
+    component: Production,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/projects',
+    name: 'Projects',
+    component: Projects,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/hcm',
+    name: 'HCM',
+    component: HCM,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/pos',
+    name: 'POS',
+    component: POS,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/pos-transactions',
+    name: 'POSTransactions',
+    component: () => import('../views/POSTransactions.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ecommerce',
+    name: 'Ecommerce',
+    component: Ecommerce,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/module-management',
+    name: 'ModuleManagement',
+    component: ModuleManagement,
+    meta: { requiresAuth: true, requiresSuperAdmin: true }
+  },
+  {
+    path: '/faq',
+    name: 'FAQ',
+    component: FAQ,
+    meta: { requiresAuth: true }
+  },
+  // Events Module Routes
+  {
+    path: '/events',
+    name: 'Events',
+    component: Events,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/events/create',
+    name: 'EventCreate',
+    component: EventCreate,
+    meta: { requiresAuth: true }
   }
 ]
 
@@ -185,16 +312,17 @@ const router = createRouter({
   routes
 })
 
-// Enhanced auth guard with role-based permissions  
+// Enhanced auth guard with role-based permissions
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
+  const modulesStore = useModulesStore()
+
   console.log('🛡️ ROUTER DEBUG: Guard triggered', {
     from: from.path,
     to: to.path,
     timestamp: new Date().toISOString()
   })
-  
+
   // For protected routes, ensure we initialize auth properly
   if (to.meta.requiresAuth !== false) {
     // Save current route for refresh persistence BEFORE any redirects
@@ -202,13 +330,13 @@ router.beforeEach(async (to, from, next) => {
       localStorage.setItem('lastRoute', to.path)
       localStorage.setItem('lastRouteName', to.name)
     }
-    
+
     // Always try to initialize auth state from localStorage first
     if (!authStore.token) {
       // Check if we have stored auth data
       const storedToken = localStorage.getItem('auth_token')
       const storedUser = localStorage.getItem('current_user')
-      
+
       if (storedToken && storedUser) {
         console.log('🔄 Restoring auth state from localStorage...')
         try {
@@ -227,33 +355,48 @@ router.beforeEach(async (to, from, next) => {
         return
       }
     }
-    
+
     // If we have token but no user, initialize auth
     if (authStore.token && !authStore.user) {
       console.log('Token exists but no user data, initializing...')
       const isInitialized = await authStore.initializeAuth()
-      
+
       if (!isInitialized) {
         console.log('Auth initialization failed, redirecting to login')
         next('/login')
         return
       }
     }
-    
+
     // Final validation - must have both token and user
     if (!authStore.token || !authStore.user) {
       console.log('Authentication incomplete, redirecting to login')
       next('/login')
       return
     }
-    
+
     // Check for super admin requirement
     if (to.meta.requiresSuperAdmin && !authStore.isSuperAdmin) {
       console.log('Super admin required, redirecting to dashboard')
       next('/dashboard')
       return
     }
-    
+
+    // Check for module requirements
+    if (to.meta.requiresModule) {
+      // Initialize modules if not already done
+      if (!modulesStore.initialized) {
+        await modulesStore.fetchModules()
+      }
+
+      // Check if the required module is enabled
+      if (!modulesStore.hasModule(to.meta.requiresModule)) {
+        console.log(`Module ${to.meta.requiresModule} not enabled, redirecting to dashboard`)
+        next('/dashboard')
+        return
+      }
+    }
+
     console.log('✅ Auth guard passed, proceeding to:', to.path)
     next()
     return

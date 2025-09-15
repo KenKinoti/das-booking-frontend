@@ -1,22 +1,12 @@
 <template>
   <div class="analytics-page">
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <div class="title-icon">
-            <i class="fas fa-chart-line"></i>
-          </div>
-          Analytics Dashboard
-        </h1>
-        <p class="page-description">Real-time metrics and business insights across all organizations</p>
-      </div>
-      <div class="header-actions">
-        <select v-model="selectedTimeRange" class="time-select">
-          <option v-for="range in timeRanges" :key="range.value" :value="range.value">
-            {{ range.label }}
-          </option>
-        </select>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <select v-model="selectedTimeRange" class="form-select" style="width: auto;">
+        <option v-for="range in timeRanges" :key="range.value" :value="range.value">
+          {{ range.label }}
+        </option>
+      </select>
     </div>
 
     <!-- Key Metrics Cards -->

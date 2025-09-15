@@ -1,23 +1,11 @@
 <template>
   <div class="automotive-repair">
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-info">
-          <div class="category-icon">
-            <i class="fas fa-tools"></i>
-          </div>
-          <div class="title-section">
-            <h1>Automotive Repair Services</h1>
-            <p class="category-description">Comprehensive automotive repair services for all vehicle types</p>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button @click="showAddServiceModal = true" class="btn-primary">
-            <i class="fas fa-plus"></i>
-            Add Service
-          </button>
-        </div>
-      </div>
+    <!-- Action Buttons Section -->
+    <div class="page-actions d-flex justify-content-end mb-4">
+      <button @click="showAddServiceModal = true" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Add Service
+      </button>
     </div>
 
     <div class="content-wrapper">
