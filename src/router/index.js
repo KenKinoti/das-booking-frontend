@@ -22,6 +22,7 @@ const Organizations = () => import('../views/SuperAdmin.vue')
 const Database = () => import('../views/Database.vue')
 const UsersAdmin = () => import('../views/UsersAdmin.vue')
 const SystemSettings = () => import('../views/SystemSettings.vue')
+const SuperAdminMenuManager = () => import('../views/SuperAdminMenuManager.vue')
 const Analytics = () => import('../views/Analytics.vue')
 const AuditLogs = () => import('../views/AuditLogs.vue')
 const FAQ = () => import('../views/FAQ.vue')
@@ -29,6 +30,8 @@ const FAQ = () => import('../views/FAQ.vue')
 // Events Module Views
 const Events = () => import('../views/Events.vue')
 const EventCreate = () => import('../views/EventCreate.vue')
+const EventDetail = () => import('../views/EventDetail.vue')
+const EventRegistrations = () => import('../views/EventRegistrations.vue')
 
 // ERP & POS Views
 const Inventory = () => import('../views/InventoryManagement.vue')
@@ -46,6 +49,13 @@ const Production = () => import('../views/Production.vue')
 const Projects = () => import('../views/Projects.vue')
 const HCM = () => import('../views/HCM.vue')
 const Ecommerce = () => import('../views/Ecommerce.vue')
+
+// Messaging Views
+const Messages = () => import('../views/Messages.vue')
+const MessagingSettings = () => import('../views/MessagingSettings.vue')
+
+// Video Call Views
+const VideoCall = () => import('../views/VideoCall.vue')
 
 const routes = [
   {
@@ -190,6 +200,12 @@ const routes = [
     meta: { requiresAuth: true, requiresSuperAdmin: true }
   },
   {
+    path: '/menu-manager',
+    name: 'SuperAdminMenuManager',
+    component: SuperAdminMenuManager,
+    meta: { requiresAuth: true, requiresSuperAdmin: true }
+  },
+  {
     path: '/analytics',
     name: 'Analytics',
     component: Analytics,
@@ -281,6 +297,24 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/messages',
+    name: 'Messages',
+    component: Messages,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/messaging-settings',
+    name: 'MessagingSettings',
+    component: MessagingSettings,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/video-call',
+    name: 'VideoCall',
+    component: VideoCall,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/module-management',
     name: 'ModuleManagement',
     component: ModuleManagement,
@@ -303,6 +337,24 @@ const routes = [
     path: '/events/create',
     name: 'EventCreate',
     component: EventCreate,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/events/:id',
+    name: 'EventDetail',
+    component: EventDetail,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/events/:id/edit',
+    name: 'EventEdit',
+    component: EventCreate,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/events/:eventId/registrations',
+    name: 'EventRegistrations',
+    component: EventRegistrations,
     meta: { requiresAuth: true }
   }
 ]

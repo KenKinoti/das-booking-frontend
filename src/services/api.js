@@ -27,7 +27,7 @@ import { useAuthStore } from '../stores/auth'
 
 // Create axios instance with base configuration for Complete ERP
 const api = axios.create({
-  baseURL: 'http://localhost:8087/api/v1',
+  baseURL: 'http://localhost:8089/api/v1',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
@@ -37,7 +37,7 @@ const api = axios.create({
 // Login function to get real JWT tokens from ERP backend
 export const login = async (email, password) => {
   try {
-    const response = await axios.post('http://localhost:8087/api/v1/auth/login', {
+    const response = await axios.post('http://localhost:8089/api/v1/auth/login', {
       email,
       password
     }, {
@@ -103,7 +103,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken && refreshToken !== 'mock-refresh-token') {
           const response = await axios.post(
-            'http://localhost:8087/api/v1/auth/refresh',
+            'http://localhost:8089/api/v1/auth/refresh',
             { refresh_token: refreshToken },
             {
               headers: { 'Content-Type': 'application/json' },
@@ -274,6 +274,35 @@ export const adminAPI = {
   getCompleteOverview: () => api.get('/admin/overview'),
   getModuleStatus: () => api.get('/admin/modules'),
   getHealth: () => api.get('/health')
+}
+
+// Video Communication Module
+export const videoAPI = {
+  // Call Management
+  initiateCall: (callData) => api.post('/video/calls/initiate', callData),
+  acceptCall: (callId) => api.post(`/video/calls/${callId}/accept`),
+  rejectCall: (callId) => api.post(`/video/calls/${callId}/reject`),
+  endCall: (callId) => api.post(`/video/calls/${callId}/end`),
+  getCallHistory: () => api.get('/video/calls/history'),
+
+  // Recording Management
+  startRecording: (callId) => api.post(`/video/calls/${callId}/recording/start`),
+  stopRecording: (callId) => api.post(`/video/calls/${callId}/recording/stop`),
+  getRecordings: () => api.get('/video/recordings'),
+  downloadRecording: (recordingId) => api.get(`/video/recordings/${recordingId}/download`),
+
+  // Live Streaming
+  createLiveStream: (streamData) => api.post('/video/streams/create', streamData),
+  startLiveStream: (streamId) => api.post(`/video/streams/${streamId}/start`),
+  endLiveStream: (streamId) => api.post(`/video/streams/${streamId}/end`),
+  getLiveStreams: () => api.get('/video/streams'),
+
+  // Room Management
+  getRoomInfo: (roomId) => api.get(`/video/rooms/${roomId}/info`),
+
+  // Settings
+  getVideoSettings: () => api.get('/video/settings'),
+  updateVideoSettings: (settings) => api.put('/video/settings', settings)
 }
 
 export default api

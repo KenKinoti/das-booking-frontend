@@ -180,7 +180,7 @@ export default {
   flex-direction: column;
   overflow: hidden;
   transition: all 0.3s ease;
-  margin-left: 200px;
+  margin-left: 260px;
 }
 
 .main-content.expanded {
@@ -190,7 +190,7 @@ export default {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: 0;
 }
 
 .auth-container {
@@ -199,5 +199,28 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Responsive Layout */
+@media (max-width: 1024px) {
+  .main-content {
+    margin-left: 240px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0 !important;
+  }
+
+  .main-content.expanded {
+    margin-left: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 0;
+  }
 }
 </style>

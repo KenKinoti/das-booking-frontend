@@ -31,9 +31,17 @@ export const useModuleSelectorStore = defineStore('moduleSelector', {
         id: 'crm',
         name: 'CRM & Sales',
         icon: 'fas fa-users',
-        description: 'Customer relationship management, sales pipeline',
+        description: 'Customer relationship management, sales pipeline, messaging',
         color: '#8b5cf6',
-        routes: ['crm', 'customers', 'analytics']
+        routes: ['crm', 'customers', 'analytics', 'messages', 'messaging-settings']
+      },
+      {
+        id: 'events',
+        name: 'Events Management',
+        icon: 'fas fa-calendar-star',
+        description: 'Event creation, ticket management, registrations',
+        color: '#ec4899',
+        routes: ['events']
       },
       {
         id: 'inventory',

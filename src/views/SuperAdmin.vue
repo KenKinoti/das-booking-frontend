@@ -14,7 +14,7 @@
     </div>
     <!-- Action Buttons Section -->
     <div class="page-actions d-flex justify-content-end mb-4">
-      <button @click="showCreateModal = true" class="btn btn-primary">
+      <button @click="openCreateModal" class="btn btn-primary">
         <i class="fas fa-plus me-2"></i> Create Organization
       </button>
     </div>
@@ -26,7 +26,7 @@
           <i class="fas fa-search"></i>
           <input
             v-model="searchQuery"
-            @input="handleSearch"
+            @input="debouncedSearch"
             placeholder="Search by name, email, ABN, phone..."
             class="form-input"
             type="text"
@@ -51,6 +51,14 @@
             <option value="active">Active</option>
             <option value="suspended">Suspended</option>
             <option value="cancelled">Cancelled</option>
+            <option value="inactive">Inactive</option>
+          </select>
+
+          <select v-model="planFilter" @change="handleSearch" class="form-select">
+            <option value="">All Plans</option>
+            <option value="starter">Starter</option>
+            <option value="professional">Professional</option>
+            <option value="enterprise">Enterprise</option>
           </select>
           
           <button @click="clearFilters" class="btn btn-outline-elegant">
@@ -194,11 +202,11 @@
     </div>
 
     <!-- Create Organization Modal -->
-    <div v-if="showCreateModal" class="modal-overlay" @click="showCreateModal = false">
+    <div v-if="showCreateModal" class="modal-overlay" @click="closeCreateModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Create New Organization</h3>
-          <button @click="showCreateModal = false" class="btn-close">×</button>
+          <h3>{{ isEditMode ? 'Edit Organization' : 'Create New Organization' }}</h3>
+          <button @click="closeCreateModal" class="btn-close">×</button>
         </div>
 
         <div class="modal-body">
@@ -230,32 +238,34 @@
               <input v-model="newOrganization.website" type="url">
             </div>
 
-            <h4>Admin User</h4>
-            <div class="form-row">
-              <div class="form-group">
-                <label>First Name *</label>
-                <input v-model="newOrganization.admin_user.first_name" type="text" required>
+            <div v-if="!isEditMode">
+              <h4>Admin User</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>First Name *</label>
+                  <input v-model="newOrganization.admin_user.first_name" type="text" required>
+                </div>
+                <div class="form-group">
+                  <label>Last Name *</label>
+                  <input v-model="newOrganization.admin_user.last_name" type="text" required>
+                </div>
               </div>
-              <div class="form-group">
-                <label>Last Name *</label>
-                <input v-model="newOrganization.admin_user.last_name" type="text" required>
-              </div>
-            </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label>Admin Email *</label>
-                <input v-model="newOrganization.admin_user.email" type="email" required>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Admin Email *</label>
+                  <input v-model="newOrganization.admin_user.email" type="email" required>
+                </div>
+                <div class="form-group">
+                  <label>Admin Phone</label>
+                  <input v-model="newOrganization.admin_user.phone" type="tel">
+                </div>
               </div>
-              <div class="form-group">
-                <label>Admin Phone</label>
-                <input v-model="newOrganization.admin_user.phone" type="tel">
-              </div>
-            </div>
 
-            <div class="form-group">
-              <label>Admin Password *</label>
-              <input v-model="newOrganization.admin_user.password" type="password" required>
+              <div class="form-group">
+                <label>Admin Password *</label>
+                <input v-model="newOrganization.admin_user.password" type="password" required>
+              </div>
             </div>
 
             <h4>Subscription Plan</h4>
@@ -302,12 +312,12 @@
             </div>
 
             <div class="form-actions">
-              <button type="button" @click="showCreateModal = false" class="btn btn-secondary">
+              <button type="button" @click="closeCreateModal" class="btn btn-secondary">
                 Cancel
               </button>
               <button type="submit" :disabled="createLoading" class="btn btn-primary">
                 <i v-if="createLoading" class="fas fa-spinner fa-spin"></i>
-                Create Organization
+                {{ isEditMode ? 'Update Organization' : 'Create Organization' }}
               </button>
             </div>
           </form>
@@ -525,6 +535,7 @@ export default {
     const loading = ref(false)
     const searchQuery = ref('')
     const statusFilter = ref('')
+    const planFilter = ref('')
     const pagination = ref({
       page: 1,
       limit: 20,
@@ -539,6 +550,7 @@ export default {
     const showDeleteModal = ref(false)
     const createLoading = ref(false)
     const statusLoading = ref(false)
+    const isEditMode = ref(false)
     
     // Selected items
     const selectedOrg = ref(null)
@@ -585,193 +597,205 @@ export default {
       reason: ''
     })
 
-    // Raw mock data for development
-    const rawOrganizations = ref([
-      {
-        id: 1,
-        name: 'Sydney Healthcare Solutions',
-        abn: '12 345 678 901',
-        email: 'admin@sydneyhealthcare.com.au',
-        phone: '+61 2 9876 5432',
-        website: 'https://sydneyhealthcare.com.au',
-        created_at: '2024-01-15T08:30:00Z',
-        subscription: {
-          plan_name: 'enterprise',
-          status: 'active',
-          monthly_rate: 299.99
-        },
-        users: [
-          { id: 1, first_name: 'Sarah', last_name: 'Johnson', email: 'sarah@sydneyhealthcare.com.au', role: 'admin' },
-          { id: 2, first_name: 'Michael', last_name: 'Chen', email: 'michael@sydneyhealthcare.com.au', role: 'manager' }
-        ],
-        participants: [
-          { id: 1, first_name: 'Emma', last_name: 'Wilson', ndis_number: 'NDIS001234' },
-          { id: 2, first_name: 'James', last_name: 'Brown', ndis_number: 'NDIS005678' }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Melbourne Disability Services',
-        abn: '23 456 789 012',
-        email: 'contact@melbourneds.com.au',
-        phone: '+61 3 8765 4321',
-        website: 'https://melbourneds.com.au',
-        created_at: '2024-02-10T14:20:00Z',
-        subscription: {
-          plan_name: 'professional',
-          status: 'active',
-          monthly_rate: 149.99
-        },
-        users: [
-          { id: 3, first_name: 'Lisa', last_name: 'Taylor', email: 'lisa@melbourneds.com.au', role: 'admin' }
-        ],
-        participants: [
-          { id: 3, first_name: 'Sophie', last_name: 'Davis', ndis_number: 'NDIS009876' }
-        ]
-      },
-      {
-        id: 3,
-        name: 'Brisbane Community Care',
-        abn: '34 567 890 123',
-        email: 'info@brisbanecare.com.au',
-        phone: '+61 7 7654 3210',
-        website: 'https://brisbanecare.com.au',
-        created_at: '2024-01-28T11:45:00Z',
-        subscription: {
-          plan_name: 'starter',
-          status: 'suspended',
-          monthly_rate: 49.99
-        },
-        users: [
-          { id: 4, first_name: 'David', last_name: 'Wilson', email: 'david@brisbanecare.com.au', role: 'admin' }
-        ],
-        participants: []
-      },
-      {
-        id: 4,
-        name: 'Perth Wellness Center',
-        abn: '45 678 901 234',
-        email: 'hello@perthwellness.com.au',
-        phone: '+61 8 6543 2109',
-        website: 'https://perthwellness.com.au',
-        created_at: '2024-03-05T09:15:00Z',
-        subscription: {
-          plan_name: 'professional',
-          status: 'active',
-          monthly_rate: 149.99
-        },
-        users: [
-          { id: 5, first_name: 'Rachel', last_name: 'Green', email: 'rachel@perthwellness.com.au', role: 'admin' },
-          { id: 6, first_name: 'Tom', last_name: 'Miller', email: 'tom@perthwellness.com.au', role: 'user' }
-        ],
-        participants: [
-          { id: 4, first_name: 'Alex', last_name: 'Johnson', ndis_number: 'NDIS012345' },
-          { id: 5, first_name: 'Grace', last_name: 'Lee', ndis_number: 'NDIS054321' },
-          { id: 6, first_name: 'Oliver', last_name: 'Smith', ndis_number: 'NDIS098765' }
-        ]
-      },
-      {
-        id: 5,
-        name: 'Adelaide Support Network',
-        abn: '56 789 012 345',
-        email: 'support@adelaidenetwork.com.au',
-        phone: '+61 8 5432 1098',
-        website: null,
-        created_at: '2024-02-20T16:30:00Z',
-        subscription: {
-          plan_name: 'enterprise',
-          status: 'cancelled',
-          monthly_rate: 299.99
-        },
-        users: [
-          { id: 7, first_name: 'Mark', last_name: 'Thompson', email: 'mark@adelaidenetwork.com.au', role: 'admin' }
-        ],
-        participants: [
-          { id: 7, first_name: 'Lily', last_name: 'Anderson', ndis_number: 'NDIS067890' }
-        ]
-      }
-    ])
 
     const searchResults = ref([])
+    const searchTimeout = ref(null)
 
     // API calls
     const fetchOrganizations = async () => {
       loading.value = true
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 300))
-
-        let filteredOrgs = [...rawOrganizations.value]
-
-        // Apply search filter
-        if (searchQuery.value) {
-          const query = searchQuery.value.toLowerCase()
-          filteredOrgs = filteredOrgs.filter(org =>
-            org.name.toLowerCase().includes(query) ||
-            (org.email && org.email.toLowerCase().includes(query)) ||
-            (org.abn && org.abn.toLowerCase().includes(query)) ||
-            (org.phone && org.phone.toLowerCase().includes(query)) ||
-            (org.website && org.website.toLowerCase().includes(query))
-          )
+        const params = {
+          page: pagination.value.page,
+          limit: pagination.value.limit,
+          search: searchQuery.value,
+          status: statusFilter.value
         }
 
-        // Apply status filter
-        if (statusFilter.value) {
-          filteredOrgs = filteredOrgs.filter(org =>
-            getSubscriptionStatus(org) === statusFilter.value
-          )
-        }
+        const response = await superAdminOrganizationService.getAllOrganizations(
+          params.page,
+          params.limit,
+          params.search
+        )
 
-        // Calculate pagination
-        const total = filteredOrgs.length
-        const totalPages = Math.ceil(total / pagination.value.limit)
-        const startIndex = (pagination.value.page - 1) * pagination.value.limit
-        const endIndex = startIndex + pagination.value.limit
-        const paginatedOrgs = filteredOrgs.slice(startIndex, endIndex)
+        if (response.success) {
+          let orgsData = response.data.organizations || []
 
-        organizations.value = paginatedOrgs
-        pagination.value = {
-          ...pagination.value,
-          total,
-          total_pages: totalPages
+          // Apply client-side plan filter if specified
+          if (planFilter.value) {
+            orgsData = orgsData.filter(org =>
+              org.subscription?.plan_name?.toLowerCase() === planFilter.value.toLowerCase()
+            )
+          }
+
+          organizations.value = orgsData
+          pagination.value = {
+            page: response.data.current_page || 1,
+            limit: response.data.per_page || 20,
+            total: response.data.total || 0,
+            total_pages: response.data.last_page || 1
+          }
+        } else {
+          // Fallback to mock data if API fails or doesn't exist
+          loadMockData()
         }
       } catch (error) {
-        showNotification('Error fetching organizations: ' + error.message, 'error')
+        console.warn('API endpoint not available, using mock data:', error.message)
+        loadMockData()
       } finally {
         loading.value = false
       }
     }
 
+    // Fallback mock data for demonstration
+    const loadMockData = () => {
+      const mockOrganizations = [
+        {
+          id: 1,
+          name: 'DASYIN Solutions',
+          abn: '12 345 678 901',
+          email: 'admin@dasyin.com',
+          phone: '+61 2 8765 4321',
+          website: 'https://dasyin.com',
+          created_at: '2023-01-15T00:00:00Z',
+          subscription: {
+            plan_name: 'enterprise',
+            status: 'active',
+            billing_email: 'billing@dasyin.com',
+            max_users: 100,
+            max_participants: 1000,
+            max_storage_gb: 100,
+            billing_cycle: 'yearly',
+            monthly_rate: 299
+          },
+          users: new Array(15).fill(null).map((_, i) => ({ id: i + 1 })),
+          participants: new Array(234).fill(null).map((_, i) => ({ id: i + 1 }))
+        },
+        {
+          id: 2,
+          name: 'TechCorp Industries',
+          abn: '98 765 432 109',
+          email: 'contact@techcorp.com',
+          phone: '+61 3 9876 5432',
+          website: 'https://techcorp.com',
+          created_at: '2023-03-22T00:00:00Z',
+          subscription: {
+            plan_name: 'professional',
+            status: 'active',
+            billing_email: 'accounts@techcorp.com',
+            max_users: 25,
+            max_participants: 250,
+            max_storage_gb: 50,
+            billing_cycle: 'monthly',
+            monthly_rate: 99
+          },
+          users: new Array(8).fill(null).map((_, i) => ({ id: i + 1 })),
+          participants: new Array(67).fill(null).map((_, i) => ({ id: i + 1 }))
+        },
+        {
+          id: 3,
+          name: 'StartupHub',
+          abn: '56 789 012 345',
+          email: 'hello@startuphub.com',
+          phone: '+61 7 3456 7890',
+          website: 'https://startuphub.com',
+          created_at: '2023-07-10T00:00:00Z',
+          subscription: {
+            plan_name: 'starter',
+            status: 'suspended',
+            billing_email: 'finance@startuphub.com',
+            max_users: 5,
+            max_participants: 50,
+            max_storage_gb: 10,
+            billing_cycle: 'monthly',
+            monthly_rate: 29
+          },
+          users: new Array(3).fill(null).map((_, i) => ({ id: i + 1 })),
+          participants: new Array(12).fill(null).map((_, i) => ({ id: i + 1 }))
+        }
+      ]
+
+      // Apply filters to mock data
+      let filteredData = mockOrganizations
+
+      if (searchQuery.value) {
+        filteredData = filteredData.filter(org =>
+          org.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+          org.email.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+          org.abn.includes(searchQuery.value) ||
+          org.phone.includes(searchQuery.value)
+        )
+      }
+
+      if (statusFilter.value) {
+        filteredData = filteredData.filter(org =>
+          org.subscription?.status?.toLowerCase() === statusFilter.value.toLowerCase()
+        )
+      }
+
+      if (planFilter.value) {
+        filteredData = filteredData.filter(org =>
+          org.subscription?.plan_name?.toLowerCase() === planFilter.value.toLowerCase()
+        )
+      }
+
+      organizations.value = filteredData
+      pagination.value = {
+        page: 1,
+        limit: 20,
+        total: filteredData.length,
+        total_pages: Math.ceil(filteredData.length / 20)
+      }
+
+      showNotification('Using demonstration data - Super Admin API not available', 'info')
+    }
+
     const fetchOrganizationDetails = async (orgId) => {
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 200))
-
-        const org = rawOrganizations.value.find(o => o.id === orgId)
-        if (org) {
-          orgDetails.value = {
-            organization: org,
-            subscription: org.subscription
-          }
+        const response = await superAdminOrganizationService.getOrganizationById(orgId)
+        if (response.success) {
+          orgDetails.value = response.data
+        } else {
+          showNotification('Failed to fetch organization details', 'error')
         }
       } catch (error) {
         showNotification('Error fetching organization details: ' + error.message, 'error')
+        console.error('Error fetching organization details:', error)
       }
     }
 
     const createOrganization = async () => {
       createLoading.value = true
       try {
-        const response = await superAdminOrganizationService.createOrganization(newOrganization)
-        
+        let response
+        if (isEditMode.value && selectedOrg.value) {
+          // For editing, we'll use the updateOrganizationStatus as a placeholder
+          // In a real implementation, you would create an updateOrganization API method
+          const basicData = {
+            name: newOrganization.name,
+            abn: newOrganization.abn,
+            email: newOrganization.email,
+            phone: newOrganization.phone,
+            website: newOrganization.website
+          }
+          // Note: This is a simplified approach. In a real implementation,
+          // you would have a separate updateOrganization method in the API service
+          response = { success: true, data: basicData }
+          showNotification('Organization updated successfully (simulated)', 'info')
+        } else {
+          response = await superAdminOrganizationService.createOrganization(newOrganization)
+          if (response.success) {
+            showNotification('Organization created successfully', 'success')
+          }
+        }
+
         if (response.success) {
-          showNotification('Organization created successfully', 'success')
-          showCreateModal.value = false
-          resetCreateForm()
+          closeCreateModal()
           fetchOrganizations()
         }
       } catch (error) {
-        showNotification('Error creating organization: ' + error.message, 'error')
+        const action = isEditMode.value ? 'updating' : 'creating'
+        showNotification(`Error ${action} organization: ` + error.message, 'error')
       } finally {
         createLoading.value = false
       }
@@ -838,16 +862,50 @@ export default {
     }
 
     // Helper functions
-    const handleSearch = () => {
+    const debouncedSearch = () => {
+      if (searchTimeout.value) {
+        clearTimeout(searchTimeout.value)
+      }
+
+      searchTimeout.value = setTimeout(() => {
+        handleSearch()
+      }, 500)
+    }
+
+    const handleSearch = async () => {
       // Update search results for dropdown
       if (searchQuery.value) {
-        const query = searchQuery.value.toLowerCase()
-        searchResults.value = rawOrganizations.value.filter(org =>
-          org.name.toLowerCase().includes(query) ||
-          (org.email && org.email.toLowerCase().includes(query)) ||
-          (org.abn && org.abn.toLowerCase().includes(query)) ||
-          (org.phone && org.phone.toLowerCase().includes(query))
-        )
+        try {
+          const response = await superAdminOrganizationService.getAllOrganizations(
+            1, // First page for search results
+            10,  // Increased limit for better search results
+            searchQuery.value
+          )
+
+          if (response.success) {
+            let results = response.data.organizations || []
+
+            // Apply filters to search results
+            if (statusFilter.value) {
+              results = results.filter(org =>
+                org.subscription?.status?.toLowerCase() === statusFilter.value.toLowerCase()
+              )
+            }
+            if (planFilter.value) {
+              results = results.filter(org =>
+                org.subscription?.plan_name?.toLowerCase() === planFilter.value.toLowerCase()
+              )
+            }
+
+            searchResults.value = results.slice(0, 5) // Limit dropdown to 5 items
+          } else {
+            searchResults.value = []
+          }
+        } catch {
+          // For search dropdown, just clear results if API is not available
+          searchResults.value = []
+          console.warn('Search API not available')
+        }
       } else {
         searchResults.value = []
       }
@@ -908,6 +966,20 @@ export default {
       })
     }
 
+    const openCreateModal = () => {
+      isEditMode.value = false
+      selectedOrg.value = null
+      resetCreateForm()
+      showCreateModal.value = true
+    }
+
+    const closeCreateModal = () => {
+      showCreateModal.value = false
+      isEditMode.value = false
+      selectedOrg.value = null
+      resetCreateForm()
+    }
+
     const viewOrganization = async (org) => {
       selectedOrg.value = org
       await fetchOrganizationDetails(org.id)
@@ -921,10 +993,48 @@ export default {
       showStatusModal.value = true
     }
 
-    const editOrganization = (org) => {
-      // For now, we'll show the details modal since there's no edit modal implemented
-      viewOrganization(org)
-      showNotification('Edit functionality is not yet implemented. Use the View details for now.', 'info')
+    const editOrganization = async (org) => {
+      selectedOrg.value = org
+
+      // Populate the edit form with current organization data
+      Object.assign(newOrganization, {
+        name: org.name || '',
+        abn: org.abn || '',
+        email: org.email || '',
+        phone: org.phone || '',
+        website: org.website || '',
+        address: {
+          street: org.address?.street || '',
+          suburb: org.address?.suburb || '',
+          state: org.address?.state || '',
+          postcode: org.address?.postcode || '',
+          country: org.address?.country || 'Australia'
+        },
+        ndis_registration: {
+          registration_number: org.ndis_registration?.registration_number || '',
+          registration_status: org.ndis_registration?.registration_status || '',
+          expiry_date: org.ndis_registration?.expiry_date || null
+        },
+        admin_user: {
+          first_name: '',
+          last_name: '',
+          email: '',
+          phone: '',
+          password: ''
+        },
+        subscription: {
+          plan_name: org.subscription?.plan_name || '',
+          billing_email: org.subscription?.billing_email || '',
+          max_users: org.subscription?.max_users || 5,
+          max_participants: org.subscription?.max_participants || 10,
+          max_storage_gb: org.subscription?.max_storage_gb || 5,
+          billing_cycle: org.subscription?.billing_cycle || 'monthly'
+        }
+      })
+
+      // Show create modal in edit mode
+      isEditMode.value = true
+      showCreateModal.value = true
     }
 
     const loginAsOrganization = (org) => {
@@ -936,6 +1046,8 @@ export default {
     const clearFilters = () => {
       searchQuery.value = ''
       statusFilter.value = ''
+      planFilter.value = ''
+      searchResults.value = []
       pagination.value.page = 1
       fetchOrganizations()
     }
@@ -981,6 +1093,7 @@ export default {
       loading,
       searchQuery,
       statusFilter,
+      planFilter,
       pagination,
       showCreateModal,
       showStatusModal,
@@ -988,6 +1101,7 @@ export default {
       showDeleteModal,
       createLoading,
       statusLoading,
+      isEditMode,
       selectedOrg,
       orgDetails,
       newOrganization,
@@ -1002,6 +1116,7 @@ export default {
       confirmDelete,
       deleteOrganization,
       handleSearch,
+      debouncedSearch,
       selectOrganization,
       changePage,
       viewOrganization,
@@ -1009,6 +1124,8 @@ export default {
       editOrganization,
       loginAsOrganization,
       clearFilters,
+      openCreateModal,
+      closeCreateModal,
       getSubscriptionPlan,
       getSubscriptionStatus,
       formatDate,
@@ -1019,23 +1136,25 @@ export default {
 </script>
 
 <style scoped>
-/* Modern Organization Cards */
+/* Organizations page using consistent site design system */
+
+/* Organizations Grid */
 .organizations-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 2rem;
-  padding: 1rem 0;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md) 0;
 }
 
+/* Organization Cards */
 .organization-card {
-  background: var(--card-bg);
+  background: var(--card-background);
   backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--card-border);
-  border-radius: 24px;
-  padding: 2rem;
-  box-shadow: var(--stat-card-shadow);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-medium);
+  transition: var(--transition-smooth);
   position: relative;
   overflow: hidden;
 }
@@ -1046,55 +1165,42 @@ export default {
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 50%, #3b82f6 100%);
-  background-size: 200% 100%;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  height: 3px;
+  background: var(--primary-gradient);
 }
 
 .organization-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-[data-theme="dark"] .organization-card {
-  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(31, 41, 55, 0.85) 100%);
-  border: 1px solid rgba(75, 85, 99, 0.3);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.3), 0 8px 16px rgba(0,0,0,0.15);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-strong);
+  border-color: var(--primary-color);
 }
 
 /* Organization Header */
 .org-header {
   display: flex;
   align-items: flex-start;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
 }
 
 .org-avatar {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  border-radius: 20px;
+  width: 48px;
+  height: 48px;
+  background: var(--primary-gradient);
+  border-radius: var(--border-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  color: white;
-  box-shadow: 0 8px 32px rgba(79, 172, 254, 0.25);
-  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  color: var(--text-white);
+  box-shadow: var(--shadow-soft);
+  transition: var(--transition-smooth);
   flex-shrink: 0;
 }
 
 .organization-card:hover .org-avatar {
-  transform: scale(1.1) rotate(5deg);
-  box-shadow: 0 12px 40px rgba(79, 172, 254, 0.35);
+  transform: scale(1.05) rotate(3deg);
+  box-shadow: var(--shadow-medium);
 }
 
 .org-basic-info {
@@ -1102,112 +1208,114 @@ export default {
 }
 
 .org-name {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 var(--spacing-sm) 0;
   line-height: 1.3;
-}
-
-[data-theme="dark"] .org-name {
-  color: #f3f4f6;
+  font-family: var(--font-family);
 }
 
 .org-details {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--spacing-xs);
 }
 
 .detail-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-medium);
+  font-family: var(--font-family);
 }
 
 .detail-item i {
-  width: 14px;
-  color: var(--primary);
+  width: 16px;
+  color: var(--primary-color);
+  text-align: center;
 }
 
 .org-status {
   flex-shrink: 0;
 }
 
+/* Status Badges */
 .status-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-family: var(--font-family);
 }
 
 .status-badge.status-active {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
 .status-badge.status-suspended {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(251, 146, 60, 0.1);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.2);
 }
 
 .status-badge.status-cancelled {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.2);
+}
+
+.status-badge.status-inactive {
+  background: rgba(156, 163, 175, 0.1);
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.2);
 }
 
 /* Organization Stats */
 .org-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin: 1.5rem 0;
-  padding: 1.5rem;
-  background: rgba(248, 250, 252, 0.8);
-  border-radius: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="dark"] .org-stats {
-  background: rgba(17, 24, 39, 0.8);
-  border-color: rgba(75, 85, 99, 0.3);
+  gap: var(--spacing-md);
+  margin: var(--spacing-lg) 0;
+  padding: var(--spacing-lg);
+  background: var(--surface-color);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
 }
 
 .stat-icon {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: var(--border-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1rem;
-  color: white;
+  color: var(--text-white);
   flex-shrink: 0;
 }
 
 .stat-icon.users {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
 }
 
 .stat-icon.participants {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
 }
 
 .stat-icon.subscription {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 }
 
 .stat-content {
@@ -1215,28 +1323,26 @@ export default {
 }
 
 .stat-number {
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   line-height: 1;
-}
-
-[data-theme="dark"] .stat-number {
-  color: #f3f4f6;
+  font-family: var(--font-family);
 }
 
 .stat-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  color: var(--text-medium);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-top: 0.25rem;
+  margin-top: var(--spacing-xs);
+  font-family: var(--font-family);
 }
 
 /* Organization Contact */
 .org-contact {
-  margin: 1.5rem 0;
-  padding: 1rem 0;
+  margin: var(--spacing-lg) 0;
+  padding: var(--spacing-md) 0;
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
@@ -1244,240 +1350,127 @@ export default {
 .contact-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 0.5rem 0;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  gap: var(--spacing-md);
+  margin: var(--spacing-sm) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-medium);
+  font-family: var(--font-family);
 }
 
 .contact-item i {
   width: 16px;
-  color: var(--primary);
+  color: var(--primary-color);
+  text-align: center;
 }
 
 /* Organization Actions */
 .org-actions {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
-  margin-top: 1.5rem;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
 }
 
 .btn-action {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  background: var(--card-bg);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--card-background);
   color: var(--text-primary);
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition-smooth);
   text-decoration: none;
   justify-content: center;
-}
-
-[data-theme="dark"] .btn-action {
-  background: rgba(31, 41, 55, 0.8);
-  border-color: rgba(75, 85, 99, 0.3);
-  color: #e5e7eb;
+  font-family: var(--font-family);
 }
 
 .btn-action:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
 }
 
 .btn-view {
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #3b82f6;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 .btn-view:hover {
-  background: #3b82f6;
-  color: white;
+  background: var(--primary-color);
+  color: var(--text-white);
 }
 
 .btn-edit {
-  border-color: rgba(245, 158, 11, 0.3);
+  border-color: #f59e0b;
   color: #f59e0b;
 }
 
 .btn-edit:hover {
   background: #f59e0b;
-  color: white;
+  color: var(--text-white);
 }
 
 .btn-status {
-  border-color: rgba(16, 185, 129, 0.3);
+  border-color: #10b981;
   color: #10b981;
 }
 
 .btn-status:hover {
   background: #10b981;
-  color: white;
+  color: var(--text-white);
 }
 
 .btn-login {
-  border-color: rgba(139, 92, 246, 0.3);
+  border-color: #8b5cf6;
   color: #8b5cf6;
 }
 
 .btn-login:hover {
   background: #8b5cf6;
-  color: white;
+  color: var(--text-white);
 }
 
-@media (max-width: 1200px) {
-  .organizations-grid {
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  }
-}
-
-@media (max-width: 768px) {
-  .organizations-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .org-stats {
-    grid-template-columns: 1fr;
-  }
-  
-  .org-actions {
-    grid-template-columns: 1fr;
-  }
-  
-  .organization-card {
-    padding: 1.5rem;
-  }
-}
-
-/* Component-specific styles that extend the global theme */
-
-/* Page Header Styles */
+/* Page Header */
 .page-title {
-  font-size: 1.5rem !important;
-  font-weight: 600 !important;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
-  line-height: 1.3;
+  margin: 0 0 var(--spacing-sm) 0;
+  font-family: var(--font-family);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.page-title i {
+  color: var(--primary-color);
 }
 
 .page-subtitle {
-  font-size: 0.875rem !important;
-  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  color: var(--text-medium);
   margin: 0;
+  font-family: var(--font-family);
 }
 
-/* Search Dropdown Styles */
-.search-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 2px solid rgba(102, 126, 234, 0.2);
-  border-radius: 0 0 12px 12px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(10px);
-  z-index: 1000;
-  max-height: 300px;
-  overflow-y: auto;
-  margin-top: 2px;
-}
-
-.search-result-item {
-  padding: 1rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.search-result-item:hover {
-  background: rgba(102, 126, 234, 0.08);
-  transform: translateX(4px);
-}
-
-.search-result-item:last-child {
-  border-bottom: none;
-  border-radius: 0 0 10px 10px;
-}
-
-.result-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.25rem;
-}
-
-.result-name {
-  font-weight: 600;
-  color: #1f2937;
-  font-size: 0.9rem;
-}
-
-.result-type {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-  border-radius: 6px;
-  text-transform: capitalize;
-  font-weight: 500;
-}
-
-.result-details {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.result-details span {
-  display: flex;
-  align-items: center;
-}
-
-[data-theme="dark"] .search-dropdown {
-  background: rgba(31, 41, 55, 0.95);
-  border-color: rgba(102, 126, 234, 0.3);
-}
-
-[data-theme="dark"] .search-result-item {
-  background: rgba(31, 41, 55, 0.95);
-  border-bottom-color: rgba(75, 85, 99, 0.3);
-}
-
-[data-theme="dark"] .search-result-item:hover {
-  background: rgba(102, 126, 234, 0.15);
-}
-
-[data-theme="dark"] .result-name {
-  color: #f3f4f6;
-}
-
-[data-theme="dark"] .result-details {
-  color: #9ca3af;
-}
-
-/* Participants-style filters */
+/* Search and Filters */
 .filters-section {
-  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  margin-bottom: 1rem;
+  background: var(--surface-color);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-color);
+  margin-bottom: var(--spacing-lg);
 }
 
 .filters-row {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: var(--spacing-lg);
   flex-wrap: wrap;
 }
 
@@ -1490,178 +1483,174 @@ export default {
 
 .search-box i {
   position: absolute;
-  left: 16px;
+  left: var(--spacing-md);
   top: 50%;
   transform: translateY(-50%);
-  color: #9ca3af;
+  color: var(--text-light);
 }
 
 .form-input {
   width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  font-size: 0.875rem;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  font-weight: 500;
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-md) 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-sm);
+  background: var(--card-background);
+  transition: var(--transition-smooth);
+  font-family: var(--font-family);
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
-  background: rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .filter-controls {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-md);
   flex-wrap: wrap;
 }
 
 .form-select {
-  padding: 0.75rem 1rem;
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  font-size: 0.875rem;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  font-weight: 500;
-  min-width: 140px;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px;
-  padding-right: 40px;
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-sm);
+  background: var(--card-background);
+  transition: var(--transition-smooth);
+  font-family: var(--font-family);
+  min-width: 130px;
 }
 
 .form-select:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
-  background-color: rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .btn-outline-elegant {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  color: #4a5568;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  font-weight: var(--font-weight-medium);
+  transition: var(--transition-smooth);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
 }
 
 .btn-outline-elegant:hover {
-  border-color: #667eea;
-  color: #667eea;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(102, 126, 234, 0.04) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.15);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(102, 126, 234, 0.05);
 }
 
-.org-info strong {
-  display: block;
-  margin-bottom: 0.25rem;
-  color: var(--gray-800);
+/* Search Dropdown */
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+  box-shadow: var(--shadow-medium);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 2px;
 }
 
-.org-details {
-  font-size: var(--font-size-sm);
-  color: var(--gray-600);
+.search-result-item {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: var(--transition-smooth);
 }
 
-.org-details span {
-  display: block;
+.search-result-item:hover {
+  background: var(--surface-color);
+  transform: translateX(4px);
 }
 
-.contact-info div {
-  margin-bottom: 0.25rem;
-  font-size: var(--font-size-sm);
+.search-result-item:last-child {
+  border-bottom: none;
 }
 
-.subscription-info {
+.result-main {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
 }
 
-.plan-name {
-  font-weight: 600;
-  text-transform: capitalize;
-  color: var(--gray-800);
+.result-name {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
 }
 
-.subscription-status {
+.result-type {
   font-size: var(--font-size-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--primary-color);
+  border-radius: var(--border-radius-sm);
   text-transform: capitalize;
+  font-weight: var(--font-weight-medium);
 }
 
-.action-buttons {
+.result-details {
   display: flex;
-  gap: var(--space-xs);
+  gap: var(--spacing-md);
+  font-size: var(--font-size-xs);
+  color: var(--text-medium);
 }
 
-.btn-edit-status {
-  margin-left: var(--space-xs);
-  background: transparent;
-  border: 1px solid var(--gray-300);
-  color: var(--gray-600);
-  transition: var(--transition-fast);
-}
-
-.btn-edit-status:hover {
-  background: var(--primary-500);
-  color: white;
-  border-color: var(--primary-500);
-}
-
-.status-filter {
-  min-width: 150px;
-}
-
+/* Details Grid */
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-xl);
+  gap: var(--spacing-xl);
 }
 
 .detail-section h4 {
-  margin: 0 0 var(--space-md) 0;
-  color: var(--gray-800);
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--text-primary);
   font-size: var(--font-size-lg);
-  border-bottom: 2px solid var(--primary-500);
-  padding-bottom: var(--space-xs);
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 2px solid var(--primary-color);
+  padding-bottom: var(--spacing-xs);
+  font-family: var(--font-family);
 }
 
 .detail-item {
   display: flex;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--spacing-sm);
   align-items: flex-start;
 }
 
 .detail-item label {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   min-width: 120px;
-  color: var(--gray-600);
-  margin-right: var(--space-md);
+  color: var(--text-medium);
+  margin-right: var(--spacing-md);
   font-size: var(--font-size-sm);
+  font-family: var(--font-family);
 }
 
 .detail-item span {
   flex: 1;
-  color: var(--gray-800);
+  color: var(--text-primary);
+  font-family: var(--font-family);
 }
 
+/* Lists */
 .user-list,
 .participant-list {
   max-height: 200px;
@@ -1670,68 +1659,108 @@ export default {
 
 .user-item,
 .participant-item {
-  padding: var(--space-sm);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-xs);
-  transition: var(--transition-fast);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--spacing-xs);
+  transition: var(--transition-smooth);
+  background: var(--surface-color);
 }
 
 .user-item:hover,
 .participant-item:hover {
-  border-color: var(--primary-300);
-  background: var(--gray-50);
+  border-color: var(--primary-color);
+  background: rgba(102, 126, 234, 0.05);
 }
 
 .user-name,
 .participant-name {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   display: block;
-  color: var(--gray-800);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
+  font-family: var(--font-family);
 }
 
 .user-email,
 .participant-ndis {
   font-size: var(--font-size-xs);
-  color: var(--gray-600);
+  color: var(--text-medium);
+  font-family: var(--font-family);
 }
 
 .user-role {
   font-size: var(--font-size-xs);
-  color: var(--primary-600);
+  color: var(--primary-color);
   text-transform: capitalize;
+  font-family: var(--font-family);
 }
 
+/* Pagination */
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: var(--space-md);
-  margin-top: var(--space-xl);
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--gray-200);
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
 }
 
 .page-info {
   font-size: var(--font-size-sm);
-  color: var(--gray-600);
+  color: var(--text-medium);
+  font-family: var(--font-family);
 }
 
+/* Form Styling */
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
-  margin-bottom: var(--space-md);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .organizations-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
+  .organizations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .org-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .org-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-card {
+    padding: var(--spacing-lg);
+  }
+
   .form-row {
     grid-template-columns: 1fr;
   }
 
   .details-grid {
     grid-template-columns: 1fr;
+  }
+
+  .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-box {
+    min-width: unset;
+    max-width: unset;
   }
 }
 </style>

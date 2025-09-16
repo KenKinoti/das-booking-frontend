@@ -11,6 +11,11 @@ import '@fortawesome/fontawesome-free/css/all.css'
 
 // Import CSS
 import './assets/css/main.css'
+import './assets/css/global-optimization.css'
+import './assets/css/page-layouts.css'
+import './assets/css/mobile-responsive.css'
+import './assets/css/layout-fixes.css'
+import './assets/css/mobile-nav-enhancements.css'
 import './styles/bootstrap-theme.css'
 
 console.log('Starting booking platform app...')

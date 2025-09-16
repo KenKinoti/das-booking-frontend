@@ -21,25 +21,25 @@
       <!-- Financial Management -->
       <div v-if="shouldShowFinanceSection" class="nav-section">
         <div class="nav-section-title">Financial Management</div>
-        <div class="nav-item">
+        <div v-if="shouldShowFinanceMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'finance' }" @click="navigate('finance')">
             <i class="fas fa-calculator nav-icon"></i>
             Finance & Accounting
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowInvoicesMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'invoices' }" @click="navigate('invoices')">
             <i class="fas fa-file-invoice-dollar nav-icon"></i>
             Billing & Invoicing
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowBillsMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'bills' }" @click="navigate('bills')">
             <i class="fas fa-receipt nav-icon"></i>
             Bills & Expenses
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowBankingMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'banking' }" @click="navigate('banking')">
             <i class="fas fa-bank nav-icon"></i>
             Banking & Transactions
@@ -51,19 +51,19 @@
       <div v-if="shouldShowOperationsSection" class="nav-section">
         <div class="nav-divider"></div>
         <div class="nav-section-title">Operations</div>
-        <div class="nav-item">
+        <div v-if="shouldShowInventoryMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'inventory' }" @click="navigate('inventory')">
             <i class="fas fa-boxes nav-icon"></i>
             Inventory Management
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowSuppliersMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'suppliers' }" @click="navigate('suppliers')">
             <i class="fas fa-truck nav-icon"></i>
             Supplier Management
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowProductionMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'production' }" @click="navigate('production')">
             <i class="fas fa-cogs nav-icon"></i>
             Production & MRP
@@ -75,22 +75,41 @@
       <div v-if="shouldShowCustomerSection" class="nav-section">
         <div class="nav-divider"></div>
         <div class="nav-section-title">Customer Relations</div>
-        <div class="nav-item">
+        <div v-if="shouldShowCRMMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'crm' }" @click="navigate('crm')">
             <i class="fas fa-users nav-icon"></i>
             CRM
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowBookingsMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'bookings' }" @click="navigate('bookings')">
             <i class="fas fa-calendar-check nav-icon"></i>
             Bookings & Appointments
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowCustomersMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'customers' }" @click="navigate('customers')">
             <i class="fas fa-user-friends nav-icon"></i>
             Customer Management
+          </a>
+        </div>
+        <div v-if="shouldShowEventsMenu()" class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'events' }" @click="navigate('events')">
+            <i class="fas fa-calendar-star nav-icon"></i>
+            Events Management
+          </a>
+        </div>
+        <div v-if="shouldShowMessagesMenu()" class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'messages' }" @click="navigate('messages')">
+            <i class="fas fa-comments nav-icon"></i>
+            <span class="nav-text">Messages</span>
+            <span v-if="unreadMessageCount > 0" class="nav-badge">{{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}</span>
+          </a>
+        </div>
+        <div v-if="shouldShowVideoCallMenu()" class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'video-call' }" @click="navigate('video-call')">
+            <i class="fas fa-video nav-icon"></i>
+            Video Call
           </a>
         </div>
       </div>
@@ -99,7 +118,7 @@
       <div v-if="shouldShowServicesSection" class="nav-section">
         <div class="nav-divider"></div>
         <div class="nav-section-title">Services & Projects</div>
-        <div class="nav-item nav-expandable">
+        <div v-if="shouldShowServiceCategoriesMenu()" class="nav-item nav-expandable">
           <div class="nav-parent">
             <a href="#" class="nav-link" :class="{ active: isServiceCategoryActive }" @click="toggleServiceCategories">
               <i class="fas fa-concierge-bell nav-icon"></i>
@@ -108,7 +127,7 @@
             </a>
           </div>
           <div class="nav-submenu" :class="{ expanded: serviceCategoriesExpanded }">
-            <div class="nav-item nav-sub-item">
+            <div v-if="shouldShowAutomotiveRepairSubmenu()" class="nav-item nav-sub-item">
               <a href="#" class="nav-link nav-sub-link"
                  :class="{ active: currentPage === 'automotive-repair' }"
                  @click="navigate('services/automotive-repair')">
@@ -116,7 +135,7 @@
                 Automotive Repair
               </a>
             </div>
-            <div class="nav-item nav-sub-item">
+            <div v-if="shouldShowAutomotiveMaintenanceSubmenu()" class="nav-item nav-sub-item">
               <a href="#" class="nav-link nav-sub-link"
                  :class="{ active: currentPage === 'automotive-maintenance' }"
                  @click="navigate('services/automotive-maintenance')">
@@ -124,7 +143,7 @@
                 Auto Maintenance
               </a>
             </div>
-            <div class="nav-item nav-sub-item">
+            <div v-if="shouldShowHairServicesSubmenu()" class="nav-item nav-sub-item">
               <a href="#" class="nav-link nav-sub-link"
                  :class="{ active: currentPage === 'hair-services' }"
                  @click="navigate('services/hair-services')">
@@ -132,7 +151,7 @@
                 Hair Services
               </a>
             </div>
-            <div class="nav-item nav-sub-item">
+            <div v-if="shouldShowSpaServicesSubmenu()" class="nav-item nav-sub-item">
               <a href="#" class="nav-link nav-sub-link"
                  :class="{ active: currentPage === 'beauty-spa' }"
                  @click="navigate('services/beauty-spa')">
@@ -140,20 +159,12 @@
                 Beauty & Spa
               </a>
             </div>
-            <div class="nav-item nav-sub-item">
+            <div v-if="shouldShowNailServicesSubmenu()" class="nav-item nav-sub-item">
               <a href="#" class="nav-link nav-sub-link"
                  :class="{ active: currentPage === 'nail-services' }"
                  @click="navigate('services/nail-services')">
                 <i class="fas fa-hand-paper nav-icon"></i>
                 Nail Services
-              </a>
-            </div>
-            <div class="nav-item nav-sub-item">
-              <a href="#" class="nav-link nav-sub-link"
-                 :class="{ active: currentPage === 'diagnostic-services' }"
-                 @click="navigate('services/diagnostic-services')">
-                <i class="fas fa-stethoscope nav-icon"></i>
-                Diagnostic Services
               </a>
             </div>
             <div class="nav-item nav-sub-item">
@@ -166,7 +177,7 @@
             </div>
           </div>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowProjectsMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'projects' }" @click="navigate('projects')">
             <i class="fas fa-project-diagram nav-icon"></i>
             Project Management
@@ -178,7 +189,7 @@
       <div v-if="shouldShowHRSection" class="nav-section">
         <div class="nav-divider"></div>
         <div class="nav-section-title">Human Resources</div>
-        <div class="nav-item">
+        <div v-if="shouldShowStaffMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'staff' }" @click="navigate('staff')">
             <i class="fas fa-users-cog nav-icon"></i>
             Staff Management
@@ -196,7 +207,7 @@
       <div v-if="shouldShowSalesSection" class="nav-section">
         <div class="nav-divider"></div>
         <div class="nav-section-title">Sales & E-commerce</div>
-        <div class="nav-item">
+        <div v-if="shouldShowPOSMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'pos' }" @click="navigate('pos')">
             <i class="fas fa-cash-register nav-icon"></i>
             Point of Sale
@@ -208,7 +219,7 @@
             POS Transactions
           </a>
         </div>
-        <div class="nav-item">
+        <div v-if="shouldShowEcommerceMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'ecommerce' }" @click="navigate('ecommerce')">
             <i class="fas fa-shopping-cart nav-icon"></i>
             E-commerce Integration
@@ -220,7 +231,7 @@
       <div v-if="shouldShowReportsSection" class="nav-section">
         <div class="nav-divider"></div>
         <div class="nav-section-title">Analytics & Reports</div>
-        <div class="nav-item">
+        <div v-if="shouldShowReportsMenu()" class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'reports' }" @click="navigate('reports')">
             <i class="fas fa-chart-bar nav-icon"></i>
             Reports & Analytics
@@ -257,6 +268,12 @@
           </a>
         </div>
         <div class="nav-item">
+          <a href="#" class="nav-link" :class="{ active: currentPage === 'menu-manager' }" @click="navigate('menu-manager')">
+            <i class="fas fa-bars nav-icon"></i>
+            Menu Manager
+          </a>
+        </div>
+        <div class="nav-item">
           <a href="#" class="nav-link" :class="{ active: currentPage === 'analytics' }" @click="navigate('analytics')">
             <i class="fas fa-chart-pie nav-icon"></i>
             Analytics
@@ -283,7 +300,9 @@
 import { useAuthStore } from '../stores/auth'
 import { usePermissionsStore } from '../stores/permissions'
 import { useModuleSelectorStore } from '../stores/moduleSelector'
+import { useSystemModulesStore } from '../stores/systemModules'
 import { moduleService } from '../services/moduleService'
+import { messagingService } from '../services/messaging'
 
 export default {
   name: 'AppSidebar',
@@ -300,7 +319,9 @@ export default {
   data() {
     return {
       serviceCategoriesExpanded: false,
-      moduleConfig: null
+      moduleConfig: null,
+      unreadMessageCount: 0,
+      menuConfigVersion: 0 // Used to trigger reactivity when localStorage changes
     }
   },
   computed: {
@@ -313,6 +334,9 @@ export default {
     moduleSelectorStore() {
       return useModuleSelectorStore()
     },
+    systemModulesStore() {
+      return useSystemModulesStore()
+    },
     isSuperAdmin() {
       return this.authStore.isSuperAdmin
     },
@@ -322,7 +346,7 @@ export default {
       const baseNavigation = Array.isArray(navigation) ? navigation : []
       
       // Ensure core navigation items are always available for authenticated users
-      const coreNavigation = ['dashboard', 'bookings', 'customers', 'services']
+      const coreNavigation = ['dashboard', 'bookings', 'customers', 'services', 'events']
       coreNavigation.forEach(item => {
         if (!baseNavigation.includes(item)) {
           baseNavigation.push(item)
@@ -347,35 +371,46 @@ export default {
       return true
     },
     shouldShowFinanceSection() {
-      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('finance')
+      // Check both system-wide availability AND navigation selector
+      const systemEnabled = this.systemModulesStore.isModuleEnabled('finance')
+      const navSelected = this.moduleSelectorStore.shouldShowRoute('finance')
+      return !this.isSuperAdmin || (systemEnabled && navSelected)
     },
     shouldShowOperationsSection() {
-      return !this.isSuperAdmin ||
-        this.moduleSelectorStore.shouldShowRoute('inventory') ||
-        this.moduleSelectorStore.shouldShowRoute('production')
+      const inventoryEnabled = this.systemModulesStore.isModuleEnabled('inventory') && this.moduleSelectorStore.shouldShowRoute('inventory')
+      const productionEnabled = this.systemModulesStore.isModuleEnabled('inventory') && this.moduleSelectorStore.shouldShowRoute('production')
+      return !this.isSuperAdmin || (inventoryEnabled || productionEnabled)
     },
     shouldShowCustomerSection() {
-      return !this.isSuperAdmin ||
-        this.moduleSelectorStore.shouldShowRoute('crm') ||
-        this.moduleSelectorStore.shouldShowRoute('bookings') ||
-        this.moduleSelectorStore.shouldShowRoute('customers')
+      const crmEnabled = this.systemModulesStore.isModuleEnabled('crm') && this.moduleSelectorStore.shouldShowRoute('crm')
+      const bookingsEnabled = this.systemModulesStore.isModuleEnabled('crm') && this.moduleSelectorStore.shouldShowRoute('bookings')
+      const customersEnabled = this.systemModulesStore.isModuleEnabled('crm') && this.moduleSelectorStore.shouldShowRoute('customers')
+      const eventsEnabled = this.systemModulesStore.isModuleEnabled('events') && this.moduleSelectorStore.shouldShowRoute('events')
+      return !this.isSuperAdmin || (crmEnabled || bookingsEnabled || customersEnabled || eventsEnabled)
     },
     shouldShowServicesSection() {
-      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('services')
+      const systemEnabled = this.systemModulesStore.isModuleEnabled('services')
+      const navSelected = this.moduleSelectorStore.shouldShowRoute('services')
+      return !this.isSuperAdmin || (systemEnabled && navSelected)
     },
     shouldShowHRSection() {
-      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('hcm')
+      const systemEnabled = this.systemModulesStore.isModuleEnabled('staff')
+      const navSelected = this.moduleSelectorStore.shouldShowRoute('hcm')
+      return !this.isSuperAdmin || (systemEnabled && navSelected)
     },
     shouldShowSalesSection() {
-      return !this.isSuperAdmin ||
-        this.moduleSelectorStore.shouldShowRoute('pos') ||
-        this.moduleSelectorStore.shouldShowRoute('ecommerce')
+      const posEnabled = this.systemModulesStore.isModuleEnabled('sales') && this.moduleSelectorStore.shouldShowRoute('pos')
+      const ecommerceEnabled = this.systemModulesStore.isModuleEnabled('sales') && this.moduleSelectorStore.shouldShowRoute('ecommerce')
+      return !this.isSuperAdmin || (posEnabled || ecommerceEnabled)
     },
     shouldShowReportsSection() {
-      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('reports')
+      const systemEnabled = this.systemModulesStore.isModuleEnabled('reports')
+      const navSelected = this.moduleSelectorStore.shouldShowRoute('reports')
+      return !this.isSuperAdmin || (systemEnabled && navSelected)
     },
     shouldShowDashboard() {
-      return !this.isSuperAdmin || this.moduleSelectorStore.shouldShowRoute('dashboard')
+      // Dashboard is always available
+      return true
     }
   },
   methods: {
@@ -392,10 +427,206 @@ export default {
       } catch (error) {
         console.error('Error fetching module config:', error)
       }
+    },
+    async fetchUnreadMessageCount() {
+      try {
+        const response = await messagingService.getUnreadCount()
+        this.unreadMessageCount = response.data.count
+      } catch (error) {
+        console.error('Error fetching unread message count:', error)
+      }
+    },
+    handleNewMessage(message) {
+      // Update unread count when a new message is received
+      if (message.thread_id && !message.is_read) {
+        this.unreadMessageCount++
+      }
+    },
+    handleMessageRead() {
+      // Decrease unread count when messages are read
+      if (this.unreadMessageCount > 0) {
+        this.unreadMessageCount--
+      }
+    },
+
+    // Menu Configuration Methods
+    shouldShowMenuItem(moduleKey, menuId) {
+      // Check if menu item should be shown based on menu manager configuration
+      // Use menuConfigVersion to ensure reactivity
+      this.menuConfigVersion; // Access to trigger reactivity
+      try {
+        const storedMenus = localStorage.getItem('dasyin_enabled_menus')
+        if (!storedMenus) return true // Show all if no configuration exists
+
+        const enabledMenus = JSON.parse(storedMenus)
+        return enabledMenus[moduleKey]?.includes(menuId) || false
+      } catch (e) {
+        return true // Show all if parsing fails
+      }
+    },
+
+    shouldShowSubmenu(moduleKey, menuId, submenuId) {
+      // Check if submenu should be shown based on menu manager configuration
+      // Use menuConfigVersion to ensure reactivity
+      this.menuConfigVersion; // Access to trigger reactivity
+      try {
+        const storedSubmenus = localStorage.getItem('dasyin_enabled_submenus')
+        if (!storedSubmenus) return true // Show all if no configuration exists
+
+        const enabledSubmenus = JSON.parse(storedSubmenus)
+        const key = `${moduleKey}.${menuId}.${submenuId}`
+        return enabledSubmenus[key] || false
+      } catch (e) {
+        return true // Show all if parsing fails
+      }
+    },
+
+    // Method to refresh menu visibility when configuration changes
+    refreshMenuVisibility() {
+      this.menuConfigVersion++
+    },
+
+    // Handle localStorage changes from other windows/tabs
+    handleStorageChange(event) {
+      if (event.key === 'dasyin_enabled_menus' ||
+          event.key === 'dasyin_enabled_submenus' ||
+          event.key === 'dasyin_system_modules' ||
+          event.key === 'dasyin_active_modules') {
+        this.refreshMenuVisibility()
+      }
+    },
+
+    // Specific menu visibility checks
+    shouldShowFinanceMenu() {
+      return this.shouldShowMenuItem('finance', 'finance')
+    },
+
+    shouldShowInvoicesMenu() {
+      return this.shouldShowMenuItem('finance', 'invoices')
+    },
+
+    shouldShowBillsMenu() {
+      return this.shouldShowMenuItem('finance', 'bills')
+    },
+
+    shouldShowBankingMenu() {
+      return this.shouldShowMenuItem('finance', 'banking')
+    },
+
+    shouldShowInventoryMenu() {
+      return this.shouldShowMenuItem('inventory', 'inventory')
+    },
+
+    shouldShowSuppliersMenu() {
+      return this.shouldShowMenuItem('inventory', 'suppliers')
+    },
+
+    shouldShowProductionMenu() {
+      return this.shouldShowMenuItem('inventory', 'production')
+    },
+
+    shouldShowCRMMenu() {
+      return this.shouldShowMenuItem('crm', 'crm')
+    },
+
+    shouldShowBookingsMenu() {
+      return this.shouldShowMenuItem('crm', 'bookings')
+    },
+
+    shouldShowCustomersMenu() {
+      return this.shouldShowMenuItem('crm', 'customers')
+    },
+
+    shouldShowEventsMenu() {
+      return this.shouldShowMenuItem('crm', 'events')
+    },
+
+    shouldShowMessagesMenu() {
+      return this.shouldShowMenuItem('crm', 'messages')
+    },
+
+    shouldShowVideoCallMenu() {
+      return this.shouldShowMenuItem('crm', 'video-call')
+    },
+
+    shouldShowServiceCategoriesMenu() {
+      return this.shouldShowMenuItem('services', 'service-categories')
+    },
+
+    shouldShowProjectsMenu() {
+      return this.shouldShowMenuItem('services', 'projects')
+    },
+
+    shouldShowStaffMenu() {
+      return this.shouldShowMenuItem('staff', 'staff')
+    },
+
+    shouldShowPOSMenu() {
+      return this.shouldShowMenuItem('sales', 'pos')
+    },
+
+    shouldShowEcommerceMenu() {
+      return this.shouldShowMenuItem('sales', 'ecommerce')
+    },
+
+    shouldShowReportsMenu() {
+      return this.shouldShowMenuItem('reports', 'reports')
+    },
+
+    // Submenu visibility checks
+    shouldShowAutomotiveRepairSubmenu() {
+      return this.shouldShowSubmenu('services', 'service-categories', 'automotive-repair')
+    },
+
+    shouldShowAutomotiveMaintenanceSubmenu() {
+      return this.shouldShowSubmenu('services', 'service-categories', 'automotive-maintenance')
+    },
+
+    shouldShowHairServicesSubmenu() {
+      return this.shouldShowSubmenu('services', 'service-categories', 'hair-services')
+    },
+
+    shouldShowNailServicesSubmenu() {
+      return this.shouldShowSubmenu('services', 'service-categories', 'nail-services')
+    },
+
+    shouldShowSpaServicesSubmenu() {
+      return this.shouldShowSubmenu('services', 'service-categories', 'spa-services')
     }
   },
   async mounted() {
     await this.fetchModuleConfig()
+    await this.fetchUnreadMessageCount()
+
+    // Initialize stores
+    this.systemModulesStore.initializeFromStorage()
+
+    // Set up WebSocket listener for real-time message updates
+    if (messagingService.wsService) {
+      messagingService.wsService.on('message', this.handleNewMessage)
+      messagingService.wsService.on('message_read', this.handleMessageRead)
+    }
+
+    // Listen for localStorage changes to refresh menu visibility
+    window.addEventListener('storage', this.handleStorageChange)
+
+    // Also listen for custom events for same-window changes
+    window.addEventListener('dasyin-menu-config-updated', this.refreshMenuVisibility)
+
+    // Listen for system module changes
+    window.addEventListener('dasyin-system-modules-updated', this.refreshMenuVisibility)
+  },
+  beforeUnmount() {
+    // Clean up WebSocket listeners
+    if (messagingService.wsService) {
+      messagingService.wsService.off('message', this.handleNewMessage)
+      messagingService.wsService.off('message_read', this.handleMessageRead)
+    }
+
+    // Clean up event listeners
+    window.removeEventListener('storage', this.handleStorageChange)
+    window.removeEventListener('dasyin-menu-config-updated', this.refreshMenuVisibility)
+    window.removeEventListener('dasyin-system-modules-updated', this.refreshMenuVisibility)
   },
   watch: {
     currentPage(newPage) {
@@ -414,17 +645,18 @@ export default {
 
 <style scoped>
 .sidebar {
-  width: 200px;
-  background: var(--card-background);
-  backdrop-filter: blur(20px);
-  border-right: 1px solid rgba(255,255,255,0.2);
-  box-shadow: var(--shadow-medium);
+  width: 260px;
+  background: #2c3e50;
+  border-right: 1px solid #34495e;
   position: fixed;
   height: 100vh;
-  z-index: 1000;
-  transition: var(--transition-smooth);
+  top: 0;
+  left: 0;
+  z-index: 99;
+  transition: all 0.3s ease;
   overflow-y: auto;
-  font-family: var(--font-family);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  padding-top: 60px;
 }
 
 .sidebar.collapsed {
@@ -432,155 +664,107 @@ export default {
 }
 
 .sidebar-header {
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
-  background: rgba(102, 126, 234, 0.02);
-  position: relative;
-}
-
-.sidebar-header::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 2rem;
-  right: 2rem;
-  height: 2px;
-  background: var(--primary-gradient);
-  border-radius: 1px;
+  padding: 16px;
+  border-bottom: 1px solid #34495e;
+  background: #2c3e50;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  z-index: 98;
+  height: 60px;
+  display: flex;
+  align-items: center;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .logo-icon {
-  width: 36px;
-  height: 36px;
-  background: var(--primary-gradient);
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  background: #3498db;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-white);
-  font-size: 1.25rem;
-  box-shadow: var(--shadow-soft);
-  transition: var(--transition-bounce);
-}
-
-.logo-icon:hover {
-  transform: scale(1.1) rotate(5deg);
-  box-shadow: var(--shadow-strong);
+  color: white;
+  font-size: 16px;
 }
 
 .logo-text {
-  font-size: 1.1rem;
-  font-weight: var(--font-weight-bold);
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-family: var(--font-family);
-  letter-spacing: -0.02em;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ecf0f1;
+  letter-spacing: 0.5px;
 }
 
 .nav-menu {
-  padding: 0.75rem 0;
+  padding: 12px 0;
   overflow-y: auto;
   flex: 1;
 }
 
 .nav-item {
-  margin: 0.25rem 0.75rem;
+  margin: 0;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: 12px;
+  padding: 12px 16px;
   text-decoration: none;
-  color: var(--text-medium);
-  border-radius: 6px;
-  transition: var(--transition-smooth);
-  font-weight: var(--font-weight-medium);
-  font-family: var(--font-family);
-  font-size: 0.85rem;
+  color: #bdc3c7;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  font-size: 14px;
   position: relative;
-  overflow: hidden;
-}
-
-.nav-link::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-  transition: left 0.6s;
-}
-
-.nav-link:hover::before {
-  left: 100%;
+  border-left: 3px solid transparent;
+  border-radius: 0 8px 8px 0;
+  margin: 0;
+  min-height: 44px;
 }
 
 .nav-link:hover {
-  background: rgba(102, 126, 234, 0.1);
-  color: var(--primary-color);
-  transform: translateX(4px);
-  box-shadow: var(--shadow-soft);
+  background: #34495e;
+  color: #ecf0f1;
 }
 
 .nav-link.active {
-  background: var(--primary-gradient);
-  color: var(--text-white);
-  box-shadow: var(--shadow-medium);
-  transform: translateX(4px);
-}
-
-.nav-link.active::before {
-  display: none;
+  background: #3498db;
+  color: white;
+  border-left: 3px solid #2980b9;
 }
 
 .nav-icon {
-  width: 20px;
+  width: 18px;
   text-align: center;
-  font-size: 1rem;
-  transition: var(--transition-fast);
-}
-
-.nav-link:hover .nav-icon {
-  transform: scale(1.1);
-}
-
-.nav-link.active .nav-icon {
-  transform: scale(1.1);
-  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .nav-section {
-  margin-top: 1rem;
+  margin-top: 16px;
 }
 
 .nav-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, var(--primary-color) 50%, transparent 100%);
-  margin: 0.5rem 0.75rem;
-  border-radius: 1px;
+  background: #34495e;
+  margin: 8px 16px;
 }
 
 .nav-section-title {
-  font-size: 0.65rem;
-  font-weight: var(--font-weight-bold);
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--primary-color);
-  padding: 0.5rem 0.75rem 0.25rem 0.75rem;
+  letter-spacing: 0.8px;
+  color: #7f8c8d;
+  padding: 16px 16px 8px 16px;
   margin: 0;
-  font-family: var(--font-family);
-  opacity: 0.8;
 }
 
 /* Expandable navigation styles */
@@ -594,9 +778,9 @@ export default {
 }
 
 .expand-icon {
-  font-size: 0.75rem;
-  transition: transform var(--transition-fast);
-  opacity: 0.7;
+  font-size: 10px;
+  transition: transform 0.2s ease;
+  opacity: 0.6;
 }
 
 .expand-icon.expanded {
@@ -607,9 +791,7 @@ export default {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease-out;
-  background: rgba(102, 126, 234, 0.03);
-  border-radius: var(--border-radius-sm);
-  margin: var(--spacing-xs) 0;
+  background: #34495e;
 }
 
 .nav-submenu.expanded {
@@ -619,52 +801,91 @@ export default {
 
 .nav-sub-item {
   margin: 0;
-  padding: 0 var(--spacing-sm);
 }
 
 .nav-sub-link {
-  font-size: 0.8rem;
-  padding: var(--spacing-xs) var(--spacing-md) var(--spacing-xs) var(--spacing-xl);
-  margin: var(--spacing-xs) 0;
-  border-left: 2px solid transparent;
-  position: relative;
+  font-size: 13px;
+  padding: 10px 16px 10px 40px;
+  margin: 0;
+  border-left: 3px solid transparent;
+  color: #95a5a6;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s ease;
 }
 
 .nav-sub-link:hover {
-  background: rgba(102, 126, 234, 0.08);
-  border-left-color: var(--primary-color);
-  transform: translateX(2px);
+  background: #34495e;
+  color: #ecf0f1;
 }
 
 .nav-sub-link.active {
-  background: rgba(102, 126, 234, 0.15);
-  color: var(--primary-color);
-  border-left-color: var(--primary-color);
-  font-weight: var(--font-weight-semibold);
+  background: #2980b9;
+  color: white;
+  border-left-color: #3498db;
 }
 
 .nav-sub-link .nav-icon {
-  font-size: 0.875rem;
-  opacity: 0.8;
+  font-size: 12px;
+  width: 14px;
+}
+
+/* Navigation badge for unread counts */
+.nav-badge {
+  background: #ff4757;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: var(--font-weight-bold);
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  min-width: 18px;
+  text-align: center;
+  margin-left: auto;
+  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.nav-link.active .nav-badge {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
 }
 
 /* Responsive Design */
 @media (max-width: 1024px) {
   .sidebar {
-    width: 180px;
+    width: 240px;
+  }
+
+  .sidebar-header {
+    width: 240px;
   }
 
   .nav-link {
-    font-size: 0.8rem;
-    padding: 0.4rem 0.6rem;
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .nav-icon {
+    font-size: 14px;
+    width: 16px;
   }
 }
 
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
-    width: 240px;
-    box-shadow: var(--shadow-strong);
+    width: 280px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
   }
 
   .sidebar.open {
@@ -672,20 +893,101 @@ export default {
   }
 
   .sidebar-header {
-    padding: 1rem 0.75rem;
+    padding: 12px 16px;
+    width: 280px;
+    height: 56px;
+  }
+
+  .sidebar {
+    padding-top: 56px;
+  }
+
+  .logo-text {
+    font-size: 16px;
+  }
+
+  .logo-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
   }
 
   .nav-menu {
-    padding: 0.5rem 0;
-  }
-
-  .nav-item {
-    margin: 0.25rem 0.5rem;
+    padding: 8px 0;
   }
 
   .nav-link {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
+    padding: 12px 16px;
+    font-size: 14px;
+    min-height: 48px;
+  }
+
+  .nav-icon {
+    font-size: 16px;
+    width: 18px;
+  }
+
+  .nav-section-title {
+    padding: 12px 16px 6px 16px;
+    font-size: 11px;
+  }
+
+  /* Better touch targets */
+  .nav-sub-link {
+    padding: 10px 16px 10px 40px;
+    min-height: 44px;
+    font-size: 13px;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100vw;
+    max-width: 320px;
+  }
+
+  .sidebar-header {
+    width: 100%;
+    max-width: 320px;
+    height: 52px;
+    padding: 10px 16px;
+  }
+
+  .sidebar {
+    padding-top: 52px;
+  }
+
+  .logo-text {
+    font-size: 15px;
+  }
+
+  .logo-icon {
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
+  }
+
+  .nav-link {
+    padding: 10px 12px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+
+  .nav-icon {
+    font-size: 15px;
+    width: 16px;
+  }
+
+  .nav-section-title {
+    font-size: 10px;
+    padding: 10px 12px 4px 12px;
+  }
+
+  .nav-sub-link {
+    padding: 8px 12px 8px 36px;
+    font-size: 12px;
+    min-height: 40px;
   }
 }
 </style>
