@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { listFrom } from '../services/api'
 import { documentsService } from '../services/documents'
 
 export const useDocumentsStore = defineStore('documents', {
@@ -46,8 +47,8 @@ export const useDocumentsStore = defineStore('documents', {
       
       try {
         const response = await documentsService.getAll(params)
-        this.documents = response.data.documents || response.data
-        this.pagination = response.data.pagination || this.pagination
+        this.documents = listFrom(response, 'documents')
+        this.pagination = response.data?.pagination || response.data?.data?.pagination || this.pagination
       } catch (error) {
         this.error = error.response?.data?.message || 'Failed to fetch documents'
         throw error

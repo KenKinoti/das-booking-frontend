@@ -2,34 +2,25 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
+import { initTheme } from './composables/useTheme'
+import { toast } from './composables/useToast'
+import { confirmDialog } from './composables/useConfirm'
 
-// Initialize global theme
-import { globalTheme } from './composables/useTheme'
-
-// Import FontAwesome icons
 import '@fortawesome/fontawesome-free/css/all.css'
-
-// Import CSS
-import './assets/css/main.css'
-import './assets/css/global-optimization.css'
-import './assets/css/page-layouts.css'
-import './assets/css/mobile-responsive.css'
-import './assets/css/layout-fixes.css'
-import './assets/css/mobile-nav-enhancements.css'
 import './styles/bootstrap-theme.css'
+import './styles/app.css'
 
-console.log('Starting booking platform app...')
+initTheme()
 
-try {
-  const app = createApp(App)
-  const pinia = createPinia()
-  
-  app.use(pinia)
-  app.use(router)
-  
-  console.log('Mounting booking platform...')
-  app.mount('#app')
-  console.log('✅ Booking platform loaded successfully!')
-} catch (error) {
-  console.error('❌ Error during app initialization:', error)
+const app = createApp(App)
+app.use(createPinia())
+app.use(router)
+
+app.config.globalProperties.$toast = toast
+app.config.globalProperties.$confirm = confirmDialog
+
+app.config.errorHandler = (err, instance, info) => {
+  console.error('[app error]', info, err)
 }
+
+app.mount('#app')

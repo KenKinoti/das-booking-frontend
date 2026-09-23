@@ -217,15 +217,6 @@ export default {
 
     async generateReceipt(method, contact = null) {
       try {
-        const receiptOptions = {
-          template: this.receiptTemplate,
-          includeItemDetails: this.includeItemDetails,
-          includePromotions: this.includePromotions,
-          includeSurveyLink: this.includeSurveyLink,
-          method,
-          contact
-        }
-
         // Generate receipt content
         const receiptContent = this.buildReceiptContent()
 

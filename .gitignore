@@ -34,3 +34,5 @@ tmp/NUL
 nul
 NUL
 src/nul
+# Firebase deploy cache
+.firebase/

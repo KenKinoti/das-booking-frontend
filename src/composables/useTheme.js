@@ -1,79 +1,64 @@
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, computed } from 'vue'
 
+const STORAGE_KEY = 'theme'
 const theme = ref('light')
+let initialised = false
 
-export function useTheme() {
-  const toggleTheme = () => {
-    theme.value = theme.value === 'light' ? 'dark' : 'light'
+function systemPrefersDark() {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+}
+
+function apply(value) {
+  const root = document.documentElement
+  root.setAttribute('data-theme', value)
+  root.setAttribute('data-bs-theme', value)
+  document.body?.classList.remove('theme-light', 'theme-dark')
+  document.body?.classList.add(`theme-${value}`)
+}
+
+export function initTheme() {
+  if (initialised) return
+  initialised = true
+  let saved = null
+  try {
+    saved = localStorage.getItem(STORAGE_KEY)
+  } catch {
+    saved = null
   }
-
-  const setTheme = (newTheme) => {
-    theme.value = newTheme
-  }
-
-  const applyTheme = (themeValue) => {
-    // Apply custom theme attribute for custom CSS variables
-    document.documentElement.setAttribute('data-theme', themeValue)
-    
-    // Apply Bootstrap 5.3 dark mode support
-    document.documentElement.setAttribute('data-bs-theme', themeValue)
-    
-    // Store preference in localStorage
-    localStorage.setItem('theme', themeValue)
-    
-    // Update body class for additional styling hooks
-    document.body.classList.remove('theme-light', 'theme-dark')
-    document.body.classList.add(`theme-${themeValue}`)
-    
-    console.log(`🎨 Theme applied: ${themeValue}`)
-  }
-
-  const initTheme = () => {
-    const savedTheme = localStorage.getItem('theme')
-    if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
-      theme.value = savedTheme
-    } else {
-      // Auto-detect system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      theme.value = prefersDark ? 'dark' : 'light'
+  theme.value = saved === 'dark' || saved === 'light' ? saved : systemPrefersDark() ? 'dark' : 'light'
+  apply(theme.value)
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', (e) => {
+    let stored = null
+    try {
+      stored = localStorage.getItem(STORAGE_KEY)
+    } catch {
+      stored = null
     }
-    applyTheme(theme.value)
-  }
-
-  // Watch for theme changes
-  watch(theme, (newTheme) => {
-    applyTheme(newTheme)
-  }, { immediate: false })
-
-  // Listen for system theme changes
-  onMounted(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const handleChange = (e) => {
-      // Only auto-switch if user hasn't manually set a preference
-      if (!localStorage.getItem('theme')) {
-        theme.value = e.matches ? 'dark' : 'light'
-      }
-    }
-    
-    mediaQuery.addEventListener('change', handleChange)
-    
-    // Initialize theme
-    initTheme()
-    
-    return () => {
-      mediaQuery.removeEventListener('change', handleChange)
+    if (!stored) {
+      theme.value = e.matches ? 'dark' : 'light'
+      apply(theme.value)
     }
   })
+}
 
+export function useTheme() {
+  const setTheme = (value) => {
+    theme.value = value === 'dark' ? 'dark' : 'light'
+    apply(theme.value)
+    try {
+      localStorage.setItem(STORAGE_KEY, theme.value)
+    } catch {
+      /* private mode */
+    }
+  }
   return {
     theme: computed(() => theme.value),
-    toggleTheme,
-    setTheme,
-    initTheme,
     isDark: computed(() => theme.value === 'dark'),
-    isLight: computed(() => theme.value === 'light')
+    isLight: computed(() => theme.value === 'light'),
+    setTheme,
+    toggleTheme: () => setTheme(theme.value === 'dark' ? 'light' : 'dark'),
+    initTheme
   }
 }
 
-// Create a global instance for consistency across the app
 export const globalTheme = useTheme()

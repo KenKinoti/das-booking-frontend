@@ -374,13 +374,13 @@ export default {
 
     const checkInMode = () => {
       // Show check-in modal
-      const modal = new bootstrap.Modal(document.getElementById('checkinModal'))
+      const modal = // new bootstrap.Modal(document.getElementById('checkinModal'))
       modal.show()
     }
 
     const openImageModal = (image) => {
       selectedImage.value = image
-      const modal = new bootstrap.Modal(document.getElementById('imageModal'))
+      const modal = // new bootstrap.Modal(document.getElementById('imageModal'))
       modal.show()
     }
 

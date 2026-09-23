@@ -173,12 +173,12 @@
       </div>
     </div>
 
-    <!-- Transaction Details Modal -->
-    <TransactionDetailsModal
+    <!-- Transaction Details Modal - Commented out due to missing component -->
+    <!-- <TransactionDetailsModal
       v-if="showTransactionDetails"
       :transaction="selectedTransaction"
       @close="showTransactionDetails = false"
-    />
+    /> -->
 
     <!-- Transaction Report Modal -->
     <TransactionReportModal
@@ -190,13 +190,13 @@
 
 <script>
 import { posService } from '@/services/posService'
-import TransactionDetailsModal from '@/components/pos/TransactionDetailsModal.vue'
-import TransactionReportModal from '@/components/pos/TransactionReportModal.vue'
+// import TransactionDetailsModal from '@/components/pos/TransactionDetailsModal.vue' // Component not found
+import TransactionReportModal from '@/components/pos/POSReportModal.vue'
 
 export default {
   name: 'POSTransactions',
   components: {
-    TransactionDetailsModal,
+    // TransactionDetailsModal, // Component not found
     TransactionReportModal
   },
   data() {

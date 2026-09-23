@@ -54,7 +54,7 @@ export function cleanupEventListeners(element, events) {
 
 // Component performance monitoring
 export function measureComponentRender(componentName) {
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     const startTime = performance.now()
     return {
       end: () => {
@@ -109,7 +109,7 @@ export function memoize(fn, keyFn = (...args) => JSON.stringify(args)) {
 
 // Bundle size analyzer helper
 export function analyzeBundleSize() {
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('Bundle Analysis:')
     console.log('- Enable production build to see actual bundle sizes')
     console.log('- Run "npm run build" to generate optimized bundles')

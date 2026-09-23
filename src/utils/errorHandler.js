@@ -1,3 +1,4 @@
+import { toast } from '../composables/useToast'
 /**
  * Enhanced error handling utility for better user feedback
  */
@@ -90,7 +91,7 @@ export function formatErrorMessage(error) {
     formattedMessage += '\n\nDetails:\n' + parsedError.details.map(detail => `• ${detail}`).join('\n')
   }
 
-  if (process.env.NODE_ENV === 'development' && parsedError.statusCode) {
+  if (import.meta.env.DEV && parsedError.statusCode) {
     formattedMessage += `\n\nStatus Code: ${parsedError.statusCode}`
   }
 
@@ -247,4 +248,25 @@ export function showSuccessModal(message, title = null) {
 
 export function showErrorModal(message, title = null) {
   showModal(message, 'error', title)
+}
+
+// Toast notification system for better UX
+export function showToast(message, type = 'info', duration = 4000) {
+  return toast(message, type === 'danger' ? 'error' : type, { duration })
+}
+
+export function showSuccessToast(message, duration = 4000) {
+  return showToast(message, 'success', duration)
+}
+
+export function showErrorToast(message, duration = 6000) {
+  return showToast(message, 'error', duration)
+}
+
+export function showInfoToast(message, duration = 4000) {
+  return showToast(message, 'info', duration)
+}
+
+export function showWarningToast(message, duration = 5000) {
+  return showToast(message, 'warning', duration)
 }

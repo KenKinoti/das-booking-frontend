@@ -177,8 +177,17 @@ export default {
     applySelection() {
       this.showSelector = false
       this.searchQuery = ''
+
       // Emit event for parent components to react to module changes
       this.$emit('modules-changed', this.moduleSelectorStore.activeModules)
+
+      // Dispatch global event for other components (like Sidebar) to listen to
+      window.dispatchEvent(new CustomEvent('module-selection-changed', {
+        detail: {
+          activeModules: this.moduleSelectorStore.activeModules,
+          timestamp: Date.now()
+        }
+      }))
     },
 
     getSingleModuleName() {
@@ -225,13 +234,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: 8px 12px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  min-width: 180px;
+  transition: all 0.2s ease;
+  min-width: 160px;
   user-select: none;
   height: 40px;
 }
@@ -248,14 +257,14 @@ export default {
 }
 
 .trigger-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #6366f1;
-  font-size: 14px;
-  margin-right: 8px;
+  font-size: 12px;
+  margin-right: 6px;
   flex-shrink: 0;
 }
 
@@ -269,12 +278,12 @@ export default {
 .module-text {
   font-weight: 500;
   color: #111827;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.2;
 }
 
 .module-count {
-  font-size: 12px;
+  font-size: 10px;
   color: #6b7280;
   font-weight: 400;
   margin-top: 1px;
@@ -282,9 +291,9 @@ export default {
 
 .toggle-icon {
   color: #9ca3af;
-  font-size: 12px;
-  transition: transform 0.3s ease;
-  margin-left: 8px;
+  font-size: 10px;
+  transition: transform 0.2s ease;
+  margin-left: 6px;
 }
 
 .toggle-icon.rotate {
@@ -321,9 +330,9 @@ export default {
 
 /* Header */
 .dropdown-header {
-  padding: 1.5rem;
+  padding: 1rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 14px 14px 0 0;
+  border-radius: 8px 8px 0 0;
   color: white;
 }
 
@@ -333,15 +342,15 @@ export default {
 }
 
 .header-icon {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 1rem;
-  font-size: 1.25rem;
+  margin-right: 0.75rem;
+  font-size: 14px;
 }
 
 .header-text {
@@ -350,14 +359,14 @@ export default {
 
 .header-title {
   margin: 0;
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   color: white;
 }
 
 .header-subtitle {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.8);
   margin-top: 0.25rem;
 }
@@ -472,18 +481,18 @@ export default {
 }
 
 .module-name {
-  font-weight: 700;
+  font-weight: 600;
   color: #1e293b;
-  font-size: 0.925rem;
+  font-size: 13px;
   margin-bottom: 0.25rem;
   line-height: 1.3;
 }
 
 .module-description {
   color: #64748b;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 400;
 }
 
 .module-status {

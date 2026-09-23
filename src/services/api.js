@@ -23,46 +23,35 @@
  */
 
 import axios from 'axios'
-import { useAuthStore } from '../stores/auth'
+import { API_BASE_URL } from '../config'
 
-// Create axios instance with base configuration for Complete ERP
+// Shared axios instance for the whole app
 const api = axios.create({
-  baseURL: 'http://localhost:8089/api/v1',
-  timeout: 15000,
+  baseURL: API_BASE_URL,
+  timeout: 20000,
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   }
 })
 
-// Login function to get real JWT tokens from ERP backend
+// Login helper kept for backwards compatibility
 export const login = async (email, password) => {
   try {
-    const response = await axios.post('http://localhost:8089/api/v1/auth/login', {
-      email,
-      password
-    }, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 15000
-    })
-
+    const response = await api.post('/auth/login', { email, password })
     const { token, refresh_token, user } = response.data.data
-    
-    // Store real tokens
     localStorage.setItem('auth_token', token)
     localStorage.setItem('refresh_token', refresh_token)
-    localStorage.setItem('user_data', JSON.stringify(user))
-    
+    localStorage.setItem('current_user', JSON.stringify(user))
     return { success: true, data: response.data.data }
   } catch (error) {
-    console.error('Login failed:', error)
-    return { 
-      success: false, 
-      message: error.response?.data?.message || 'Login failed' 
+    return {
+      success: false,
+      message: error.response?.data?.error?.message || error.response?.data?.message || 'Login failed'
     }
   }
 }
 
-// Request interceptor to add auth token
+// Attach the bearer token to every request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token')
@@ -71,71 +60,65 @@ api.interceptors.request.use(
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor with auto token refresh
+let refreshPromise = null
+
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) throw new Error('No refresh token')
+  const response = await axios.post(
+    `${API_BASE_URL}/auth/refresh`,
+    { refresh_token: refreshToken },
+    { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+  )
+  const data = response.data?.data || {}
+  if (!data.token) throw new Error('Refresh failed')
+  localStorage.setItem('auth_token', data.token)
+  if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
+  return data.token
+}
+
+// Refresh expired tokens once, then send the user back to sign in
 api.interceptors.response.use(
-  (response) => {
-    return response
-  },
+  (response) => response,
   async (error) => {
-    const originalRequest = error.config
+    const originalRequest = error.config || {}
+    const isAuthCall = /\/auth\/(login|refresh)/.test(originalRequest.url || '')
 
-    // Handle network errors gracefully
-    if (!error.response) {
-      console.warn('Network error, using mock mode for development')
-      // Return a mock response for development
-      return Promise.resolve({
-        data: {
-          success: false,
-          error: { message: 'Backend not available' }
-        }
-      })
-    }
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthCall) {
       originalRequest._retry = true
-
       try {
-        const refreshToken = localStorage.getItem('refresh_token')
-        if (refreshToken && refreshToken !== 'mock-refresh-token') {
-          const response = await axios.post(
-            'http://localhost:8089/api/v1/auth/refresh',
-            { refresh_token: refreshToken },
-            {
-              headers: { 'Content-Type': 'application/json' },
-              timeout: 15000
-            }
-          )
-
-          const newToken = response.data.data.token
-          localStorage.setItem('auth_token', newToken)
-
-          // Update the failed request with new token
-          originalRequest.headers.Authorization = `Bearer ${newToken}`
-
-          return api(originalRequest)
-        }
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError)
-      }
-
-      // Only logout if not using mock token
-      const authToken = localStorage.getItem('auth_token')
-      if (authToken !== 'mock-jwt-token-for-testing') {
+        refreshPromise = refreshPromise || refreshAccessToken()
+        const newToken = await refreshPromise
+        refreshPromise = null
+        originalRequest.headers = originalRequest.headers || {}
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return api(originalRequest)
+      } catch {
+        refreshPromise = null
         const { useAuthStore } = await import('../stores/auth')
         const authStore = useAuthStore()
-        await authStore.logout()
-        window.location.href = '/login'
+        await authStore.logout({ skipApi: true })
+        if (!window.location.pathname.startsWith('/login')) {
+          const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+          window.location.href = `/login?redirect=${redirect}&expired=1`
+        }
       }
     }
 
     return Promise.reject(error)
   }
 )
+
+/** Human friendly message for any API error */
+export function apiErrorMessage(error, fallback = 'Something went wrong') {
+  if (!error) return fallback
+  if (!error.response) return 'Cannot reach the server. Check your connection and try again.'
+  const d = error.response.data || {}
+  return d.error?.message || d.message || (typeof d.error === 'string' ? d.error : '') || fallback
+}
 
 
 // ===== ERP MODULE API FUNCTIONS =====
@@ -273,7 +256,17 @@ export const ecommerceAPI = {
 export const adminAPI = {
   getCompleteOverview: () => api.get('/admin/overview'),
   getModuleStatus: () => api.get('/admin/modules'),
-  getHealth: () => api.get('/health')
+  getHealth: () => api.get('/health'),
+
+  // Super Admin Organizations
+  getAllOrganizations: (params = {}) => api.get('/super-admin/organizations', { params }),
+  createOrganization: (organizationData) => api.post('/super-admin/organizations', organizationData),
+  updateOrganizationStatus: (organizationId, status) => api.patch(`/super-admin/organizations/${organizationId}/status`, { status }),
+  getOrganizationById: (organizationId) => api.get(`/super-admin/organizations/${organizationId}`),
+  deleteOrganization: (organizationId) => api.delete(`/super-admin/organizations/${organizationId}`),
+
+  // Organization Module Management
+  updateOrganizationModules: (organizationId, moduleConfig) => api.patch(`/super-admin/organizations/${organizationId}/modules`, moduleConfig)
 }
 
 // Video Communication Module
@@ -306,3 +299,19 @@ export const videoAPI = {
 }
 
 export default api
+
+/**
+ * Extract an array from the many response shapes the backend returns:
+ * { data: { key: [] } }, { key: [] }, { data: [] }, [] …
+ */
+export function listFrom(response, ...keys) {
+  const body = response && Object.prototype.hasOwnProperty.call(response, 'data') && response.status ? response.data : response
+  const candidates = [body, body?.data]
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c
+    if (c && typeof c === 'object') {
+      for (const k of keys) if (Array.isArray(c[k])) return c[k]
+    }
+  }
+  return []
+}

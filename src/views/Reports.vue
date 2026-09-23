@@ -423,7 +423,7 @@ import { useReportsStore } from '../stores/reports'
 import { showInfoModal } from '../utils/errorHandler'
 
 export default {
-  name: 'Reports',
+  name: 'ReportsView',
   data() {
     return {
       selectedPeriod: '30',

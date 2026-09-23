@@ -531,7 +531,7 @@
           <div class="error-suggestions">
             <h4>What you can do:</h4>
             <ul>
-              <li>Check if the backend server is running on <code>localhost:8080</code></li>
+              <li>Check your internet connection and that the API server is online</li>
               <li>Verify database connection is established</li>
               <li>Try refreshing the page</li>
               <li>Contact system administrator if problem persists</li>
@@ -562,6 +562,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import PageTemplate from '@/components/PageTemplate.vue'
+import { legacyFetch } from '@/utils/legacyFetch'
 import BookingModal from '@/components/BookingModal.vue'
 import { useOrganizationContextStore } from '../stores/organizationContext'
 
@@ -902,7 +903,7 @@ export default {
       
       try {
         // Test basic connectivity
-        const response = await fetch('http://localhost:8080/api/health', {
+        const response = await legacyFetch('http://localhost:8080/api/health', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -923,7 +924,7 @@ export default {
       
       // Test bookings endpoint specifically
       try {
-        const response = await fetch('http://localhost:8080/api/bookings', {
+        const response = await legacyFetch('http://localhost:8080/api/bookings', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -951,7 +952,7 @@ export default {
     // Methods
     const loadCustomers = async () => {
       try {
-        const response = await fetch('http://localhost:8080/api/customers', {
+        const response = await legacyFetch('http://localhost:8080/api/customers', {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'mock-token'}`
           }
@@ -971,7 +972,7 @@ export default {
 
     const loadServices = async () => {
       try {
-        const response = await fetch('http://localhost:8080/api/services', {
+        const response = await legacyFetch('http://localhost:8080/api/services', {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'mock-token'}`
           }
@@ -991,7 +992,7 @@ export default {
 
     const loadStaff = async () => {
       try {
-        const response = await fetch('http://localhost:8080/api/staff', {
+        const response = await legacyFetch('http://localhost:8080/api/staff', {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'mock-token'}`
           }
@@ -1031,7 +1032,7 @@ export default {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
         
-        const response = await fetch(url, {
+        const response = await legacyFetch(url, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -1128,7 +1129,7 @@ export default {
           errorDetails = 'Request was aborted due to timeout'
         } else if (error.message.includes('fetch')) {
           errorTitle = 'Network Connection Error'
-          errorMessage = 'Cannot connect to the backend server. Please ensure the server is running on localhost:8080.'
+          errorMessage = 'Cannot reach the server. Check your connection and try again.'
           errorDetails = `${error.message}\n\nCommon causes:\n- Backend server not running\n- Wrong port (should be 8080)\n- CORS issues\n- Firewall blocking connection`
         } else if (error.message.includes('JSON')) {
           errorTitle = 'Data Format Error'
@@ -1230,7 +1231,7 @@ export default {
         try {
           console.log('Canceling booking in database:', bookingToCancel.value.id)
           
-          const response = await fetch(`http://localhost:8080/api/bookings/${bookingToCancel.value.id}`, {
+          const response = await legacyFetch(`http://localhost:8080/api/bookings/${bookingToCancel.value.id}`, {
             method: 'DELETE',
             headers: {
               'Content-Type': 'application/json',
@@ -1284,7 +1285,7 @@ export default {
         
         console.log(`Updating booking ${booking.id} status from ${booking.status} to ${newStatus} in database`)
         
-        const response = await fetch(`http://localhost:8080/api/bookings/${booking.id}`, {
+        const response = await legacyFetch(`http://localhost:8080/api/bookings/${booking.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1344,7 +1345,7 @@ export default {
         
         console.log(`📡 Making ${method} request to: ${url}`)
         
-        const response = await fetch(url, {
+        const response = await legacyFetch(url, {
           method: method,
           headers: {
             'Content-Type': 'application/json',
@@ -1479,19 +1480,6 @@ export default {
       const urlParams = new URLSearchParams(window.location.search)
       if (urlParams.get('wp_embed') === 'true') {
         isWordPressEmbed.value = true
-      }
-      
-      // Test direct fetch to verify CORS
-      console.log('🧪 Testing direct fetch to backend...')
-      try {
-        const testResponse = await fetch('http://localhost:8080/api/health')
-        console.log('🏥 Health test response:', testResponse.status, testResponse.statusText)
-        if (testResponse.ok) {
-          const healthData = await testResponse.json()
-          console.log('🏥 Health data:', healthData)
-        }
-      } catch (error) {
-        console.error('🏥 Health test failed:', error)
       }
       
       loadBookings()

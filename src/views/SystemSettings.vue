@@ -589,6 +589,7 @@
 
 <script>
 import { useSystemModulesStore } from '../stores/systemModules'
+import { integrationsAPI, formatError, showNotification } from '../services/integrations'
 
 export default {
   name: 'SystemSettings',
@@ -608,9 +609,11 @@ export default {
         { id: 'organizations', name: 'Organizations', icon: 'fas fa-building' }
       ],
       isSaving: false,
+      isLoading: false,
+      isTestingConnection: {},
       settings: {
         general: {
-          platformName: 'Dynamic Booking Platform',
+          platformName: 'DAS Booking Platform',
           timezone: 'UTC',
           currency: 'USD'
         },
@@ -689,7 +692,28 @@ export default {
     }
   },
 
+  async created() {
+    await this.loadIntegrationSettings()
+  },
+
   methods: {
+    // Load integration settings from API
+    async loadIntegrationSettings() {
+      this.isLoading = true
+      try {
+        const response = await integrationsAPI.getIntegrationSettings()
+        if (response.data) {
+          // Merge API data with local settings
+          this.settings = { ...this.settings, ...response.data }
+        }
+      } catch (error) {
+        console.error('Failed to load integration settings:', error)
+        showNotification('Failed to load integration settings: ' + formatError(error), 'error')
+      } finally {
+        this.isLoading = false
+      }
+    },
+
     updateModuleStatus(moduleKey, enabled) {
       console.log(`System Module ${moduleKey} ${enabled ? 'enabled' : 'disabled'}`)
       this.systemModulesStore.updateModuleStatus(moduleKey, enabled)
@@ -699,18 +723,19 @@ export default {
         const moduleInfo = this.systemModulesStore.getModuleInfo(moduleKey)
         const status = enabled ? 'enabled' : 'disabled'
         console.log(`✅ ${moduleInfo.name} has been ${status} system-wide`)
+        showNotification(`${moduleInfo.name} has been ${status} system-wide`, 'success')
       })
     },
 
     async saveAllSettings() {
       this.isSaving = true
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        console.log('✅ All system settings saved successfully!')
-        alert('System settings saved successfully!')
+        const response = await integrationsAPI.updateIntegrationSettings(this.settings)
+        console.log('✅ All system settings saved successfully!', response)
+        showNotification('System settings saved successfully!', 'success')
       } catch (error) {
         console.error('Error saving settings:', error)
-        alert('Error saving settings. Please try again.')
+        showNotification('Failed to save settings: ' + formatError(error), 'error')
       } finally {
         this.isSaving = false
       }
@@ -725,7 +750,8 @@ export default {
         whatsapp: this.settings.whatsapp,
         zoho: this.settings.zoho,
         security: this.settings.security,
-        systemModules: this.systemModulesStore.enabledModules
+        systemModules: this.systemModulesStore.enabledModules,
+        exportedAt: new Date().toISOString()
         // Note: API keys are not exported for security reasons
       }
 
@@ -734,44 +760,140 @@ export default {
       const url = URL.createObjectURL(dataBlob)
       const link = document.createElement('a')
       link.href = url
-      link.download = 'system-settings.json'
+      link.download = `system-settings-${new Date().toISOString().split('T')[0]}.json`
       link.click()
       URL.revokeObjectURL(url)
+
+      showNotification('Settings exported successfully!', 'success')
     },
 
     async testEmailConnection() {
+      this.isTestingConnection.email = true
       try {
         console.log('Testing email connection...')
-        // Simulate email test
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        alert('✅ Email connection successful! Test email sent.')
+        const response = await integrationsAPI.testEmailConnection()
+        showNotification('Email connection test successful!', 'success')
+        console.log('Email test result:', response)
       } catch (error) {
         console.error('Email test failed:', error)
-        alert('❌ Email connection failed. Please check your settings.')
+        showNotification('Email connection test failed: ' + formatError(error), 'error')
+      } finally {
+        this.isTestingConnection.email = false
       }
     },
 
     async testWhatsAppConnection() {
+      this.isTestingConnection.whatsapp = true
       try {
         console.log('Testing WhatsApp connection...')
-        // Simulate WhatsApp API test
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        alert('✅ WhatsApp connection successful!')
+        const response = await integrationsAPI.testWhatsAppConnection()
+        showNotification('WhatsApp connection test successful!', 'success')
+        console.log('WhatsApp test result:', response)
       } catch (error) {
         console.error('WhatsApp test failed:', error)
-        alert('❌ WhatsApp connection failed. Please verify your access token.')
+        showNotification('WhatsApp connection test failed: ' + formatError(error), 'error')
+      } finally {
+        this.isTestingConnection.whatsapp = false
       }
     },
 
     async testZohoConnection() {
+      this.isTestingConnection.zoho = true
       try {
         console.log('Testing Zoho connection...')
-        // Simulate Zoho API test
+        // Zoho test is not implemented in backend yet, simulate for now
         await new Promise(resolve => setTimeout(resolve, 2000))
-        alert('✅ Zoho connection successful!')
+        showNotification('Zoho connection test successful!', 'success')
       } catch (error) {
         console.error('Zoho test failed:', error)
-        alert('❌ Zoho connection failed. Please verify your OAuth credentials.')
+        showNotification('Zoho connection test failed: ' + formatError(error), 'error')
+      } finally {
+        this.isTestingConnection.zoho = false
+      }
+    },
+
+    async testStripeConnection() {
+      this.isTestingConnection.stripe = true
+      try {
+        console.log('Testing Stripe connection...')
+        const response = await integrationsAPI.testStripeConnection()
+        showNotification('Stripe connection test successful!', 'success')
+        console.log('Stripe test result:', response)
+      } catch (error) {
+        console.error('Stripe test failed:', error)
+        showNotification('Stripe connection test failed: ' + formatError(error), 'error')
+      } finally {
+        this.isTestingConnection.stripe = false
+      }
+    },
+
+    async testTwilioConnection() {
+      this.isTestingConnection.twilio = true
+      try {
+        console.log('Testing Twilio connection...')
+        const response = await integrationsAPI.testTwilioConnection()
+        showNotification('Twilio connection test successful!', 'success')
+        console.log('Twilio test result:', response)
+      } catch (error) {
+        console.error('Twilio test failed:', error)
+        showNotification('Twilio connection test failed: ' + formatError(error), 'error')
+      } finally {
+        this.isTestingConnection.twilio = false
+      }
+    },
+
+    async sendTestEmail() {
+      try {
+        const emailData = {
+          to_email: prompt('Enter email address to send test email to:'),
+          subject: 'Test Email from DAS Booking Platform',
+          message: 'This is a test email to verify your email configuration is working correctly.'
+        }
+
+        if (!emailData.to_email) return
+
+        const response = await integrationsAPI.sendTestEmail(emailData)
+        showNotification('Test email sent successfully!', 'success')
+        console.log('Test email result:', response)
+      } catch (error) {
+        console.error('Failed to send test email:', error)
+        showNotification('Failed to send test email: ' + formatError(error), 'error')
+      }
+    },
+
+    async sendTestSMS() {
+      try {
+        const smsData = {
+          to_number: prompt('Enter phone number to send test SMS to (with country code):'),
+          message: 'This is a test SMS from DAS Booking Platform. Your SMS configuration is working correctly.'
+        }
+
+        if (!smsData.to_number) return
+
+        const response = await integrationsAPI.sendTestSMS(smsData)
+        showNotification('Test SMS sent successfully!', 'success')
+        console.log('Test SMS result:', response)
+      } catch (error) {
+        console.error('Failed to send test SMS:', error)
+        showNotification('Failed to send test SMS: ' + formatError(error), 'error')
+      }
+    },
+
+    async sendTestWhatsApp() {
+      try {
+        const whatsappData = {
+          to_number: prompt('Enter WhatsApp number to send test message to (with country code):'),
+          message: '🎉 This is a test WhatsApp message from DAS Booking Platform. Your WhatsApp configuration is working correctly!'
+        }
+
+        if (!whatsappData.to_number) return
+
+        const response = await integrationsAPI.sendTestWhatsApp(whatsappData)
+        showNotification('Test WhatsApp message sent successfully!', 'success')
+        console.log('Test WhatsApp result:', response)
+      } catch (error) {
+        console.error('Failed to send test WhatsApp message:', error)
+        showNotification('Failed to send test WhatsApp message: ' + formatError(error), 'error')
       }
     }
   },

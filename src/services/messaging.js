@@ -1,3 +1,4 @@
+import { WS_ORIGIN } from '../config'
 import api from './api'
 
 export const messagingService = {
@@ -7,6 +8,7 @@ export const messagingService = {
       const response = await api.get(`/messaging/threads?page=${page}&limit=${limit}`)
       return response.data
     } catch (error) {
+      console.error('Failed to get threads:', error)
       throw error
     }
   },
@@ -16,6 +18,7 @@ export const messagingService = {
       const response = await api.post('/messaging/threads', threadData)
       return response.data
     } catch (error) {
+      console.error('Failed to create thread:', error)
       throw error
     }
   },
@@ -26,6 +29,7 @@ export const messagingService = {
       const response = await api.get(`/messaging/threads/${threadId}/messages?page=${page}&limit=${limit}`)
       return response.data
     } catch (error) {
+      console.error('Failed to get messages:', error)
       throw error
     }
   },
@@ -35,6 +39,7 @@ export const messagingService = {
       const response = await api.post(`/messaging/threads/${threadId}/messages`, messageData)
       return response.data
     } catch (error) {
+      console.error('Failed to send message:', error)
       throw error
     }
   },
@@ -45,6 +50,7 @@ export const messagingService = {
       const response = await api.get('/messaging/settings')
       return response.data
     } catch (error) {
+      console.error('Failed to get settings:', error)
       throw error
     }
   },
@@ -54,6 +60,7 @@ export const messagingService = {
       const response = await api.put('/messaging/settings', settings)
       return response.data
     } catch (error) {
+      console.error('Failed to update settings:', error)
       throw error
     }
   },
@@ -64,6 +71,7 @@ export const messagingService = {
       const response = await api.get('/messaging/integrations')
       return response.data
     } catch (error) {
+      console.error('Failed to get integrations:', error)
       throw error
     }
   },
@@ -73,6 +81,7 @@ export const messagingService = {
       const response = await api.put(`/messaging/integrations/${provider}`, integrationData)
       return response.data
     } catch (error) {
+      console.error('Failed to update integration:', error)
       throw error
     }
   },
@@ -86,6 +95,7 @@ export const messagingService = {
       const response = await api.get(`/messaging/search?${params}`)
       return response.data
     } catch (error) {
+      console.error('Failed to search messages:', error)
       throw error
     }
   },
@@ -109,6 +119,7 @@ export const messagingService = {
       })
       return response.data
     } catch (error) {
+      console.error('Failed to upload file:', error)
       throw error
     }
   },
@@ -119,6 +130,7 @@ export const messagingService = {
       const response = await api.get('/messaging/unread-count')
       return response.data
     } catch (error) {
+      console.error('Failed to get unread count:', error)
       throw error
     }
   },
@@ -129,6 +141,7 @@ export const messagingService = {
       const response = await api.post('/messaging/whatsapp/send', { to, message })
       return response.data
     } catch (error) {
+      console.error('Failed to send WhatsApp message:', error)
       throw error
     }
   },
@@ -143,6 +156,7 @@ export const messagingService = {
       })
       return response.data
     } catch (error) {
+      console.error('Failed to send WhatsApp template:', error)
       throw error
     }
   },
@@ -152,6 +166,7 @@ export const messagingService = {
       const response = await api.post('/messaging/whatsapp/test-connection')
       return response.data
     } catch (error) {
+      console.error('Failed to test WhatsApp connection:', error)
       throw error
     }
   }
@@ -168,10 +183,7 @@ export class WebSocketService {
   }
 
   connect(userId, organizationId) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.hostname
-    const port = import.meta.env.VITE_WS_PORT || '8089'
-    const wsUrl = `${protocol}//${host}:${port}/ws/messaging`
+    const wsUrl = `${WS_ORIGIN}/ws/messaging`
 
     this.socket = new WebSocket(wsUrl)
 
@@ -183,8 +195,7 @@ export class WebSocketService {
       // Send authentication message
       this.send({
         type: 'auth',
-        user_id: userId,
-        organization_id: organizationId
+        token: localStorage.getItem('auth_token')
       })
     }
 
@@ -193,7 +204,7 @@ export class WebSocketService {
         const message = JSON.parse(event.data)
         this.handleMessage(message)
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+        console.error('Failed to parse WebSocket message:', error)
       }
     }
 
@@ -219,7 +230,7 @@ export class WebSocketService {
         this.connect(userId, organizationId)
       }, delay)
     } else {
-      console.error('Max reconnection attempts reached')
+      console.error('Max reconnect attempts reached')
     }
   }
 
@@ -235,7 +246,7 @@ export class WebSocketService {
     if (this.isConnected && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(data))
     } else {
-      console.warn('WebSocket not connected, message not sent:', data)
+      console.warn('WebSocket not connected, cannot send message')
     }
   }
 

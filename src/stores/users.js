@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { listFrom } from '../services/api'
 import { usersService } from '../services/users'
 
 export const useUsersStore = defineStore('users', {
@@ -45,8 +46,8 @@ export const useUsersStore = defineStore('users', {
         const response = await usersService.getAll(params)
         console.log('✅ Response received:', response)
         
-        this.users = response.data.users || response.data.staff || response.data || []
-        this.pagination = response.data.pagination || this.pagination
+        this.users = listFrom(response, 'users', 'staff')
+        this.pagination = response.data?.pagination || response.data?.data?.pagination || this.pagination
         
         console.log('👥 Users set:', this.users.length, 'users')
       } catch (error) {

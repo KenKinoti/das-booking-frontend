@@ -20,7 +20,7 @@
                   <input
                     type="number"
                     class="form-control form-control-lg"
-                    v-model.number="amount"
+                    v-model.number="paymentAmount"
                     :max="remainingAmount"
                     min="0.01"
                     step="0.01"
@@ -42,13 +42,13 @@
                       type="number"
                       class="form-control"
                       v-model.number="cashReceived"
-                      :min="amount"
+                      :min="paymentAmount"
                       step="0.01"
                     >
                   </div>
-                  <div v-if="cashReceived > amount" class="mt-2">
+                  <div v-if="cashReceived > paymentAmount" class="mt-2">
                     <span class="badge bg-success">
-                      Change: ${{ formatCurrency(cashReceived - amount) }}
+                      Change: ${{ formatCurrency(cashReceived - paymentAmount) }}
                     </span>
                   </div>
                 </div>
@@ -167,14 +167,14 @@
                     v-for="quickAmount in quickAmounts"
                     :key="quickAmount"
                     class="btn btn-outline-primary"
-                    @click="amount = quickAmount"
+                    @click="paymentAmount = quickAmount"
                     :disabled="quickAmount > remainingAmount"
                   >
                     ${{ quickAmount }}
                   </button>
                   <button
                     class="btn btn-outline-success"
-                    @click="amount = remainingAmount"
+                    @click="paymentAmount = remainingAmount"
                   >
                     Exact Amount (${{ formatCurrency(remainingAmount) }})
                   </button>
@@ -189,20 +189,20 @@
                 <div class="card-body">
                   <div class="d-flex justify-content-between mb-2">
                     <span>Amount:</span>
-                    <span class="fw-bold">${{ formatCurrency(amount) }}</span>
+                    <span class="fw-bold">${{ formatCurrency(paymentAmount) }}</span>
                   </div>
-                  <div v-if="paymentMethod === 'cash' && cashReceived > amount" class="d-flex justify-content-between mb-2">
+                  <div v-if="paymentMethod === 'cash' && cashReceived > paymentAmount" class="d-flex justify-content-between mb-2">
                     <span>Cash Received:</span>
                     <span>${{ formatCurrency(cashReceived) }}</span>
                   </div>
-                  <div v-if="paymentMethod === 'cash' && cashReceived > amount" class="d-flex justify-content-between mb-2">
+                  <div v-if="paymentMethod === 'cash' && cashReceived > paymentAmount" class="d-flex justify-content-between mb-2">
                     <span>Change:</span>
-                    <span class="text-success">${{ formatCurrency(cashReceived - amount) }}</span>
+                    <span class="text-success">${{ formatCurrency(cashReceived - paymentAmount) }}</span>
                   </div>
                   <hr>
                   <div class="d-flex justify-content-between">
                     <span>After Payment:</span>
-                    <span class="fw-bold">${{ formatCurrency(remainingAmount - amount) }}</span>
+                    <span class="fw-bold">${{ formatCurrency(remainingAmount - paymentAmount) }}</span>
                   </div>
                 </div>
               </div>
@@ -249,7 +249,7 @@ export default {
   data() {
     return {
       // Payment amount
-      amount: this.amount || this.remainingAmount,
+      paymentAmount: this.amount || this.remainingAmount,
 
       // Cash payment
       cashReceived: 0,
@@ -276,15 +276,15 @@ export default {
   },
   computed: {
     canProcessPayment() {
-      if (this.amount <= 0 || this.amount > this.remainingAmount) return false
+      if (this.paymentAmount <= 0 || this.paymentAmount > this.remainingAmount) return false
 
       switch (this.paymentMethod) {
         case 'cash':
-          return this.cashReceived >= this.amount
+          return this.cashReceived >= this.paymentAmount
         case 'card':
           return this.cardLast4.length === 4 && this.authCode.length > 0
         case 'gift_card':
-          return this.giftCardNumber.length > 0 && this.giftCardBalance >= this.amount
+          return this.giftCardNumber.length > 0 && this.giftCardBalance >= this.paymentAmount
         case 'mobile_wallet':
           return this.walletTransactionId.length > 0
         case 'layby':
@@ -298,7 +298,7 @@ export default {
     this.$refs.amountInput?.focus()
 
     // Set initial values
-    this.cashReceived = this.amount
+    this.cashReceived = this.paymentAmount
     this.laybyDeposit = Math.max(this.remainingAmount * 0.1, 10)
   },
   methods: {
@@ -331,7 +331,7 @@ export default {
         // Simulate gift card balance check
         this.giftCardBalance = Math.random() * 500
         this.$toast.success(`Gift card balance: $${this.formatCurrency(this.giftCardBalance)}`)
-      } catch (error) {
+      } catch {
         this.$toast.error('Failed to check gift card balance')
       }
     },
@@ -341,14 +341,14 @@ export default {
 
       const payment = {
         method: this.paymentMethod,
-        amount: this.amount
+        amount: this.paymentAmount
       }
 
       // Add method-specific data
       switch (this.paymentMethod) {
         case 'cash':
           payment.cash_received = this.cashReceived
-          payment.change_amount = this.cashReceived - this.amount
+          payment.change_amount = this.cashReceived - this.paymentAmount
           break
         case 'card':
           payment.card_type = this.cardType

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { listFrom } from '../services/api'
 import { participantsService } from '../services/participants'
 
 export const useParticipantsStore = defineStore('participants', {
@@ -22,9 +23,8 @@ export const useParticipantsStore = defineStore('participants', {
       
       try {
         const response = await participantsService.getAll(params)
-        const responseData = response.data || response
-        this.participants = responseData.participants || responseData || []
-        this.pagination = responseData.pagination || this.pagination
+        this.participants = listFrom(response, 'participants')
+        this.pagination = response.data?.pagination || response.data?.data?.pagination || this.pagination
       } catch (error) {
         console.error('Error fetching participants:', error)
         this.error = error.response?.data?.message || error.message || 'Failed to fetch participants'

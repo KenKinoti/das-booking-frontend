@@ -1,6 +1,6 @@
 <template>
   <PageTemplate
-    page-title="Customer Management"
+    :page-title="contextualPageTitle"
     page-description="Manage your customers and their vehicle information for automotive & beauty services"
     header-icon="fas fa-users"
     :stats-cards="statsCards"
@@ -287,11 +287,14 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue'
+import { useOrganizationContext } from '@/composables/useOrganizationContext'
 import PageTemplate from '@/components/PageTemplate.vue'
 import CustomerModal from '@/components/CustomerModal.vue'
 import CustomerDetailsModal from '@/components/CustomerDetailsModal.vue'
 import VehicleManagementModal from '@/components/VehicleManagementModal.vue'
-import api from '@/services/api'
+import api, { listFrom, apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
 
 export default {
   name: 'Customers',
@@ -302,6 +305,16 @@ export default {
     VehicleManagementModal
   },
   setup() {
+    // Organization context
+    const {
+      isInOrganizationContext,
+      getCurrentOrganizationId,
+      getCurrentOrganizationName,
+      filterDataByOrganization,
+      addOrganizationFilter,
+      getContextualPageTitle
+    } = useOrganizationContext()
+
     // Reactive data
     const customers = ref([])
     const isLoading = ref(false)
@@ -324,12 +337,13 @@ export default {
 
     // Computed properties
     const filteredCustomers = computed(() => {
-      let filtered = customers.value
+      // First apply organization filtering if in organization context
+      let filtered = filterDataByOrganization(customers.value, 'organization_id')
 
       // Filter by search query
       if (searchQuery.value) {
         const query = searchQuery.value.toLowerCase()
-        filtered = filtered.filter(customer => 
+        filtered = filtered.filter(customer =>
           customer.first_name?.toLowerCase().includes(query) ||
           customer.last_name?.toLowerCase().includes(query) ||
           customer.email?.toLowerCase().includes(query) ||
@@ -409,12 +423,19 @@ export default {
       }
     ])
 
+    // Contextual page title
+    const contextualPageTitle = computed(() => {
+      return getContextualPageTitle('Customer Management')
+    })
+
     // Methods
     const loadCustomers = async () => {
       isLoading.value = true
       try {
-        const response = await api.get('/v1/customers')
-        customers.value = response.data || []
+        // Add organization filter to API params if in organization context
+        const params = addOrganizationFilter()
+        const response = await api.get('/customers', { params })
+        customers.value = listFrom(response, 'customers')
       } catch (error) {
         console.error('Failed to load customers:', error)
         // Show empty state if API fails
@@ -458,10 +479,20 @@ export default {
       showEditModal.value = true
     }
 
-    const deleteCustomer = (customer) => {
-      if (confirm(`Are you sure you want to delete ${customer.first_name} ${customer.last_name}?`)) {
-        // Implementation for deleting customer
-        console.log('Deleting customer:', customer)
+    const deleteCustomer = async (customer) => {
+      const ok = await confirmDialog({
+        title: `Delete ${customer.first_name} ${customer.last_name}?`,
+        message: 'This removes the customer record. Existing invoices keep their client details.',
+        confirmText: 'Delete',
+        danger: true
+      })
+      if (!ok) return
+      try {
+        await api.delete(`/customers/${customer.id}`)
+        customers.value = customers.value.filter((c) => c.id !== customer.id)
+        toast.success('Customer deleted')
+      } catch (error) {
+        toast.error(apiErrorMessage(error, 'Could not delete customer'))
       }
     }
 
@@ -470,9 +501,9 @@ export default {
       
       isSubmitting.value = true
       try {
-        // Implementation for toggling customer status
+        await api.patch(`/customers/${customer.id}/toggle-status`)
         customer.is_active = !customer.is_active
-        console.log('Toggling customer status:', customer)
+        toast.success(customer.is_active ? 'Customer activated' : 'Customer deactivated')
       } catch (error) {
         console.error('Failed to update customer status:', error)
         customer.is_active = !customer.is_active // Revert on error
@@ -496,11 +527,25 @@ export default {
       managingCustomer.value = null
     }
 
-    const saveCustomer = (customer) => {
-      // Implementation for saving customer
-      console.log('Saving customer:', customer)
-      closeModals()
-      loadCustomers()
+    const saveCustomer = async (customer) => {
+      if (isSubmitting.value) return
+      isSubmitting.value = true
+      try {
+        const { id, ...payload } = customer
+        if (id) {
+          await api.put(`/customers/${id}`, payload)
+          toast.success('Customer updated')
+        } else {
+          await api.post('/customers', payload)
+          toast.success('Customer added')
+        }
+        closeModals()
+        await loadCustomers()
+      } catch (error) {
+        toast.error(apiErrorMessage(error, 'Could not save customer'))
+      } finally {
+        isSubmitting.value = false
+      }
     }
 
     // Lifecycle
@@ -519,6 +564,11 @@ export default {
       currentPage,
       itemsPerPage,
       businessType,
+
+      // Organization Context
+      isInOrganizationContext,
+      getCurrentOrganizationId,
+      getCurrentOrganizationName,
       
       // Modals
       showAddModal,
@@ -536,6 +586,7 @@ export default {
       visiblePages,
       activeCustomers,
       totalVehicles,
+      contextualPageTitle,
       newThisMonth,
       statsCards,
       

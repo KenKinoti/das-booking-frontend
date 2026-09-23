@@ -297,6 +297,7 @@
 </template>
 
 <script>
+import { legacyFetch } from '@/utils/legacyFetch'
 import { ref, reactive, computed, onMounted } from 'vue'
 
 export default {
@@ -438,7 +439,7 @@ export default {
       try {
         const authToken = localStorage.getItem('authToken') || localStorage.getItem('token')
         
-        const response = await fetch('http://localhost:8080/api/admin/seed', {
+        const response = await legacyFetch('http://localhost:8080/api/admin/seed', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -520,7 +521,7 @@ export default {
       try {
         const authToken = localStorage.getItem('authToken') || localStorage.getItem('token')
         
-        const response = await fetch('http://localhost:8080/api/admin/maintenance', {
+        const response = await legacyFetch('http://localhost:8080/api/admin/maintenance', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -559,7 +560,7 @@ export default {
       try {
         const authToken = localStorage.getItem('authToken') || localStorage.getItem('token')
         
-        const response = await fetch('http://localhost:8080/api/admin/backup', {
+        const response = await legacyFetch('http://localhost:8080/api/admin/backup', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -653,7 +654,7 @@ export default {
         const formData = new FormData()
         formData.append('backup', selectedFile.value)
         
-        const response = await fetch('http://localhost:8080/api/admin/restore', {
+        const response = await legacyFetch('http://localhost:8080/api/admin/restore', {
           method: 'POST',
           headers: {
             ...(authToken && { 'Authorization': `Bearer ${authToken}` })

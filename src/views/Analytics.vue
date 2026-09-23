@@ -201,7 +201,7 @@
 
 <script>
 export default {
-  name: 'Analytics',
+  name: 'AnalyticsView',
   data() {
     return {
       selectedTimeRange: '30d',

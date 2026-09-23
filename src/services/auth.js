@@ -13,7 +13,6 @@ export const authService = {
     } catch (error) {
       // Continue with logout even if API call fails
       console.warn('Logout API call failed:', error)
-      return { success: true }
     }
   },
 

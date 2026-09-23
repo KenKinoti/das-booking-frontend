@@ -309,7 +309,7 @@
 
 <script>
 export default {
-  name: 'Projects',
+  name: 'ProjectsView',
   data() {
     return {
       viewMode: 'list', // 'list' or 'kanban'

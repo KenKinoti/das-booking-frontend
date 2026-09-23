@@ -21,6 +21,7 @@ export const eventsService = {
       const response = await api.get(`/events?${queryParams}`)
       return response
     } catch (error) {
+      console.error('Failed to get events:', error)
       throw error
     }
   },
@@ -30,6 +31,7 @@ export const eventsService = {
       const response = await api.get(`/events/${eventId}`)
       return response
     } catch (error) {
+      console.error('Failed to get event:', error)
       throw error
     }
   },
@@ -55,6 +57,7 @@ export const eventsService = {
       const response = await api.post('/events', transformedData)
       return response
     } catch (error) {
+      console.error('Failed to create event:', error)
       throw error
     }
   },
@@ -77,6 +80,7 @@ export const eventsService = {
       const response = await api.put(`/events/${eventId}`, transformedData)
       return response
     } catch (error) {
+      console.error('Failed to update event:', error)
       throw error
     }
   },
@@ -86,6 +90,7 @@ export const eventsService = {
       const response = await api.delete(`/events/${eventId}`)
       return response
     } catch (error) {
+      console.error('Failed to delete event:', error)
       throw error
     }
   },
@@ -96,6 +101,7 @@ export const eventsService = {
       const response = await api.get(`/events/${eventId}/tickets`)
       return response
     } catch (error) {
+      console.error('Failed to get ticket types:', error)
       throw error
     }
   },
@@ -111,6 +117,7 @@ export const eventsService = {
       const response = await api.post(`/events/${eventId}/tickets`, transformedData)
       return response
     } catch (error) {
+      console.error('Failed to create ticket type:', error)
       throw error
     }
   },
@@ -121,6 +128,7 @@ export const eventsService = {
       const response = await api.post(`/events/${eventId}/register`, registrationData)
       return response
     } catch (error) {
+      console.error('Failed to register for event:', error)
       throw error
     }
   },
@@ -130,6 +138,7 @@ export const eventsService = {
       const response = await api.get(`/events/${eventId}/registrations`)
       return response
     } catch (error) {
+      console.error('Failed to get registrations:', error)
       throw error
     }
   },
@@ -142,6 +151,7 @@ export const eventsService = {
       })
       return response
     } catch (error) {
+      console.error('Failed to check in registration:', error)
       throw error
     }
   },
@@ -152,6 +162,7 @@ export const eventsService = {
       const response = await api.get('/events/categories')
       return response
     } catch (error) {
+      console.error('Failed to get event categories:', error)
       throw error
     }
   },
@@ -162,6 +173,7 @@ export const eventsService = {
       const response = await api.get(`/events/${eventId}/analytics`)
       return response
     } catch (error) {
+      console.error('Failed to get event analytics:', error)
       throw error
     }
   },
@@ -172,6 +184,7 @@ export const eventsService = {
       const response = await api.get(`/events/search?q=${encodeURIComponent(query)}`)
       return response
     } catch (error) {
+      console.error('Failed to search events:', error)
       throw error
     }
   },
@@ -188,6 +201,7 @@ export const eventsService = {
       const response = await api.get(`/organizer/events?${queryParams}`)
       return response
     } catch (error) {
+      console.error('Failed to get organizer events:', error)
       throw error
     }
   },
@@ -210,6 +224,7 @@ export const eventsService = {
       const response = await api.post('/organizer/events', transformedData)
       return response
     } catch (error) {
+      console.error('Failed to create organizer event:', error)
       throw error
     }
   },
@@ -228,6 +243,7 @@ export const eventsService = {
       })
       return response
     } catch (error) {
+      console.error('Failed to upload event image:', error)
       throw error
     }
   },
@@ -248,9 +264,8 @@ export const eventsService = {
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
-
-      return { success: true }
     } catch (error) {
+      console.error('Failed to export registrations:', error)
       throw error
     }
   },
@@ -261,6 +276,7 @@ export const eventsService = {
       const response = await api.post(`/events/${eventId}/duplicate`)
       return response
     } catch (error) {
+      console.error('Failed to duplicate event:', error)
       throw error
     }
   },
@@ -274,6 +290,7 @@ export const eventsService = {
       })
       return response
     } catch (error) {
+      console.error('Failed to bulk update event status:', error)
       throw error
     }
   },
@@ -285,6 +302,7 @@ export const eventsService = {
       })
       return response
     } catch (error) {
+      console.error('Failed to bulk delete events:', error)
       throw error
     }
   }
@@ -379,7 +397,7 @@ export const eventUtils = {
       if (event.venue_name) parts.push(event.venue_name)
       if (event.venue_address_city) parts.push(event.venue_address_city)
       if (event.venue_address_state) parts.push(event.venue_address_state)
-      return parts.length > 0 ? parts.join(', ') : 'TBA'
+      return parts.join(', ') || 'TBA'
     }
   },
 

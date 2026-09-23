@@ -277,6 +277,7 @@
 </template>
 
 <script>
+import { listFrom } from '@/services/api'
 import { moduleService } from '@/services/moduleService'
 import { organizationService } from '@/services/organizationService'
 
@@ -320,8 +321,10 @@ export default {
           moduleService.getAllOrganizationModules()
         ])
 
-        this.organizations = orgsResponse.data.organizations.map(org => {
-          const modules = modulesResponse.data.modules.find(m => m.organization_id === org.id) || {
+        const orgs = listFrom(orgsResponse, 'organizations')
+        const moduleRows = listFrom(modulesResponse, 'modules', 'organization_modules')
+        this.organizations = orgs.map(org => {
+          const modules = moduleRows.find(m => m.organization_id === org.id) || {
             inventory_enabled: false,
             supplier_enabled: false,
             purchase_order_enabled: false,

@@ -131,7 +131,7 @@ import { useAuthStore } from '../stores/auth'
 import { showErrorNotification, showSuccessNotification } from '../utils/errorHandler'
 
 export default {
-  name: 'Profile',
+  name: 'ProfileView',
   data() {
     return {
       isLoading: false,

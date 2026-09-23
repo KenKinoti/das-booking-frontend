@@ -923,7 +923,7 @@ export default {
     },
 
     // Enhanced Transaction Processing
-    async processPayment() {
+    async processEnhancedPayment() {
       if (!this.canCompleteTransaction) return
 
       try {
@@ -958,7 +958,7 @@ export default {
         this.printReceipt(response.data.transaction)
 
         // Clear everything
-        this.clearCart()
+        this.clearCartEnhanced()
         this.clearAllPayments()
 
         // Refresh products to update stock
@@ -978,7 +978,7 @@ export default {
     },
 
     // Enhanced Clear Cart
-    clearCart() {
+    clearCartEnhanced() {
       this.cartItems = []
       this.discountAmount = 0
       this.selectedCustomer = ''

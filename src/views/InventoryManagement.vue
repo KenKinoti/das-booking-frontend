@@ -87,8 +87,8 @@
 
     <!-- Inventory Controls -->
     <div class="inventory-controls mb-4">
-      <div class="row g-3">
-        <div class="col-md-4">
+      <div class="row g-3 align-items-center">
+        <div class="col-lg-3 col-md-6">
           <div class="search-box">
             <i class="bi bi-search"></i>
             <input
@@ -100,7 +100,7 @@
             >
           </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-lg-2 col-md-6">
           <select class="form-select" v-model="filterCategory" @change="filterProducts">
             <option value="">All Categories</option>
             <option v-for="category in categories" :key="category" :value="category">
@@ -108,7 +108,7 @@
             </option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-lg-2 col-md-6">
           <select class="form-select" v-model="filterStatus" @change="filterProducts">
             <option value="">All Status</option>
             <option value="in_stock">In Stock</option>
@@ -116,7 +116,21 @@
             <option value="out_of_stock">Out of Stock</option>
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-lg-3 col-md-6">
+          <div class="form-check form-switch">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="hideDiscontinued"
+              v-model="hideDiscontinued"
+              @change="filterProducts"
+            >
+            <label class="form-check-label" for="hideDiscontinued">
+              Hide Discontinued
+            </label>
+          </div>
+        </div>
+        <div class="col-lg-2 col-md-12">
           <button class="btn btn-outline-primary w-100" @click="resetFilters">
             <i class="bi bi-arrow-clockwise me-1"></i>
             Reset
@@ -425,6 +439,10 @@
 </template>
 
 <script>
+import { listFrom, apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+import { downloadBlob } from '@/utils/format'
 import { ref, onMounted, computed } from 'vue'
 import { inventoryAPI } from '../services/api'
 
@@ -442,6 +460,7 @@ export default {
     const searchQuery = ref('')
     const filterCategory = ref('')
     const filterStatus = ref('')
+    const hideDiscontinued = ref(localStorage.getItem('hideDiscontinued') === 'true')
 
     // Modals
     const showProductModal = ref(false)
@@ -475,68 +494,46 @@ export default {
       return cats.length > 0 ? cats : ['Electronics', 'Automotive', 'Beauty', 'Health', 'Services']
     })
 
+    // Map between the API product model and the fields this view uses
+    const fromApi = (p) => ({
+      ...p,
+      category: p.category?.name || p.category_name || (typeof p.category === 'string' ? p.category : ''),
+      unit_price: Number(p.selling_price ?? p.unit_price ?? 0),
+      stock_quantity: Number(p.current_stock ?? p.stock_quantity ?? 0),
+      min_stock_level: Number(p.min_stock ?? p.min_stock_level ?? 0),
+      max_stock_level: Number(p.max_stock ?? p.max_stock_level ?? 0),
+      status: p.status || (p.is_active === false ? 'inactive' : 'active'),
+      image: p.image_url || p.image || ''
+    })
+    const toApi = (f) => ({
+      name: (f.name || '').trim(),
+      description: f.description || '',
+      sku: (f.sku || '').trim() || `SKU-${Date.now().toString(36).toUpperCase()}`,
+      selling_price: Number(f.unit_price) || 0,
+      cost_price: Number(f.cost_price) || 0,
+      current_stock: Math.max(0, parseInt(f.stock_quantity) || 0),
+      min_stock: Math.max(0, parseInt(f.min_stock_level) || 0),
+      max_stock: Math.max(0, parseInt(f.max_stock_level) || 0),
+      unit_of_measure: f.unit_of_measure || 'each',
+      is_active: f.status !== 'inactive' && f.status !== 'discontinued'
+    })
+
     // Methods
     const loadInventoryData = async () => {
       try {
         loading.value = true
-        const [dashboardRes, productsRes] = await Promise.all([
-          inventoryAPI.getDashboard(),
-          inventoryAPI.getProducts()
-        ])
-
-        dashboard.value = dashboardRes.data.data
-        products.value = productsRes.data.data || []
-        filteredProducts.value = products.value
-      } catch (error) {
-        console.error('Error loading inventory data:', error)
-        // Mock data for development
-        products.value = generateMockProducts()
-        filteredProducts.value = products.value
+        const productsRes = await inventoryAPI.getProducts()
+        products.value = listFrom(productsRes, 'products').map(fromApi)
         dashboard.value = generateMockDashboard()
+        filterProducts()
+      } catch (error) {
+        products.value = []
+        filteredProducts.value = []
+        dashboard.value = generateMockDashboard()
+        toast.error(apiErrorMessage(error, 'Could not load inventory'))
       } finally {
         loading.value = false
       }
-    }
-
-    const generateMockProducts = () => {
-      return [
-        {
-          id: '1',
-          name: 'Premium Car Wash',
-          sku: 'CW-001',
-          description: 'Complete car washing service package',
-          category: 'Automotive',
-          unit_price: 25.00,
-          stock_quantity: 100,
-          min_stock_level: 10,
-          max_stock_level: 500,
-          status: 'active'
-        },
-        {
-          id: '2',
-          name: 'Hair Styling Gel',
-          sku: 'HS-002',
-          description: 'Professional grade hair styling gel',
-          category: 'Beauty',
-          unit_price: 15.99,
-          stock_quantity: 5,
-          min_stock_level: 10,
-          max_stock_level: 100,
-          status: 'active'
-        },
-        {
-          id: '3',
-          name: 'Nail Polish Set',
-          sku: 'NP-003',
-          description: 'Complete nail polish collection',
-          category: 'Beauty',
-          unit_price: 45.00,
-          stock_quantity: 0,
-          min_stock_level: 5,
-          max_stock_level: 50,
-          status: 'active'
-        }
-      ]
     }
 
     const generateMockDashboard = () => {
@@ -545,7 +542,7 @@ export default {
         in_stock: products.value.filter(p => p.stock_quantity > 0).length,
         low_stock: products.value.filter(p => p.stock_quantity <= p.min_stock_level).length,
         total_value: products.value.reduce((sum, p) => sum + (p.stock_quantity * p.unit_price), 0),
-        new_products: 2
+        new_products: products.value.filter(p => p.created_at && Date.now() - new Date(p.created_at).getTime() < 30 * 86400000).length
       }
     }
 
@@ -580,6 +577,14 @@ export default {
         })
       }
 
+      // Filter out discontinued products if toggle is enabled
+      if (hideDiscontinued.value) {
+        filtered = filtered.filter(p => p.status !== 'discontinued')
+        localStorage.setItem('hideDiscontinued', 'true')
+      } else {
+        localStorage.setItem('hideDiscontinued', 'false')
+      }
+
       filteredProducts.value = filtered
     }
 
@@ -587,6 +592,8 @@ export default {
       searchQuery.value = ''
       filterCategory.value = ''
       filterStatus.value = ''
+      hideDiscontinued.value = false
+      localStorage.setItem('hideDiscontinued', 'false')
       filteredProducts.value = [...products.value]
     }
 
@@ -641,34 +648,42 @@ export default {
     }
 
     const deleteProduct = async (productId) => {
-      if (confirm('Are you sure you want to delete this product?')) {
-        try {
-          await inventoryAPI.deleteProduct(productId)
-          products.value = products.value.filter(p => p.id !== productId)
-          filterProducts()
-        } catch (error) {
-          console.error('Error deleting product:', error)
-        }
+      const ok = await confirmDialog({ title: 'Delete product?', message: 'This product will be removed from your catalogue.', confirmText: 'Delete', danger: true })
+      if (!ok) return
+      try {
+        await inventoryAPI.deleteProduct(productId)
+        products.value = products.value.filter(p => p.id !== productId)
+        dashboard.value = generateMockDashboard()
+        filterProducts()
+        toast.success('Product deleted')
+      } catch (error) {
+        toast.error(apiErrorMessage(error, 'Could not delete product'))
       }
     }
 
     const saveProduct = async () => {
       try {
-        if (editingProduct.value) {
-          await inventoryAPI.updateProduct(editingProduct.value.id, productForm.value)
-          const index = products.value.findIndex(p => p.id === editingProduct.value.id)
-          if (index !== -1) {
-            products.value[index] = { ...productForm.value, id: editingProduct.value.id }
-          }
-        } else {
-          const response = await inventoryAPI.createProduct(productForm.value)
-          products.value.push(response.data.data)
+        if (!productForm.value.name?.trim()) {
+          toast.error('Give the product a name')
+          return
         }
-
+        if (editingProduct.value) {
+          const res = await inventoryAPI.updateProduct(editingProduct.value.id, toApi(productForm.value))
+          const saved = res.data?.product || res.data?.data || { ...toApi(productForm.value), id: editingProduct.value.id }
+          const index = products.value.findIndex(p => p.id === editingProduct.value.id)
+          if (index !== -1) products.value[index] = { ...fromApi(saved), category: productForm.value.category }
+          toast.success('Product updated')
+        } else {
+          const res = await inventoryAPI.createProduct(toApi(productForm.value))
+          const saved = res.data?.product || res.data?.data
+          if (saved) products.value.push({ ...fromApi(saved), category: productForm.value.category })
+          toast.success('Product added')
+        }
+        dashboard.value = generateMockDashboard()
         closeProductModal()
         filterProducts()
       } catch (error) {
-        console.error('Error saving product:', error)
+        toast.error(apiErrorMessage(error, 'Could not save product'))
       }
     }
 
@@ -690,7 +705,8 @@ export default {
 
         // Update product stock
         const updatedProduct = { ...selectedProduct.value, stock_quantity: Math.max(0, newQuantity) }
-        await inventoryAPI.updateProduct(selectedProduct.value.id, updatedProduct)
+        await inventoryAPI.updateProduct(selectedProduct.value.id, toApi(updatedProduct))
+        toast.success('Stock updated')
 
         // Update local data
         const index = products.value.findIndex(p => p.id === selectedProduct.value.id)
@@ -701,7 +717,7 @@ export default {
         showStockModal.value = false
         filterProducts()
       } catch (error) {
-        console.error('Error adjusting stock:', error)
+        toast.error(apiErrorMessage(error, 'Could not update stock'))
       }
     }
 
@@ -722,8 +738,10 @@ export default {
     }
 
     const exportInventory = () => {
-      // Implement inventory export functionality
-      console.log('Exporting inventory...')
+      const rows = [['Name', 'SKU', 'Category', 'Stock', 'Min stock', 'Unit price', 'Value', 'Status']]
+      for (const p of filteredProducts.value) rows.push([p.name, p.sku, p.category, p.stock_quantity, p.min_stock_level, p.unit_price, (p.stock_quantity * p.unit_price).toFixed(2), p.status])
+      const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+      downloadBlob(new Blob([csv], { type: 'text/csv' }), `inventory-${new Date().toISOString().slice(0, 10)}.csv`)
     }
 
     const formatMoney = (amount) => {
@@ -750,6 +768,7 @@ export default {
       searchQuery,
       filterCategory,
       filterStatus,
+      hideDiscontinued,
 
       // Modals
       showProductModal,

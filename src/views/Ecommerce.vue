@@ -333,7 +333,7 @@
 
 <script>
 export default {
-  name: 'Ecommerce',
+  name: 'EcommerceView',
   data() {
     return {
       viewMode: 'table', // 'table' or 'grid'

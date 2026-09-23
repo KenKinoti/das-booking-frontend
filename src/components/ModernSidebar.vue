@@ -145,9 +145,13 @@ export default {
       this.isMobile = window.innerWidth <= 768
     }
     window.addEventListener('resize', handleResize)
-    this.$once('unmounted', () => {
-      window.removeEventListener('resize', handleResize)
-    })
+    // Store the handler reference for cleanup in beforeUnmount
+    this.resizeHandler = handleResize
+  },
+  beforeUnmount() {
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler)
+    }
   }
 }
 </script>

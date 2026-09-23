@@ -229,7 +229,7 @@
 
 <script>
 export default {
-  name: 'Production',
+  name: 'ProductionView',
   data() {
     return {
       showProductionOrderModal: false,

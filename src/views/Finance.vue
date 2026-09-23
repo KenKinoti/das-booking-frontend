@@ -524,7 +524,7 @@ import { useRouter } from 'vue-router'
 import { globalTheme } from '../composables/useTheme'
 
 export default {
-  name: 'Finance',
+  name: 'FinanceView',
   setup() {
     const { isDark } = globalTheme
     const router = useRouter()

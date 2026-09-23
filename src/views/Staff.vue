@@ -274,7 +274,7 @@ import { showSuccessNotification, showErrorNotification } from '../utils/notific
 import { debounce } from '../utils/debounce'
 
 export default {
-  name: 'Staff',
+  name: 'StaffView',
   components: {
     PageTemplate
   },

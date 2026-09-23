@@ -375,7 +375,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 export default {
-  name: 'Events',
+  name: 'EventsView',
   setup() {
     const router = useRouter()
 

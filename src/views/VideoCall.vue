@@ -691,6 +691,7 @@
 </template>
 
 <script>
+import { toast } from '@/composables/useToast'
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { webRTCService, videoCallService } from '../services/webrtc'
 import { useAuthStore } from '../stores/auth'
@@ -1428,13 +1429,13 @@ export default {
 
         // Show user-friendly error message
         if (error.name === 'NotAllowedError') {
-          alert('Camera and microphone access is required for video calls. Please allow access and try again.')
+          toast.error('Camera and microphone access is required for video calls. Please allow access and try again.')
         } else if (error.name === 'NotFoundError') {
-          alert('No camera or microphone found. Please connect a camera/microphone and try again.')
+          toast.error('No camera or microphone found. Please connect a camera/microphone and try again.')
         } else if (error.name === 'NotReadableError') {
-          alert('Camera is already being used by another application. Please close other applications using the camera and try again.')
+          toast.error('Camera is already being used by another application. Please close other applications using the camera and try again.')
         } else {
-          alert('Unable to access camera and microphone. Please check your device settings and try again.')
+          toast.error('Unable to access camera and microphone. Please check your device settings and try again.')
         }
       }
     }

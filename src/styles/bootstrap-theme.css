@@ -1216,6 +1216,92 @@ body {
   border-radius: var(--bs-border-radius);
 }
 
+/* ===== DARK THEME BUTTON SUPPORT ===== */
+[data-bs-theme="dark"] .btn {
+  color: #f0f6fc;
+  border-color: #30363d;
+}
+
+[data-bs-theme="dark"] .btn-primary {
+  background: var(--brand-gradient);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+[data-bs-theme="dark"] .btn-primary:hover,
+[data-bs-theme="dark"] .btn-primary:focus {
+  background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+  transform: translateY(-2px);
+}
+
+[data-bs-theme="dark"] .btn-secondary {
+  background: #374151;
+  border-color: #4b5563;
+  color: #e5e7eb;
+}
+
+[data-bs-theme="dark"] .btn-secondary:hover,
+[data-bs-theme="dark"] .btn-secondary:focus {
+  background: #4b5563;
+  border-color: #6b7280;
+  color: #f9fafb;
+  transform: translateY(-1px);
+}
+
+[data-bs-theme="dark"] .btn-success {
+  background: linear-gradient(135deg, var(--brand-success) 0%, #059669 100%);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+[data-bs-theme="dark"] .btn-success:hover,
+[data-bs-theme="dark"] .btn-success:focus {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+  transform: translateY(-2px);
+}
+
+[data-bs-theme="dark"] .btn-danger {
+  background: linear-gradient(135deg, var(--brand-danger) 0%, #dc2626 100%);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+[data-bs-theme="dark"] .btn-danger:hover,
+[data-bs-theme="dark"] .btn-danger:focus {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+  transform: translateY(-2px);
+}
+
+[data-bs-theme="dark"] .btn-outline-primary {
+  color: #60a5fa;
+  border-color: #3b82f6;
+  background: transparent;
+}
+
+[data-bs-theme="dark"] .btn-outline-primary:hover,
+[data-bs-theme="dark"] .btn-outline-primary:focus {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+[data-bs-theme="dark"] .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+}
+
 /* ===== ENHANCED TOOLTIPS ===== */
 .tooltip {
   --bs-tooltip-bg: rgba(0, 0, 0, 0.9);

@@ -270,7 +270,7 @@ import { globalTheme } from '../composables/useTheme'
 import InvoiceWizard from '../components/InvoiceWizard.vue'
 
 export default {
-  name: 'Invoices',
+  name: 'InvoicesView',
   components: {
     InvoiceWizard
   },

@@ -1,226 +1,164 @@
 <template>
-  <div id="app">
-    <!-- Show navigation only when authenticated and not on login page -->
-    <div v-if="showNavigation" class="app-container">
-      <!-- Sidebar Component -->
-      <AppSidebar 
-        :is-open="sidebarOpen"
-        :current-page="currentPage"
-        @navigate="setCurrentPage"
-      />
+  <div v-if="showShell" class="shell" :class="{ 'is-rail': effectiveRail }">
+    <AppSidebar
+      :rail="effectiveRail"
+      :mobile-open="mobileOpen"
+      @navigate="mobileOpen = false"
+      @close="mobileOpen = false"
+      @toggle-rail="toggleRail"
+      @open-search="paletteOpen = true"
+    />
+    <div v-if="mobileOpen" class="shell__scrim" @click="mobileOpen = false"></div>
 
-      <!-- Main Content -->
-      <main class="main-content" :class="{ 'expanded': !sidebarOpen }">
-        <!-- Header Component -->
-        <AppHeader 
-          :page-title="pageTitle"
-          :sidebar-open="sidebarOpen"
-          @toggle-sidebar="toggleSidebar"
-        />
-
-        <!-- Router View for different pages -->
-        <div class="content">
-          <router-view />
-        </div>
+    <div class="shell__main">
+      <AppTopbar @toggle-menu="mobileOpen = !mobileOpen" @open-search="paletteOpen = true" />
+      <OrganizationContext />
+      <main class="app-content" id="main">
+        <router-view v-slot="{ Component, route }">
+          <transition name="page" mode="out-in">
+            <component :is="Component" :key="route.path" />
+          </transition>
+        </router-view>
       </main>
     </div>
-
-    <!-- Standalone router view for login and other auth pages -->
-    <div v-else class="auth-container">
-      <router-view />
-    </div>
+    <CommandPalette :open="paletteOpen" @close="paletteOpen = false" />
   </div>
+
+  <div v-else class="auth-container">
+    <router-view />
+  </div>
+
+  <ToastHost />
+  <ConfirmHost />
 </template>
 
 <script>
-import Sidebar from './components/Sidebar.vue'
-import Header from './components/Header.vue'
+import AppSidebar from './components/layout/AppSidebar.vue'
+import AppTopbar from './components/layout/AppTopbar.vue'
+import CommandPalette from './components/layout/CommandPalette.vue'
+import ToastHost from './components/layout/ToastHost.vue'
+import ConfirmHost from './components/layout/ConfirmHost.vue'
+import OrganizationContext from './components/OrganizationContext.vue'
 import { useAuthStore } from './stores/auth'
-import { globalTheme } from './composables/useTheme'
 
 export default {
   name: 'App',
-  components: {
-    AppSidebar: Sidebar,
-    AppHeader: Header
-  },
+  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext },
   data() {
-    return {
-      currentPage: 'dashboard',
-      sidebarOpen: true
+    let rail = false
+    try {
+      rail = localStorage.getItem('nav.rail') === '1'
+    } catch {
+      rail = false
     }
+    return { rail, mobileOpen: false, paletteOpen: false, isMobile: window.innerWidth < 992 }
   },
   computed: {
-    showNavigation() {
-      // Hide navigation on login page or when not authenticated
-      const isLoginPage = this.$route.name === 'Login'
-      const authStore = useAuthStore()
-      
-      // Show navigation only when authenticated AND not on login page
-      return !isLoginPage && authStore.isAuthenticated
+    showShell() {
+      const auth = useAuthStore()
+      return auth.isAuthenticated && this.$route.meta.requiresAuth !== false && !this.$route.meta.public
     },
-    pageTitle() {
-      const titles = {
-        dashboard: 'Dashboard',
-        bookings: 'Booking Management',
-        customers: 'Customer Management', 
-        services: 'Service Catalog',
-        staff: 'Staff Management',
-        billing: 'Billing & Invoicing',
-        reports: 'Reports & Analytics',
-        settings: 'Settings',
-        'super-admin': 'Super Admin Dashboard',
-        'superadmindashboard': 'Super Admin Dashboard',
-        organizations: 'Organizations Management',
-        'usersadmin': 'User Administration',
-        'users-admin': 'User Administration',
-        'systemsettings': 'System Settings',
-        'system-settings': 'System Settings',
-        analytics: 'Platform Analytics',
-        'auditlogs': 'Audit Logs',
-        'audit-logs': 'Audit Logs',
-        database: 'Database Management',
-        inventory: 'Inventory Management',
-        suppliers: 'Supplier Management',
-        pos: 'Point of Sale',
-        'pos-transactions': 'POS Transactions'
-      }
-      return titles[this.currentPage] || 'Dashboard'
-    }
-  },
-  methods: {
-    toggleSidebar() {
-      this.sidebarOpen = !this.sidebarOpen
-    },
-    setCurrentPage(page) {
-      this.currentPage = page
-      // Handle service category routes that include "services/" prefix
-      const routePath = page.startsWith('services/') ? `/${page}` : `/${page}`
-      this.$router.push(routePath)
-      if (window.innerWidth <= 768) {
-        this.sidebarOpen = false
-      }
+    effectiveRail() {
+      return this.rail && !this.isMobile
     }
   },
   watch: {
-    '$route'(to) {
-      // Handle service category routes
-      if (to.path.startsWith('/services/')) {
-        const serviceCategoryMatch = to.path.match(/^\/services\/(.+)$/)
-        if (serviceCategoryMatch) {
-          this.currentPage = serviceCategoryMatch[1]
-        } else {
-          this.currentPage = 'services'
-        }
-      } else {
-        const routeName = to.name?.toLowerCase() || 'dashboard'
-        this.currentPage = routeName
-      }
-      console.log('🔍 Route changed to:', { path: to.path, currentPage: this.currentPage })
+    '$route.fullPath'() {
+      this.mobileOpen = false
     }
   },
-  async mounted() {
-    console.log('App mounted successfully')
-    
-    // Initialize theme system
-    const { initTheme } = globalTheme
-    initTheme()
-    
-    // Initialize mock authentication
-    const authStore = useAuthStore()
-    await authStore.initializeAuth()
-    
-    // Set initial page based on current route
-    if (this.$route.path.startsWith('/services/')) {
-      const serviceCategoryMatch = this.$route.path.match(/^\/services\/(.+)$/)
-      if (serviceCategoryMatch) {
-        this.currentPage = serviceCategoryMatch[1]
-      } else {
-        this.currentPage = 'services'
+  mounted() {
+    window.addEventListener('keydown', this.onKey)
+    window.addEventListener('resize', this.onResize, { passive: true })
+  },
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.onKey)
+    window.removeEventListener('resize', this.onResize)
+  },
+  methods: {
+    toggleRail() {
+      this.rail = !this.rail
+      try {
+        localStorage.setItem('nav.rail', this.rail ? '1' : '0')
+      } catch {
+        /* ignore */
       }
-    } else {
-      const routeName = this.$route.name?.toLowerCase() || 'dashboard'
-      this.currentPage = routeName
-    }
-
-    // Handle root path redirects
-    if (this.$route.path === '/') {
-      this.$router.push('/dashboard')
-    }
-
-    const handleResize = () => {
-      if (window.innerWidth <= 768) {
-        this.sidebarOpen = false
-      } else {
-        this.sidebarOpen = true
+    },
+    onResize() {
+      this.isMobile = window.innerWidth < 992
+    },
+    onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && this.showShell) {
+        e.preventDefault()
+        this.paletteOpen = !this.paletteOpen
       }
     }
-    
-    window.addEventListener('resize', handleResize)
-    handleResize()
   }
 }
 </script>
 
-<style scoped>
-#app {
-  height: 100vh;
-  width: 100vw;
-}
-
-.app-container {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-}
-
-.main-content {
-  flex: 1;
+<style>
+.shell__main {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  margin-left: 260px;
+  transition: margin-left 0.22s var(--ease);
 }
 
-.main-content.expanded {
-  margin-left: 0;
+.shell.is-rail .shell__main {
+  margin-left: var(--sidebar-rail);
 }
 
-.content {
+.app-content {
   flex: 1;
-  overflow-y: auto;
-  padding: 0;
+  padding: 28px 32px 48px;
+  min-width: 0;
 }
 
-.auth-container {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.shell__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1025;
+  background: rgba(10, 12, 24, 0.45);
+  backdrop-filter: blur(2px);
 }
 
-/* Responsive Layout */
-@media (max-width: 1024px) {
-  .main-content {
-    margin-left: 240px;
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.14s ease, transform 0.18s var(--ease);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 991px) {
+  .shell__main,
+  .shell.is-rail .shell__main {
+    margin-left: 0;
+  }
+  .app-content {
+    padding: 20px 16px 40px;
   }
 }
 
-@media (max-width: 768px) {
-  .main-content {
+@media print {
+  .sb,
+  .tb,
+  .shell__scrim {
+    display: none !important;
+  }
+  .shell__main {
     margin-left: 0 !important;
   }
-
-  .main-content.expanded {
-    margin-left: 0 !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .content {
-    padding: 0;
+  .app-content {
+    padding: 0 !important;
   }
 }
 </style>

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { listFrom } from '../services/api'
 import { shiftsService } from '../services/shifts'
 
 export const useShiftsStore = defineStore('shifts', {
@@ -72,9 +73,8 @@ export const useShiftsStore = defineStore('shifts', {
       try {
         const response = await shiftsService.getAll(params)
         // Handle different response structures
-        const responseData = response.data || response
-        this.shifts = responseData.shifts || responseData || []
-        this.pagination = responseData.pagination || this.pagination
+        this.shifts = listFrom(response, 'shifts')
+        this.pagination = response.data?.pagination || response.data?.data?.pagination || this.pagination
       } catch (error) {
         console.error('Error fetching shifts:', error)
         this.error = error.response?.data?.message || error.message || 'Failed to fetch shifts'

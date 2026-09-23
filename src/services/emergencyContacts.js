@@ -6,6 +6,7 @@ export const emergencyContactsService = {
       const response = await api.get('/emergency-contacts', { params })
       return response
     } catch (error) {
+      console.error('Failed to get emergency contacts:', error)
       throw error
     }
   },
@@ -15,6 +16,7 @@ export const emergencyContactsService = {
       const response = await api.get(`/emergency-contacts/${id}`)
       return response
     } catch (error) {
+      console.error('Failed to get emergency contact:', error)
       throw error
     }
   },
@@ -24,6 +26,7 @@ export const emergencyContactsService = {
       const response = await api.post('/emergency-contacts', contactData)
       return response
     } catch (error) {
+      console.error('Failed to create emergency contact:', error)
       throw error
     }
   },
@@ -33,6 +36,7 @@ export const emergencyContactsService = {
       const response = await api.put(`/emergency-contacts/${id}`, contactData)
       return response
     } catch (error) {
+      console.error('Failed to update emergency contact:', error)
       throw error
     }
   },
@@ -42,6 +46,7 @@ export const emergencyContactsService = {
       const response = await api.delete(`/emergency-contacts/${id}`)
       return response
     } catch (error) {
+      console.error('Failed to delete emergency contact:', error)
       throw error
     }
   },
@@ -57,6 +62,7 @@ export const emergencyContactsService = {
       })
       return response
     } catch (error) {
+      console.error('Failed to get emergency contacts by participant:', error)
       throw error
     }
   }

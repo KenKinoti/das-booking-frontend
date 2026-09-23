@@ -342,7 +342,7 @@ import { useAuthStore } from '../stores/auth'
 import { showErrorNotification, showSuccessNotification, showInfoModal } from '../utils/errorHandler'
 
 export default {
-  name: 'Settings',
+  name: 'SettingsView',
   data() {
     return {
       isSaving: false,

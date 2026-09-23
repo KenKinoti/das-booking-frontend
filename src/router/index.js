@@ -6,9 +6,10 @@ import { useModulesStore } from '../stores/modules'
 // Lazy load components for better performance
 const Login = () => import('../views/Login.vue')
 const Dashboard = () => import('../views/Dashboard.vue')
+
+// Main Pages
 const Staff = () => import('../views/Staff.vue')
-const Billing = () => import('../views/Billing.vue')
-const Reports = () => import('../views/Reports.vue')
+// const Reports = () => import('../views/Reports.vue') // Unused - redirects to analytics
 const Settings = () => import('../views/Settings.vue')
 const Profile = () => import('../views/Profile.vue')
 const Bookings = () => import('../views/Bookings.vue')
@@ -24,6 +25,7 @@ const UsersAdmin = () => import('../views/UsersAdmin.vue')
 const SystemSettings = () => import('../views/SystemSettings.vue')
 const SuperAdminMenuManager = () => import('../views/SuperAdminMenuManager.vue')
 const Analytics = () => import('../views/Analytics.vue')
+const UnifiedAnalytics = () => import('../views/UnifiedAnalytics.vue')
 const AuditLogs = () => import('../views/AuditLogs.vue')
 const FAQ = () => import('../views/FAQ.vue')
 
@@ -41,7 +43,6 @@ const ModuleManagement = () => import('../views/ModuleManagement.vue')
 
 // New ERP Module Views
 const Finance = () => import('../views/Finance.vue')
-const Invoices = () => import('../views/Invoices.vue')
 const Bills = () => import('../views/Bills.vue')
 const Banking = () => import('../views/Banking.vue')
 const CRM = () => import('../views/CRM.vue')
@@ -56,6 +57,18 @@ const MessagingSettings = () => import('../views/MessagingSettings.vue')
 
 // Video Call Views
 const VideoCall = () => import('../views/VideoCall.vue')
+const Communication = () => import('../views/Communication.vue')
+const Documents = () => import('../views/Documents.vue')
+const Scheduling = () => import('../views/Scheduling.vue')
+
+// Invoicing
+const InvoicingOverview = () => import('../views/invoicing/InvoicingOverview.vue')
+const InvoiceList = () => import('../views/invoicing/InvoiceList.vue')
+const InvoiceEditor = () => import('../views/invoicing/InvoiceEditor.vue')
+const InvoiceDetail = () => import('../views/invoicing/InvoiceDetail.vue')
+const InvoiceSettings = () => import('../views/invoicing/InvoiceSettings.vue')
+const PublicInvoice = () => import('../views/invoicing/PublicInvoice.vue')
+const NotFound = () => import('../views/NotFound.vue')
 
 const routes = [
   {
@@ -147,13 +160,19 @@ const routes = [
   {
     path: '/billing',
     name: 'Billing',
-    component: Billing,
+    component: InvoicingOverview,
     meta: { requiresAuth: true }
   },
   {
     path: '/reports',
     name: 'Reports',
-    component: Reports,
+    redirect: '/analytics',
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/reports-analytics',
+    name: 'UnifiedAnalytics',
+    component: UnifiedAnalytics,
     meta: { requiresAuth: true }
   },
   {
@@ -209,7 +228,7 @@ const routes = [
     path: '/analytics',
     name: 'Analytics',
     component: Analytics,
-    meta: { requiresAuth: true, requiresSuperAdmin: true }
+    meta: { requiresAuth: true }
   },
   {
     path: '/audit-logs',
@@ -227,7 +246,82 @@ const routes = [
   {
     path: '/invoices',
     name: 'Invoices',
-    component: Invoices,
+    component: InvoiceList,
+    props: { docType: 'invoice' },
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/invoices/new',
+    name: 'InvoiceNew',
+    component: InvoiceEditor,
+    props: { docType: 'invoice' },
+    meta: { requiresAuth: true, title: 'New invoice' }
+  },
+  {
+    path: '/invoices/settings',
+    name: 'InvoiceSettings',
+    component: InvoiceSettings,
+    meta: { requiresAuth: true, title: 'Invoice settings' }
+  },
+  {
+    path: '/invoices/:id',
+    name: 'InvoiceDetail',
+    component: InvoiceDetail,
+    props: true,
+    meta: { requiresAuth: true, title: 'Invoice' }
+  },
+  {
+    path: '/invoices/:id/edit',
+    name: 'InvoiceEdit',
+    component: InvoiceEditor,
+    props: (route) => ({ id: route.params.id, docType: 'invoice' }),
+    meta: { requiresAuth: true, title: 'Edit invoice' }
+  },
+  {
+    path: '/quotes',
+    name: 'Quotes',
+    component: InvoiceList,
+    props: { docType: 'quote' },
+    meta: { requiresAuth: true, title: 'Quotes' }
+  },
+  {
+    path: '/quotes/new',
+    name: 'QuoteNew',
+    component: InvoiceEditor,
+    props: { docType: 'quote' },
+    meta: { requiresAuth: true, title: 'New quote' }
+  },
+  {
+    path: '/quotes/:id',
+    name: 'QuoteDetail',
+    component: InvoiceDetail,
+    props: true,
+    meta: { requiresAuth: true, title: 'Quote' }
+  },
+  {
+    path: '/quotes/:id/edit',
+    name: 'QuoteEdit',
+    component: InvoiceEditor,
+    props: (route) => ({ id: route.params.id, docType: 'quote' }),
+    meta: { requiresAuth: true, title: 'Edit quote' }
+  },
+  {
+    path: '/i/:token',
+    name: 'PublicInvoice',
+    component: PublicInvoice,
+    props: true,
+    meta: { requiresAuth: false, public: true, title: 'Invoice' }
+  },
+  {
+    path: '/documents',
+    name: 'Documents',
+    component: Documents,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/scheduling',
+    name: 'Scheduling',
+    component: Scheduling,
     meta: { requiresAuth: true }
   },
   {
@@ -246,6 +340,12 @@ const routes = [
     path: '/crm',
     name: 'CRM',
     component: CRM,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/communication',
+    name: 'Communication',
+    component: Communication,
     meta: { requiresAuth: true }
   },
   {
@@ -359,113 +459,59 @@ const routes = [
   }
 ]
 
+routes.push({ path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound, meta: { requiresAuth: false, title: 'Page not found' } })
+
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior(to, from, saved) {
+    return saved || { top: 0 }
+  }
 })
 
-// Enhanced auth guard with role-based permissions
-router.beforeEach(async (to, from, next) => {
+// Auth guard
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
-  const modulesStore = useModulesStore()
 
-  console.log('🛡️ ROUTER DEBUG: Guard triggered', {
-    from: from.path,
-    to: to.path,
-    timestamp: new Date().toISOString()
-  })
+  if (to.meta.public) return true
 
-  // For protected routes, ensure we initialize auth properly
   if (to.meta.requiresAuth !== false) {
-    // Save current route for refresh persistence BEFORE any redirects
-    if (to.name && to.name !== 'Login' && to.path !== '/') {
-      localStorage.setItem('lastRoute', to.path)
-      localStorage.setItem('lastRouteName', to.name)
-    }
-
-    // Always try to initialize auth state from localStorage first
-    if (!authStore.token) {
-      // Check if we have stored auth data
-      const storedToken = localStorage.getItem('auth_token')
-      const storedUser = localStorage.getItem('current_user')
-
-      if (storedToken && storedUser) {
-        console.log('🔄 Restoring auth state from localStorage...')
-        try {
-          authStore.token = storedToken
-          authStore.user = JSON.parse(storedUser)
-        } catch (error) {
-          console.error('Error parsing stored auth data:', error)
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('current_user')
-          next('/login')
-          return
-        }
-      } else {
-        console.log('No stored auth data, redirecting to login')
-        next('/login')
-        return
+    if (!authStore.isAuthenticated) {
+      const ok = await authStore.initializeAuth()
+      if (!ok) {
+        return { path: '/login', query: to.fullPath !== '/' && to.fullPath !== '/dashboard' ? { redirect: to.fullPath } : {} }
       }
     }
 
-    // If we have token but no user, initialize auth
-    if (authStore.token && !authStore.user) {
-      console.log('Token exists but no user data, initializing...')
-      const isInitialized = await authStore.initializeAuth()
-
-      if (!isInitialized) {
-        console.log('Auth initialization failed, redirecting to login')
-        next('/login')
-        return
-      }
-    }
-
-    // Final validation - must have both token and user
-    if (!authStore.token || !authStore.user) {
-      console.log('Authentication incomplete, redirecting to login')
-      next('/login')
-      return
-    }
-
-    // Check for super admin requirement
     if (to.meta.requiresSuperAdmin && !authStore.isSuperAdmin) {
-      console.log('Super admin required, redirecting to dashboard')
-      next('/dashboard')
-      return
+      return '/dashboard'
     }
 
-    // Check for module requirements
     if (to.meta.requiresModule) {
-      // Initialize modules if not already done
-      if (!modulesStore.initialized) {
-        await modulesStore.fetchModules()
-      }
-
-      // Check if the required module is enabled
-      if (!modulesStore.hasModule(to.meta.requiresModule)) {
-        console.log(`Module ${to.meta.requiresModule} not enabled, redirecting to dashboard`)
-        next('/dashboard')
-        return
-      }
+      const modulesStore = useModulesStore()
+      if (!modulesStore.initialized) await modulesStore.fetchModules()
+      if (!modulesStore.hasModule(to.meta.requiresModule)) return '/dashboard'
     }
 
-    console.log('✅ Auth guard passed, proceeding to:', to.path)
-    next()
-    return
+    if (to.name && to.name !== 'Login') {
+      localStorage.setItem('lastRoute', to.fullPath)
+    }
+    return true
   }
-  
-  // If going to login page
+
   if (to.name === 'Login') {
-    // If already authenticated, redirect away from login
-    if (authStore.token && authStore.user) {
-      const lastRoute = localStorage.getItem('lastRoute') || '/dashboard'
-      console.log('Already authenticated, redirecting to:', lastRoute)
-      next(lastRoute)
-      return
+    if (!authStore.isAuthenticated) await authStore.initializeAuth()
+    if (authStore.isAuthenticated) {
+      return to.query.redirect || localStorage.getItem('lastRoute') || '/dashboard'
     }
   }
-  
-  next()
+  return true
+})
+
+router.afterEach((to) => {
+  const base = import.meta.env.VITE_APP_TITLE || 'DASYIN ERP'
+  const title = to.meta.title || (typeof to.name === 'string' ? to.name.replace(/([a-z])([A-Z])/g, '$1 $2') : '')
+  document.title = title ? `${title} · ${base}` : base
 })
 
 export default router

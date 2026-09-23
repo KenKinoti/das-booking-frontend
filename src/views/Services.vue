@@ -212,7 +212,7 @@
 import PageTemplate from '@/components/PageTemplate.vue'
 
 export default {
-  name: 'Services',
+  name: 'ServicesView',
   components: {
     PageTemplate
   },

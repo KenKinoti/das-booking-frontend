@@ -1,3 +1,4 @@
+import { WS_ORIGIN } from '../config'
 import api from './api'
 
 // WebRTC Configuration with STUN/TURN servers for low latency
@@ -86,11 +87,8 @@ export class WebRTCService {
 
   // Connect to signaling server
   async connectSignaling() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.hostname
-    const port = import.meta.env.VITE_WS_PORT || '8089'
     const token = localStorage.getItem('auth_token')
-    const wsUrl = `${protocol}//${host}:${port}/ws/webrtc?token=${token}`
+    const wsUrl = `${WS_ORIGIN}/ws/webrtc?token=${token}`
 
     return new Promise((resolve, reject) => {
       this.signalingSocket = new WebSocket(wsUrl)

@@ -1,5 +1,21 @@
 import { defineStore } from 'pinia'
 import { authService } from '../services/auth'
+import { apiErrorMessage } from '../services/api'
+
+function readJSON(key) {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function isJWT(token) {
+  if (!token || typeof token !== 'string') return false
+  const parts = token.split('.')
+  return parts.length === 3 && parts.every((p) => p.length > 0)
+}
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -8,230 +24,128 @@ export const useAuthStore = defineStore('auth', {
     refreshToken: null,
     isLoading: false,
     error: null,
-    _initializing: false
+    _initializing: null
   }),
 
   getters: {
-    isAuthenticated: (state) => {
-      // Must have both token and user data for true authentication
-      const hasToken = !!state.token
-      const hasUser = !!state.user
-      const result = hasToken && hasUser
-      
-      console.log('🔍 AUTH DEBUG: isAuthenticated getter called', {
-        hasToken,
-        hasUser,
-        result,
-        tokenType: typeof state.token,
-        userType: typeof state.user
-      })
-      
-      return result
-    },
+    isAuthenticated: (state) => !!state.token && !!state.user,
     isSuperAdmin: (state) => state.user?.role === 'super_admin',
+    isAdmin: (state) => ['super_admin', 'admin'].includes(state.user?.role),
     userName: (state) => {
-      if (state.user) {
-        return `${state.user.first_name} ${state.user.last_name}`.trim()
-      }
-      return 'User'
+      if (!state.user) return 'User'
+      return `${state.user.first_name || ''} ${state.user.last_name || ''}`.trim() || state.user.email
     },
     userInitials: (state) => {
-      if (state.user) {
-        const first = state.user.first_name?.[0] || ''
-        const last = state.user.last_name?.[0] || ''
-        return (first + last).toUpperCase()
-      }
-      return 'U'
+      if (!state.user) return 'U'
+      const first = state.user.first_name?.[0] || state.user.email?.[0] || ''
+      const last = state.user.last_name?.[0] || ''
+      return (first + last).toUpperCase() || 'U'
     }
   },
 
   actions: {
     async login(credentials) {
-      console.log('🔐 AUTH DEBUG: Login method called', { 
-        email: credentials.email, 
-        timestamp: new Date().toISOString() 
-      })
-      
       this.isLoading = true
       this.error = null
-      
       try {
-        console.log('🔐 AUTH DEBUG: Starting login process for:', credentials.email)
-        console.log('🔐 AUTH DEBUG: Initial state:', {
-          hasToken: !!this.token,
-          hasUser: !!this.user,
-          isAuthenticated: this.isAuthenticated
+        const response = await authService.login({
+          email: (credentials.email || '').trim(),
+          password: credentials.password
         })
-        
-        // Backend authentication only - no mock users
-        console.log('🔐 AUTH DEBUG: Attempting backend authentication for:', credentials.email)
-        const response = await authService.login(credentials)
-        
-        if (response.success) {
-          this.token = response.data.token
-          this.refreshToken = response.data.refresh_token
-          this.user = response.data.user
-          
-          // Store tokens in localStorage
-          localStorage.setItem('auth_token', this.token)
-          if (this.refreshToken) {
-            localStorage.setItem('refresh_token', this.refreshToken)
-          }
-          localStorage.setItem('current_user', JSON.stringify(this.user))
-          
-          console.log('✅ Backend login successful:', { user: this.user, token: this.token })
-          return response
-        } else {
-          throw new Error(response.error?.message || 'Login failed')
+        const payload = response.data?.data || response.data || {}
+        if (!payload.token || !payload.user) {
+          throw new Error(response.data?.error?.message || 'Login failed')
         }
+        this.setSession(payload.token, payload.refresh_token, payload.user)
+        return payload
       } catch (error) {
-        console.error('Login error:', error)
-        this.error = error.response?.data?.error?.message || error.message || 'Login failed'
+        this.error = error.response?.status === 401
+          ? 'Incorrect email or password.'
+          : apiErrorMessage(error, error.message || 'Login failed')
         throw error
       } finally {
         this.isLoading = false
       }
     },
 
-    async logout() {
+    setSession(token, refreshToken, user) {
+      this.token = token
+      this.refreshToken = refreshToken || null
+      this.user = user
+      localStorage.setItem('auth_token', token)
+      if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
+      localStorage.setItem('current_user', JSON.stringify(user))
+    },
+
+    async logout(options = {}) {
       try {
-        // Call API logout if we have a valid JWT token
-        if (this.token && this.isValidJWT(this.token)) {
+        if (!options.skipApi && isJWT(this.token)) {
           await authService.logout()
         }
-      } catch (error) {
-        console.error('Logout error:', error)
-        // Don't throw error - continue with local cleanup
+      } catch {
+        // ignore – local cleanup below always runs
       } finally {
-        // Clear local state regardless of API call result
         this.token = null
         this.refreshToken = null
         this.user = null
         this.error = null
-        
-        // Clear localStorage
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('current_user')
-        localStorage.removeItem('user_data')
+        ;['auth_token', 'refresh_token', 'current_user', 'user_data', 'lastRoute', 'lastRouteName'].forEach((k) =>
+          localStorage.removeItem(k)
+        )
       }
     },
 
-    // Helper method to validate JWT format
     isValidJWT(token) {
-      if (!token || typeof token !== 'string') return false
-      const parts = token.split('.')
-      return parts.length === 3 && parts.every(part => part.length > 0)
+      return isJWT(token)
     },
 
     async getCurrentUser() {
-      console.log('getCurrentUser called, token:', this.token)
-      
-      if (!this.token) {
-        console.log('No token found')
-        return false
-      }
-      
+      if (!this.token) return false
       try {
         const response = await authService.getCurrentUser()
-        
-        if (response.success) {
-          this.user = response.data
+        const user = response.data?.data || response.data?.user || null
+        if (user && user.id) {
+          this.user = user
+          localStorage.setItem('current_user', JSON.stringify(user))
           return true
-        } else {
-          await this.logout()
+        }
+        return !!this.user
+      } catch (error) {
+        if (error.response?.status === 401) {
+          await this.logout({ skipApi: true })
           return false
         }
-      } catch (error) {
-        console.error('Get user error:', error)
-        await this.logout()
-        return false
+        // Network problems: keep the cached session
+        return !!this.user
       }
     },
 
     async checkAuth() {
-      
-      if (!this.token) return false
-      
-      try {
-        const result = await this.getCurrentUser()
-        return result
-      } catch (error) {
-        console.error('Auth check error:', error)
-        await this.logout()
-        return false
-      }
+      return this.initializeAuth()
     },
 
-
-    // Initialize authentication state from localStorage
+    /** Restore the session from localStorage (once per page load). */
     async initializeAuth() {
-      // Prevent multiple simultaneous initialization calls
-      if (this._initializing) {
-        console.log('Auth initialization already in progress...')
-        return this.isAuthenticated
-      }
-      
-      this._initializing = true
-      console.log('Initializing auth state...')
-      
-      try {
+      if (this._initializing) return this._initializing
+      this._initializing = (async () => {
         const token = localStorage.getItem('auth_token')
-        const storedUser = localStorage.getItem('current_user')
-        
-        if (!token) {
-          console.log('No token found in localStorage - creating mock auth for testing')
-          // Create mock authentication for testing when backend is not available
-          const mockUser = {
-            id: 'mock-user-1',
-            first_name: 'Super',
-            last_name: 'Admin',
-            email: 'admin@dasyinbook.com',
-            role: 'super_admin',
-            organization_id: 'all-orgs',
-            organization: 'DASYIN BOOK Platform'
-          }
-          const mockToken = 'mock-jwt-token-for-testing'
-          
-          this.token = mockToken
-          this.user = mockUser
-          
-          // Store mock data
-          localStorage.setItem('auth_token', mockToken)
-          localStorage.setItem('current_user', JSON.stringify(mockUser))
-          
-          console.log('✅ Mock authentication created for testing')
-          return true
+        if (!isJWT(token)) {
+          await this.logout({ skipApi: true })
+          return false
         }
-        
         this.token = token
-        
-        if (storedUser) {
-          try {
-            this.user = JSON.parse(storedUser)
-            console.log('Auth state initialized:', { token: !!this.token, user: !!this.user })
-            
-            // Skip backend validation if using mock token
-            if (token === 'mock-jwt-token-for-testing') {
-              console.log('Using mock authentication - skipping backend validation')
-              return true
-            }
-            
-            // Validate token is still valid by checking user data
-            return await this.getCurrentUser()
-          } catch (error) {
-            console.error('Error parsing stored user:', error)
-            this.logout()
-            return false
-          }
-        }
-        
-        // If we have a token but no user, try to get user data
-        return await this.getCurrentUser()
+        this.refreshToken = localStorage.getItem('refresh_token')
+        this.user = readJSON('current_user') || readJSON('user_data')
+        if (!this.user) return this.getCurrentUser()
+        // Validate in the background so navigation isn't blocked
+        this.getCurrentUser()
+        return true
+      })()
+      try {
+        return await this._initializing
       } finally {
-        this._initializing = false
+        this._initializing = null
       }
     }
-
   }
 })

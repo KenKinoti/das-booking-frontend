@@ -188,7 +188,7 @@ export default {
         const displayHour = hour > 12 ? hour - 12 : hour || 12
         
         return `${displayHour}:${minute} ${period}`
-      } catch (error) {
+      } catch {
         return timeString
       }
     },

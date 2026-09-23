@@ -745,13 +745,13 @@ export default {
     }
 
     const openCheckInMode = () => {
-      const modal = new bootstrap.Modal(document.getElementById('checkinModal'))
+      const modal = // new bootstrap.Modal(document.getElementById('checkinModal'))
       modal.show()
     }
 
     const viewRegistrationDetails = (registration) => {
       selectedRegistration.value = registration
-      const modal = new bootstrap.Modal(document.getElementById('registrationModal'))
+      const modal = // new bootstrap.Modal(document.getElementById('registrationModal'))
       modal.show()
     }
 

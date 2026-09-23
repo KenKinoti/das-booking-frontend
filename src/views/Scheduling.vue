@@ -954,6 +954,7 @@
 </template>
 
 <script>
+import { legacyFetch } from '@/utils/legacyFetch'
 import { mapState, mapActions } from 'pinia'
 import { useShiftsStore } from '../stores/shifts'
 import { useParticipantsStore } from '../stores/participants'
@@ -962,7 +963,7 @@ import { useAuthStore } from '../stores/auth'
 import { showErrorNotification, showSuccessNotification } from '../utils/errorHandler'
 
 export default {
-  name: 'Scheduling',
+  name: 'SchedulingView',
   data() {
     return {
       filteredShifts: [],
@@ -1467,7 +1468,7 @@ export default {
         console.log('🔑 Auth token:', localStorage.getItem('auth_token')?.substring(0, 10) + '...')
         
         // Use direct fetch for maximum debugging visibility
-        const response = await fetch(`http://localhost:8080/api/v1/shifts/${this.shiftToStart.id}/status`, {
+        const response = await legacyFetch(`http://localhost:8080/api/v1/shifts/${this.shiftToStart.id}/status`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
