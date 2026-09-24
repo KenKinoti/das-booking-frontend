@@ -28,6 +28,7 @@
     <section v-if="report === 'pnl'" class="ui-card sheet">
       <div class="sheet__head">
         <div>
+          <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="biz" class="sheet__logo print-only" />
           <div class="ui-eyebrow">{{ biz }}</div>
           <h2>Profit &amp; loss · {{ pnl ? pnl.label : '…' }}</h2>
           <p v-if="pnl">{{ date(pnl.from) }} – {{ date(pnl.to) }} · {{ pnl.currency }}<template v-if="settings.tax_registered"> · amounts exclude {{ pnl.tax_name }}</template></p>
@@ -101,6 +102,7 @@
     <section v-else class="ui-card sheet">
       <div class="sheet__head">
         <div>
+          <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="biz" class="sheet__logo print-only" />
           <div class="ui-eyebrow">{{ biz }}<template v-if="tax && tax.tax_number"> · {{ tax.tax_number }}</template></div>
           <h2>{{ settings.tax_name }} summary · {{ tax ? tax.period.label : '…' }}</h2>
           <p v-if="tax">{{ date(tax.period.from) }} – {{ date(tax.period.to) }} · {{ tax.currency }}</p>
@@ -174,12 +176,18 @@ import { smallbizApi, fmtMinor, monthLabel } from '@/services/smallbiz'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate, downloadBlob, isoDate } from '@/utils/format'
 import { toast } from '@/composables/useToast'
+import { useBranding } from '@/composables/useBranding'
 
 export default {
   name: 'HubReports',
   props: {
     settings: { type: Object, required: true },
     refreshKey: { type: Number, default: 0 }
+  },
+  setup() {
+    const { branding, loadBranding } = useBranding()
+    loadBranding()
+    return { branding }
   },
   data() {
     return {
@@ -209,7 +217,7 @@ export default {
       return this.settings.currency
     },
     biz() {
-      return this.settings.trading_name || 'Business hub'
+      return this.settings.trading_name || this.branding.orgName || 'Business hub'
     }
   },
   watch: {
@@ -333,6 +341,17 @@ export default {
   flex-wrap: wrap;
   padding: 20px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Company logo on printed reports (Settings → Business details) */
+.sheet__logo {
+  display: none;
+  max-width: 200px;
+  max-height: 48px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin-bottom: 10px;
 }
 
 .sheet__head h2 {
@@ -497,6 +516,11 @@ thead .sticky {
 @media print {
   .no-print {
     display: none !important;
+  }
+  .sheet__logo.print-only {
+    display: block;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .sheet {
     border: 0 !important;

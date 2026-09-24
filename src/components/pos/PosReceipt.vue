@@ -1,7 +1,8 @@
 <template>
   <div class="receipt">
     <header class="receipt__head">
-      <strong class="receipt__org">{{ organization?.name || 'Receipt' }}</strong>
+      <img v-if="logoSrc" :src="logoSrc" :alt="orgName || 'Company logo'" class="receipt__logo" data-testid="receipt-logo" @error="logoFailed = true" />
+      <strong class="receipt__org">{{ orgName || 'Receipt' }}</strong>
       <div v-if="addressLine">{{ addressLine }}</div>
       <div v-if="organization?.phone">{{ organization.phone }}</div>
       <div v-if="organization?.abn">ABN {{ organization.abn }}</div>
@@ -58,6 +59,7 @@
 <script>
 import { formatMoney, formatDateTime } from '@/utils/format'
 import { PAYMENT_LABELS, personName } from '@/services/posService'
+import { useBranding } from '@/composables/useBranding'
 
 export default {
   name: 'PosReceipt',
@@ -66,7 +68,22 @@ export default {
     organization: { type: Object, default: null },
     currency: { type: String, default: 'AUD' }
   },
+  setup() {
+    return { branding: useBranding().branding }
+  },
+  data() {
+    return { logoFailed: false }
+  },
   computed: {
+    // The company logo (Settings → Business details) of the signed-in organisation.
+    logoSrc() {
+      if (this.logoFailed) return ''
+      if (this.branding.loaded) return this.branding.logoUrl
+      return this.organization?.logo_url || this.branding.logoUrl || ''
+    },
+    orgName() {
+      return this.organization?.name || this.branding.orgName || ''
+    },
     cashier() {
       return personName(this.transaction.cashier)
     },
@@ -104,6 +121,29 @@ export default {
   padding-bottom: 10px;
   border-bottom: 1px dashed var(--border-strong);
   color: var(--text-2);
+}
+.receipt__logo {
+  display: block;
+  margin: 0 auto 8px;
+  max-width: 160px;
+  max-height: 44px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+[data-theme='dark'] .receipt__logo {
+  /* transparent logos stay legible on the dark receipt */
+  background: #f4f5f9;
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+@media print {
+  .receipt__logo,
+  [data-theme='dark'] .receipt__logo {
+    background: none;
+    padding: 0;
+    filter: grayscale(1) contrast(1.15);
+  }
 }
 .receipt__org {
   display: block;

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { authService } from '../services/auth'
 import { apiErrorMessage } from '../services/api'
+import { seedBranding, loadBranding, clearBranding } from '../composables/useBranding'
 
 function readJSON(key) {
   try {
@@ -75,6 +76,9 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('auth_token', token)
       if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
       localStorage.setItem('current_user', JSON.stringify(user))
+      // Company name + logo for the sidebar and documents
+      seedBranding(user)
+      loadBranding({ force: true })
     },
 
     async logout(options = {}) {
@@ -89,6 +93,7 @@ export const useAuthStore = defineStore('auth', {
         this.refreshToken = null
         this.user = null
         this.error = null
+        clearBranding()
         ;['auth_token', 'refresh_token', 'current_user', 'user_data', 'lastRoute', 'lastRouteName'].forEach((k) =>
           localStorage.removeItem(k)
         )
@@ -107,6 +112,7 @@ export const useAuthStore = defineStore('auth', {
         if (user && user.id) {
           this.user = user
           localStorage.setItem('current_user', JSON.stringify(user))
+          seedBranding(user)
           return true
         }
         return !!this.user

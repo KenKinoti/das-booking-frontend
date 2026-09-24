@@ -22,6 +22,13 @@ grew out of.
   through the normal API with your permissions and plan. Setup, tokens, connected
   apps and an AI activity log live at **Administration → AI & MCP**.
 - **Invoice CC** — enter several addresses separated by commas, or add rows with **+**.
+- **Company logo used on invoices, quotes, receipts, emails and the sidebar** — one
+  logo per organisation, uploaded in **Settings → Business details** (or Invoice
+  settings): drag & drop, light/dark preview, replace or remove. PNG, JPG, WebP or
+  SVG up to 1 MB (unsafe SVGs are rejected). It appears on invoices and quotes
+  (screen, print/PDF and the public link), invoice emails, POS receipts, printed
+  business-hub reports, public event pages and the sidebar header. Existing
+  invoicing logos move over automatically.
 - **Reliability** — database migrations are pinned to the ERP schema even behind
   connection poolers (fixes missing `cc_emails` / customer contacts tables);
   Supabase transaction-pooler URLs switch to session mode automatically;

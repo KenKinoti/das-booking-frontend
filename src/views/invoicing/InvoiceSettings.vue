@@ -20,6 +20,10 @@
       <section class="ui-card mb">
         <div class="ui-card__head"><h2>Business details</h2><span class="muted small">Shown on every document</span></div>
         <div class="ui-card__body ui-grid-2">
+          <div class="ui-field span-all">
+            <label>Logo</label>
+            <OrgLogoUploader compact hint="This is your company logo — it's used on invoices, quotes, receipts and emails. Change it here or in Settings → Business details." @changed="onLogoChanged" />
+          </div>
           <div class="ui-field">
             <label for="bn">Business name</label>
             <input id="bn" v-model="s.business_name" class="ui-input" placeholder="Your company" />
@@ -47,20 +51,6 @@
               <input v-model="s.tax_number" class="ui-input" aria-label="Tax number" placeholder="12 345 678 901" />
             </div>
             <span class="ui-hint">With a tax number your invoices are titled “Tax invoice”.</span>
-          </div>
-          <div class="ui-field">
-            <label>Logo</label>
-            <div class="logo-row">
-              <div class="logo-box">
-                <img v-if="s.logo_url" :src="s.logo_url" alt="Logo preview" />
-                <i v-else class="fa-regular fa-image"></i>
-              </div>
-              <div class="ui-actions">
-                <label class="ui-btn ui-btn--sm"><i class="fa-solid fa-upload"></i> Upload<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden @change="onLogo" /></label>
-                <button v-if="s.logo_url" class="ui-btn ui-btn--sm ui-btn--ghost" @click="s.logo_url = ''">Remove</button>
-              </div>
-            </div>
-            <span class="ui-hint">PNG, JPG or SVG, up to 400 KB.</span>
           </div>
           <div class="ui-field">
             <label for="ac">Accent colour</label>
@@ -195,11 +185,13 @@ import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
+import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
 
 let tmp = 0
 
 export default {
   name: 'InvoiceSettings',
+  components: { OrgLogoUploader },
   data() {
     return {
       s: null,
@@ -230,14 +222,9 @@ export default {
       const pad = this.s.number_padding || 4
       return `${prefix || ''}${String(n || 1).padStart(pad, '0')}`
     },
-    onLogo(e) {
-      const f = e.target.files?.[0]
-      e.target.value = ''
-      if (!f) return
-      if (f.size > 400 * 1024) return toast.error('Logo must be 400 KB or smaller')
-      const reader = new FileReader()
-      reader.onload = () => (this.s.logo_url = reader.result)
-      reader.readAsDataURL(f)
+    onLogoChanged(b) {
+      // The company logo is saved on its own; keep the preview data in step.
+      if (this.s) this.s.logo_url = b.hasLogo ? b.logoUrl : ''
     },
     async save() {
       this.error = null
@@ -313,30 +300,6 @@ export default {
 .label-in {
   width: 90px;
   flex-shrink: 0;
-}
-
-.logo-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.logo-box {
-  width: 84px;
-  height: 56px;
-  border-radius: 10px;
-  border: 1px dashed var(--border-strong);
-  display: grid;
-  place-items: center;
-  color: var(--text-3);
-  overflow: hidden;
-  background: var(--surface-2);
-}
-
-.logo-box img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
 }
 
 .color {

@@ -1,12 +1,21 @@
 <template>
   <aside class="sb" :class="{ 'is-rail': rail, 'is-mobile-open': mobileOpen }" aria-label="Main navigation">
     <div class="sb__brand">
-      <router-link to="/dashboard" class="sb__logo" @click="$emit('navigate')">
-        <BrandMark class="sb__mark" :size="36" />
-        <span class="sb__name" v-show="!rail">
-          {{ appName }}
-          <small>{{ orgName }}</small>
-        </span>
+      <router-link to="/dashboard" class="sb__logo" :class="{ 'is-company': company }" :title="rail ? brandTitle : undefined" :aria-label="`${brandTitle} — dashboard`" @click="$emit('navigate')">
+        <template v-if="company">
+          <span v-if="companyLogo && !(rail && wideLogo)" class="sb__org-logo" :class="{ 'is-square': rail }" data-testid="sidebar-logo">
+            <img :src="companyLogo" :alt="`${companyName} logo`" @error="logoFailed = true" />
+          </span>
+          <span v-else class="sb__org-initials" data-testid="sidebar-initials" aria-hidden="true">{{ initials }}</span>
+          <span class="sb__name sb__name--org" v-show="!rail" data-testid="sidebar-org-name">{{ companyName }}</span>
+        </template>
+        <template v-else>
+          <BrandMark class="sb__mark" :size="36" />
+          <span class="sb__name" v-show="!rail">
+            {{ appName }}
+            <small>{{ orgName }}</small>
+          </span>
+        </template>
       </router-link>
       <button class="sb__icon-btn sb__close" @click="$emit('close')" aria-label="Close menu">
         <i class="fa-solid fa-xmark"></i>
@@ -65,11 +74,12 @@
       <router-link
         to="/faq#about"
         class="sb__ver"
-        :title="`${appName} ${versionLabel} — about this release`"
-        :aria-label="`${appName} version ${appVersion}. About this release`"
+        :class="{ 'is-powered': company }"
+        :title="`Powered by ${appName} · ${versionLabel} — about this release`"
+        :aria-label="`Powered by ${appName}, version ${appVersion}. About this release`"
         @click="$emit('navigate')"
       >
-        <span class="sb__ver-dot" aria-hidden="true"></span>{{ rail ? versionShort : versionLabel }}
+        <BrandMark v-if="company" class="sb__ver-mark" :size="12" label="" aria-hidden="true" /><span v-else class="sb__ver-dot" aria-hidden="true"></span>{{ rail ? versionShort : versionLabel }}
       </router-link>
       <button class="sb__foot-btn sb__rail-toggle" @click="$emit('toggle-rail')" :title="rail ? 'Expand sidebar' : 'Collapse sidebar'" :aria-label="rail ? 'Expand sidebar' : 'Collapse sidebar'">
         <i :class="rail ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'"></i>
@@ -85,6 +95,8 @@ import { APP_NAME } from '@/config'
 import { entitlements } from '@/composables/useEntitlements'
 import { APP_VERSION, VERSION_LABEL, VERSION_SHORT } from '@/version'
 import BrandMark from './BrandMark.vue'
+import { useBranding, loadBranding, initialsOf } from '@/composables/useBranding'
+import { isImpersonating } from '@/services/platform'
 
 const STORAGE_KEY = 'nav.openGroups'
 
@@ -109,7 +121,9 @@ export default {
       appVersion: APP_VERSION,
       versionLabel: VERSION_LABEL,
       versionShort: VERSION_SHORT,
-      isMac: typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+      isMac: typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform),
+      branding: useBranding().branding,
+      logoFailed: false
     }
   },
   computed: {
@@ -118,6 +132,29 @@ export default {
     },
     groups() {
       return visibleGroups(this.auth.isSuperAdmin)
+    },
+    // Company users (and super admins signed in as an organisation) see their
+    // company's logo and name; the platform console keeps the DASYIN mark.
+    company() {
+      if (!this.auth.user) return false
+      return !this.auth.isSuperAdmin || isImpersonating()
+    },
+    companyName() {
+      return this.branding.orgName || this.auth.user?.organization_name || this.auth.user?.organization?.name || 'Your company'
+    },
+    companyLogo() {
+      return !this.logoFailed && this.branding.hasLogo ? this.branding.logoUrl : ''
+    },
+    // A wide wordmark is unreadable in the 36px rail square: use initials there.
+    wideLogo() {
+      const { width, height } = this.branding
+      return width > 0 && height > 0 && width / height > 1.6
+    },
+    initials() {
+      return initialsOf(this.companyName)
+    },
+    brandTitle() {
+      return this.company ? this.companyName : this.appName
     },
     orgName() {
       const u = this.auth.user || {}
@@ -138,6 +175,15 @@ export default {
     }
   },
   watch: {
+    'auth.token': {
+      immediate: true,
+      handler(t) {
+        if (t) loadBranding()
+      }
+    },
+    'branding.logoUrl'() {
+      this.logoFailed = false
+    },
     '$route.path': {
       immediate: true,
       handler() {
@@ -220,6 +266,73 @@ export default {
 
 .sb__mark {
   flex-shrink: 0;
+}
+
+/* Company logo: contained, up to 32px tall */
+.sb__org-logo {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 36px;
+  max-width: 116px;
+  border-radius: 8px;
+}
+
+.sb__org-logo img {
+  display: block;
+  max-height: 32px;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.sb__org-logo.is-square {
+  width: 36px;
+  justify-content: center;
+}
+
+.sb__org-logo.is-square img {
+  max-width: 32px;
+}
+
+/* Transparent logos on the dark theme sit on a subtle light plate */
+[data-theme='dark'] .sb__org-logo {
+  background: #f4f5f9;
+  padding: 2px 7px;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+[data-theme='dark'] .sb__org-logo.is-square {
+  padding: 2px;
+}
+
+[data-theme='dark'] .sb__org-logo img {
+  max-height: 28px;
+}
+
+.sb__org-initials {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 750;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.sb__name--org {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  font-size: 14px;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .sb__name {
@@ -566,6 +679,16 @@ export default {
 .sb__ver:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.sb__ver-mark {
+  flex-shrink: 0;
+  box-shadow: none;
+}
+
+.sb__ver.is-powered {
+  gap: 5px;
+  padding: 0 8px;
 }
 
 .sb__ver-dot {

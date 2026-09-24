@@ -2,10 +2,9 @@
   <article class="idoc" :style="{ '--doc-accent': accent }">
     <header class="idoc__top">
       <div class="idoc__from">
-        <img v-if="business.logo_url" :src="business.logo_url" alt="" class="idoc__logo" />
-        <div v-else class="idoc__mark">{{ (business.business_name || 'D')[0] }}</div>
+        <img v-if="logoSrc" :src="logoSrc" :alt="business.business_name || 'Company logo'" class="idoc__logo" data-testid="doc-logo" @error="logoFailed = true" />
         <div class="idoc__biz">
-          <strong>{{ business.business_name || 'Your business' }}</strong>
+          <strong :class="{ 'idoc__name--solo': !logoSrc }" data-testid="doc-business-name">{{ business.business_name || 'Your business' }}</strong>
           <span v-if="business.address" class="pre">{{ business.address }}</span>
           <span v-if="business.email">{{ business.email }}</span>
           <span v-if="business.phone">{{ business.phone }}</span>
@@ -106,7 +105,14 @@ export default {
     doc: { type: Object, required: true },
     business: { type: Object, default: () => ({}) }
   },
+  data() {
+    return { logoFailed: false }
+  },
   computed: {
+    // The company logo (Settings → Business details); a broken image falls back to the name.
+    logoSrc() {
+      return !this.logoFailed && this.business.logo_url ? this.business.logo_url : ''
+    },
     isQuote() {
       return this.doc.doc_type === 'quote'
     },
@@ -133,6 +139,11 @@ export default {
     },
     stampLabel() {
       return STATUS_LABELS[this.stamp]
+    }
+  },
+  watch: {
+    'business.logo_url'() {
+      this.logoFailed = false
     }
   },
   methods: {
@@ -193,26 +204,21 @@ export default {
 
 .idoc__from {
   display: flex;
-  gap: 16px;
+  flex-direction: column;
+  gap: 14px;
   align-items: flex-start;
+  min-width: 0;
 }
 
+/* Company logo: same box on screen, print, PDF and the public link */
 .idoc__logo {
-  max-width: 120px;
+  display: block;
+  max-width: 220px;
   max-height: 64px;
+  width: auto;
+  height: auto;
   object-fit: contain;
-}
-
-.idoc__mark {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-size: 22px;
-  font-weight: 800;
-  color: #fff;
-  background: var(--doc-accent);
+  object-position: left center;
 }
 
 .idoc__biz {
@@ -226,6 +232,15 @@ export default {
   color: #1a1d2e;
   font-size: 15px;
   margin-bottom: 2px;
+}
+
+/* No logo: the business name leads the page */
+.idoc__biz .idoc__name--solo {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 6px;
 }
 
 .idoc__title {
@@ -461,9 +476,13 @@ export default {
   .idoc::before {
     display: none;
   }
-  .idoc__meta {
+  .idoc__meta,
+  .idoc__logo {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .idoc__top {
+    break-inside: avoid;
   }
 }
 </style>

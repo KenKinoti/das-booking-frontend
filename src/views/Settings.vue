@@ -30,6 +30,10 @@
               </div>
             </div>
             <div class="ui-card__body">
+              <div id="logo" class="logo-block">
+                <span class="ui-label">Company logo</span>
+                <OrgLogoUploader hint="Used on invoices, quotes, POS receipts, emails, public pages and the sidebar. A wide logo with a transparent background works best." />
+              </div>
               <div v-if="!loaded" class="sk"><div v-for="n in 4" :key="n" class="ui-skeleton" style="height: 38px"></div></div>
               <div v-else class="form-grid">
                 <label class="ui-field">
@@ -180,6 +184,7 @@
 <script>
 import '@/styles/module-page.css'
 import AboutCard from '@/components/layout/AboutCard.vue'
+import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
 import api, { apiErrorMessage } from '@/services/api'
 import { currencyGroups } from '@/utils/currencies'
 import { toast } from '@/composables/useToast'
@@ -193,7 +198,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
-  components: { AboutCard },
+  components: { AboutCard, OrgLogoUploader },
   data() {
     return {
       org: blankOrg(),
@@ -345,6 +350,15 @@ export default {
 </script>
 
 <style scoped>
+.logo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
 .layout {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);

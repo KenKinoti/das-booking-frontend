@@ -50,7 +50,7 @@
 
       <div class="layout">
         <div class="doc-col">
-          <InvoiceDocument :doc="doc" :business="settings" />
+          <InvoiceDocument :doc="doc" :business="business" />
         </div>
 
         <aside class="side-col no-print">
@@ -218,11 +218,15 @@ import EmailChips from '@/components/invoicing/EmailChips.vue'
 import { renderTemplate } from '@/utils/invoiceMath'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
+import { useBranding } from '@/composables/useBranding'
 
 export default {
   name: 'InvoiceDetail',
   components: { InvoiceDocument, EmailChips },
   props: { id: { type: String, required: true } },
+  setup() {
+    return { branding: useBranding().branding }
+  },
   data() {
     return {
       doc: null,
@@ -245,6 +249,16 @@ export default {
     }
   },
   computed: {
+    // Business block: invoice settings + the company logo (Settings → Business details).
+    business() {
+      const s = this.settings || {}
+      const b = this.branding
+      return {
+        ...s,
+        business_name: s.business_name || b.orgName || '',
+        logo_url: b.loaded ? b.logoUrl : s.logo_url || ''
+      }
+    },
     isQuote() {
       return this.doc?.doc_type === 'quote'
     },
