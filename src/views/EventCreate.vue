@@ -1,1927 +1,948 @@
 <template>
-  <div class="event-create-page">
-    <!-- Progress Header -->
-    <div class="progress-header">
-      <div class="progress-content">
-        <h1 class="page-title">
-          <i class="fas fa-plus-circle"></i>
-          Create New Event
-        </h1>
-        <div class="progress-indicator">
-          <div class="progress-steps">
-            <div
-              v-for="(step, index) in steps"
-              :key="index"
-              class="progress-step"
-              :class="{
-                active: currentStep === index,
-                completed: currentStep > index
-              }"
-              @click="goToStep(index)"
-            >
-              <div class="step-circle">
-                <i v-if="currentStep > index" class="fas fa-check"></i>
-                <span v-else>{{ index + 1 }}</span>
-              </div>
-              <span class="step-label">{{ step.title }}</span>
-            </div>
-          </div>
-          <div class="progress-bar">
-            <div
-              class="progress-fill"
-              :style="{ width: `${(currentStep / (steps.length - 1)) * 100}%` }"
-            ></div>
-          </div>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">
+          <router-link to="/events" class="crumb"><i class="fa-solid fa-arrow-left"></i> Events</router-link>
         </div>
+        <h1>{{ isEdit ? 'Edit event' : 'New event' }}</h1>
+        <p>{{ isEdit ? 'Update details, tickets and publishing settings.' : 'Set up the details, add ticket types and publish when you are ready.' }}</p>
       </div>
+      <div class="ui-actions">
+        <button class="ui-btn" :disabled="saving" @click="cancel">Cancel</button>
+        <button v-if="!isEdit || form.status === 'draft'" class="ui-btn" :disabled="saving || loading" @click="save('draft')">
+          <i :class="saving === 'draft' ? 'fa-solid fa-circle-notch fa-spin' : 'fa-regular fa-floppy-disk'"></i> Save draft
+        </button>
+        <button class="ui-btn ui-btn--primary" :disabled="saving || loading" @click="save(primaryStatus)">
+          <i :class="saving && saving !== 'draft' ? 'fa-solid fa-circle-notch fa-spin' : primaryIcon"></i> {{ primaryLabel }}
+        </button>
+      </div>
+    </header>
+
+    <div v-if="loadError" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ loadError }} <a href="#" @click.prevent="loadEvent">Try again</a></span></div>
+
+    <div v-else-if="loading" class="layout">
+      <div class="ui-card"><div class="ui-card__body"><div v-for="n in 8" :key="n" class="ui-skeleton" style="height: 38px; margin-bottom: 14px"></div></div></div>
     </div>
 
-    <!-- Form Content -->
-    <div class="form-container">
-      <!-- Step 1: Basic Information -->
-      <div v-if="currentStep === 0" class="form-step">
-        <div class="step-header">
-          <h2>Event Information</h2>
-          <p>Tell us about your event</p>
+    <form v-else class="layout" novalidate @submit.prevent="save(primaryStatus)">
+      <nav class="steps" aria-label="Form sections">
+        <a v-for="(s, i) in sections" :key="s.id" :href="`#${s.id}`" class="step" :class="{ 'is-active': active === s.id, 'has-error': sectionHasError(s.id) }" @click.prevent="scrollTo(s.id)">
+          <span class="step__n">
+            <i v-if="sectionHasError(s.id)" class="fa-solid fa-exclamation"></i>
+            <i v-else-if="sectionDone(s.id)" class="fa-solid fa-check"></i>
+            <template v-else>{{ i + 1 }}</template>
+          </span>
+          <span>{{ s.label }}</span>
+        </a>
+        <div class="summary">
+          <div class="summary__row"><span>Tickets</span><strong>{{ form.ticket_types.length }}</strong></div>
+          <div class="summary__row"><span>Capacity</span><strong>{{ capacitySummary }}</strong></div>
+          <div class="summary__row"><span>Price</span><strong>{{ priceSummary }}</strong></div>
         </div>
+      </nav>
 
-        <div class="form-grid">
-          <div class="form-group full-width">
-            <label class="required">Event Title</label>
-            <input
-              v-model="event.title"
-              type="text"
-              placeholder="Enter an engaging title for your event"
-              class="form-input"
-              required
-            />
-            <div class="input-help">Make it catchy and descriptive!</div>
-          </div>
+      <div class="sections">
+        <div v-if="formError" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ formError }}</span></div>
 
-          <div class="form-group full-width">
-            <label>Short Description</label>
-            <input
-              v-model="event.short_description"
-              type="text"
-              placeholder="A brief one-liner about your event"
-              class="form-input"
-              maxlength="500"
-            />
-            <div class="char-counter">{{ (event.short_description || '').length }}/500</div>
-          </div>
-
-          <div class="form-group full-width">
-            <label class="required">Full Description</label>
-            <textarea
-              v-model="event.description"
-              placeholder="Provide a detailed description of your event..."
-              class="form-textarea"
-              rows="6"
-              required
-            ></textarea>
-            <div class="input-help">Include what attendees can expect, key highlights, and any special features.</div>
-          </div>
-
-          <div class="form-group">
-            <label class="required">Category</label>
-            <select v-model="event.category" class="form-select" required>
-              <option value="">Select a category</option>
-              <option v-for="category in categories" :key="category.id" :value="category.name">
-                {{ category.name }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="required">Event Type</label>
-            <div class="radio-group">
-              <label class="radio-option">
-                <input
-                  v-model="event.type"
-                  type="radio"
-                  value="in_person"
-                  name="event_type"
-                />
-                <div class="radio-content">
-                  <i class="fas fa-users"></i>
-                  <div>
-                    <strong>In Person</strong>
-                    <span>Physical venue</span>
-                  </div>
-                </div>
-              </label>
-              <label class="radio-option">
-                <input
-                  v-model="event.type"
-                  type="radio"
-                  value="online"
-                  name="event_type"
-                />
-                <div class="radio-content">
-                  <i class="fas fa-laptop"></i>
-                  <div>
-                    <strong>Online</strong>
-                    <span>Virtual event</span>
-                  </div>
-                </div>
-              </label>
-              <label class="radio-option">
-                <input
-                  v-model="event.type"
-                  type="radio"
-                  value="hybrid"
-                  name="event_type"
-                />
-                <div class="radio-content">
-                  <i class="fas fa-globe"></i>
-                  <div>
-                    <strong>Hybrid</strong>
-                    <span>Both online & in-person</span>
-                  </div>
-                </div>
-              </label>
+        <!-- Basics -->
+        <section id="basics" class="ui-card">
+          <div class="ui-card__head"><h2><i class="fa-regular fa-pen-to-square"></i> Basics</h2></div>
+          <div class="ui-card__body stack">
+            <div class="ui-field">
+              <label for="ev-title">Event title *</label>
+              <input id="ev-title" v-model.trim="form.title" class="ui-input" :class="{ 'is-invalid': errors.title }" maxlength="255" placeholder="e.g. Spring Product Launch" />
+              <div v-if="errors.title" class="err">{{ errors.title }}</div>
             </div>
-          </div>
-
-          <div class="form-group full-width">
-            <label>Tags</label>
-            <div class="tags-input">
-              <div class="tags-list">
-                <span
-                  v-for="(tag, index) in eventTags"
-                  :key="index"
-                  class="tag"
-                >
-                  {{ tag }}
-                  <button @click="removeTag(index)" class="tag-remove">
-                    <i class="fas fa-times"></i>
-                  </button>
-                </span>
+            <div class="ui-field">
+              <label for="ev-summary">Summary</label>
+              <input id="ev-summary" v-model="form.short_description" class="ui-input" maxlength="500" placeholder="One line that tells people why they should come" />
+            </div>
+            <div class="ui-field">
+              <label for="ev-desc">Description</label>
+              <textarea id="ev-desc" v-model="form.description" class="ui-textarea" rows="6" placeholder="Agenda, speakers, what to bring…"></textarea>
+            </div>
+            <div class="ui-grid-2">
+              <div class="ui-field">
+                <label for="ev-cat">Category</label>
+                <input id="ev-cat" v-model.trim="form.category" class="ui-input" list="ev-cats" placeholder="Choose or type a category" />
+                <datalist id="ev-cats"><option v-for="c in categories" :key="c" :value="c"></option></datalist>
               </div>
-              <input
-                v-model="newTag"
-                @keydown.enter.prevent="addTag"
-                @keydown.comma.prevent="addTag"
-                type="text"
-                placeholder="Add tags (press Enter or comma to add)"
-                class="tag-input"
-              />
-            </div>
-            <div class="input-help">Add relevant tags to help people discover your event</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 2: Date & Time -->
-      <div v-if="currentStep === 1" class="form-step">
-        <div class="step-header">
-          <h2>Date & Time</h2>
-          <p>When is your event happening?</p>
-        </div>
-
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="required">Start Date</label>
-            <input
-              v-model="event.start_date"
-              type="datetime-local"
-              class="form-input"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="required">End Date</label>
-            <input
-              v-model="event.end_date"
-              type="datetime-local"
-              class="form-input"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label>Timezone</label>
-            <select v-model="event.timezone" class="form-select">
-              <option value="Australia/Sydney">Australia/Sydney (AEDT)</option>
-              <option value="Australia/Melbourne">Australia/Melbourne (AEDT)</option>
-              <option value="Australia/Brisbane">Australia/Brisbane (AEST)</option>
-              <option value="Australia/Perth">Australia/Perth (AWST)</option>
-              <option value="Australia/Adelaide">Australia/Adelaide (ACDT)</option>
-              <option value="UTC">UTC</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Duration (minutes)</label>
-            <input
-              v-model.number="event.duration"
-              type="number"
-              placeholder="120"
-              class="form-input"
-              min="15"
-              step="15"
-            />
-            <div class="input-help">{{ formatDuration(event.duration) }}</div>
-          </div>
-
-          <!-- Quick Duration Buttons -->
-          <div class="form-group full-width">
-            <label>Quick Duration</label>
-            <div class="duration-buttons">
-              <button
-                v-for="duration in quickDurations"
-                :key="duration.value"
-                type="button"
-                class="duration-btn"
-                :class="{ active: event.duration === duration.value }"
-                @click="event.duration = duration.value"
-              >
-                {{ duration.label }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Event Schedule Preview -->
-          <div class="form-group full-width">
-            <div class="schedule-preview">
-              <h4>Event Schedule Preview</h4>
-              <div v-if="event.start_date && event.end_date" class="schedule-info">
-                <div class="schedule-item">
-                  <i class="fas fa-play"></i>
-                  <span>Starts: {{ formatDateTime(event.start_date) }}</span>
-                </div>
-                <div class="schedule-item">
-                  <i class="fas fa-stop"></i>
-                  <span>Ends: {{ formatDateTime(event.end_date) }}</span>
-                </div>
-                <div class="schedule-item">
-                  <i class="fas fa-clock"></i>
-                  <span>Duration: {{ getEventDuration() }}</span>
-                </div>
-              </div>
-              <div v-else class="schedule-placeholder">
-                Set start and end dates to see schedule preview
+              <div class="ui-field">
+                <label for="ev-tags">Tags</label>
+                <input id="ev-tags" v-model="form.tags" class="ui-input" placeholder="Comma separated, e.g. marketing, launch" />
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 3: Location -->
-      <div v-if="currentStep === 2" class="form-step">
-        <div class="step-header">
-          <h2>Location Details</h2>
-          <p>Where will your event take place?</p>
-        </div>
-
-        <!-- In-Person Location -->
-        <div v-if="event.type === 'in_person' || event.type === 'hybrid'" class="location-section">
-          <h3>
-            <i class="fas fa-map-marker-alt"></i>
-            Physical Venue
-          </h3>
-
-          <div class="form-grid">
-            <div class="form-group full-width">
-              <label class="required">Venue Name</label>
-              <input
-                v-model="event.venue_name"
-                type="text"
-                placeholder="Enter venue name"
-                class="form-input"
-                required
-              />
-            </div>
-
-            <div class="form-group full-width">
-              <label class="required">Street Address</label>
-              <input
-                v-model="event.venue_address_street"
-                type="text"
-                placeholder="123 Main Street"
-                class="form-input"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="required">City</label>
-              <input
-                v-model="event.venue_address_city"
-                type="text"
-                placeholder="Sydney"
-                class="form-input"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="required">State</label>
-              <select v-model="event.venue_address_state" class="form-select" required>
-                <option value="">Select state</option>
-                <option value="NSW">NSW</option>
-                <option value="VIC">VIC</option>
-                <option value="QLD">QLD</option>
-                <option value="WA">WA</option>
-                <option value="SA">SA</option>
-                <option value="TAS">TAS</option>
-                <option value="ACT">ACT</option>
-                <option value="NT">NT</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="required">Postcode</label>
-              <input
-                v-model="event.venue_address_postcode"
-                type="text"
-                placeholder="2000"
-                class="form-input"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label>Country</label>
-              <input
-                v-model="event.venue_address_country"
-                type="text"
-                value="Australia"
-                class="form-input"
-                readonly
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- Online Location -->
-        <div v-if="event.type === 'online' || event.type === 'hybrid'" class="location-section">
-          <h3>
-            <i class="fas fa-laptop"></i>
-            Online Platform
-          </h3>
-
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="required">Platform</label>
-              <select v-model="event.online_platform" class="form-select" required>
-                <option value="">Select platform</option>
-                <option value="Zoom">Zoom</option>
-                <option value="Microsoft Teams">Microsoft Teams</option>
-                <option value="Google Meet">Google Meet</option>
-                <option value="WebEx">WebEx</option>
-                <option value="YouTube Live">YouTube Live</option>
-                <option value="Facebook Live">Facebook Live</option>
-                <option value="Custom Platform">Custom Platform</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Meeting URL</label>
-              <input
-                v-model="event.online_url"
-                type="url"
-                placeholder="https://zoom.us/j/123456789"
-                class="form-input"
-              />
-              <div class="input-help">This will be shared with registered attendees</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 4: Tickets & Pricing -->
-      <div v-if="currentStep === 3" class="form-step">
-        <div class="step-header">
-          <h2>Tickets & Pricing</h2>
-          <p>Set up your ticket types and pricing</p>
-        </div>
-
-        <div class="pricing-options">
-          <div class="pricing-toggle">
-            <label class="toggle-option">
-              <input
-                v-model="event.is_free"
-                type="radio"
-                :value="true"
-                name="pricing_type"
-                @change="handlePricingChange"
-              />
-              <div class="toggle-content">
-                <i class="fas fa-gift"></i>
-                <div>
-                  <strong>Free Event</strong>
-                  <span>No charge for attendees</span>
-                </div>
-              </div>
-            </label>
-            <label class="toggle-option">
-              <input
-                v-model="event.is_free"
-                type="radio"
-                :value="false"
-                name="pricing_type"
-                @change="handlePricingChange"
-              />
-              <div class="toggle-content">
-                <i class="fas fa-ticket-alt"></i>
-                <div>
-                  <strong>Paid Event</strong>
-                  <span>Charge for tickets</span>
-                </div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <!-- Free Event -->
-        <div v-if="event.is_free" class="free-event-section">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Maximum Capacity</label>
-              <input
-                v-model.number="event.max_capacity"
-                type="number"
-                placeholder="100"
-                class="form-input"
-                min="1"
-              />
-              <div class="input-help">Leave empty for unlimited capacity</div>
-            </div>
-
-            <div class="form-group">
-              <label>Approval Required</label>
-              <div class="toggle-switch">
-                <input
-                  v-model="event.requires_approval"
-                  type="checkbox"
-                  id="approval_required"
-                  class="toggle-input"
-                />
-                <label for="approval_required" class="toggle-label">
-                  <span class="toggle-slider"></span>
-                </label>
-                <span class="toggle-text">
-                  {{ event.requires_approval ? 'Manual approval required' : 'Automatic registration' }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Paid Event -->
-        <div v-if="!event.is_free" class="paid-event-section">
-          <div class="ticket-types-header">
-            <h3>Ticket Types</h3>
-            <button type="button" class="btn btn-outline-primary" @click="addTicketType">
-              <i class="fas fa-plus"></i>
-              Add Ticket Type
-            </button>
-          </div>
-
-          <div class="ticket-types-list">
-            <div
-              v-for="(ticket, index) in event.ticket_types"
-              :key="index"
-              class="ticket-type-card"
-            >
-              <div class="ticket-header">
-                <h4>Ticket Type {{ index + 1 }}</h4>
-                <button
-                  v-if="event.ticket_types.length > 1"
-                  type="button"
-                  class="btn-remove"
-                  @click="removeTicketType(index)"
-                >
-                  <i class="fas fa-trash"></i>
-                </button>
-              </div>
-
-              <div class="form-grid">
-                <div class="form-group">
-                  <label class="required">Ticket Name</label>
-                  <input
-                    v-model="ticket.name"
-                    type="text"
-                    placeholder="General Admission"
-                    class="form-input"
-                    required
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label class="required">Price (AUD)</label>
-                  <div class="price-input">
-                    <span class="currency">$</span>
-                    <input
-                      v-model.number="ticket.price"
-                      type="number"
-                      placeholder="0.00"
-                      class="form-input"
-                      min="0"
-                      step="0.01"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label class="required">Quantity Available</label>
-                  <input
-                    v-model.number="ticket.quantity"
-                    type="number"
-                    placeholder="100"
-                    class="form-input"
-                    min="1"
-                    required
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label>Max Per Order</label>
-                  <input
-                    v-model.number="ticket.max_per_order"
-                    type="number"
-                    placeholder="10"
-                    class="form-input"
-                    min="1"
-                    :max="ticket.quantity"
-                  />
-                </div>
-
-                <div class="form-group full-width">
-                  <label>Description</label>
-                  <textarea
-                    v-model="ticket.description"
-                    placeholder="Describe what's included with this ticket type..."
-                    class="form-textarea"
-                    rows="3"
-                  ></textarea>
-                </div>
-
-                <div class="form-group">
-                  <label>Sale Start Date</label>
-                  <input
-                    v-model="ticket.sale_start_date"
-                    type="datetime-local"
-                    class="form-input"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label>Sale End Date</label>
-                  <input
-                    v-model="ticket.sale_end_date"
-                    type="datetime-local"
-                    class="form-input"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Capacity Settings -->
-          <div class="capacity-section">
-            <h3>Capacity Settings</h3>
-            <div class="form-grid">
-              <div class="form-group">
-                <label>Total Event Capacity</label>
-                <input
-                  v-model.number="event.max_capacity"
-                  type="number"
-                  placeholder="Leave empty for unlimited"
-                  class="form-input"
-                  min="1"
-                />
-                <div class="input-help">
-                  Total tickets available: {{ getTotalTickets() }}
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>Allow Waitlist</label>
-                <div class="toggle-switch">
-                  <input
-                    v-model="event.allow_waitlist"
-                    type="checkbox"
-                    id="allow_waitlist"
-                    class="toggle-input"
-                  />
-                  <label for="allow_waitlist" class="toggle-label">
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span class="toggle-text">
-                    {{ event.allow_waitlist ? 'Waitlist enabled' : 'No waitlist' }}
+            <div class="ui-field">
+              <label>Format</label>
+              <div class="seg" role="radiogroup" aria-label="Event format">
+                <button v-for="t in types" :key="t.value" type="button" class="seg__opt" role="radio" :aria-checked="form.type === t.value" :class="{ 'is-on': form.type === t.value }" @click="form.type = t.value">
+                  <i :class="t.icon"></i>
+                  <span>
+                    <strong>{{ t.label }}</strong>
+                    <small>{{ typeHelp[t.value] }}</small>
                   </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- When -->
+        <section id="when" class="ui-card">
+          <div class="ui-card__head"><h2><i class="fa-regular fa-clock"></i> Date &amp; time</h2></div>
+          <div class="ui-card__body stack">
+            <div class="ui-grid-2">
+              <div class="ui-field">
+                <label for="ev-start">Starts *</label>
+                <input id="ev-start" v-model="form.start" type="datetime-local" class="ui-input" :class="{ 'is-invalid': errors.start }" @change="onStartChange" />
+                <div v-if="errors.start" class="err">{{ errors.start }}</div>
+              </div>
+              <div class="ui-field">
+                <label for="ev-end">Ends *</label>
+                <input id="ev-end" v-model="form.end" type="datetime-local" class="ui-input" :class="{ 'is-invalid': errors.end }" :min="form.start" />
+                <div v-if="errors.end" class="err">{{ errors.end }}</div>
+              </div>
+            </div>
+            <div class="ui-hint"><i class="fa-solid fa-globe"></i> Times are in your timezone ({{ form.timezone }}){{ durationLabel ? ` · ${durationLabel}` : '' }}</div>
+          </div>
+        </section>
+
+        <!-- Where -->
+        <section id="where" class="ui-card">
+          <div class="ui-card__head"><h2><i class="fa-solid fa-location-dot"></i> Location</h2></div>
+          <div class="ui-card__body stack">
+            <template v-if="form.type !== 'online'">
+              <div class="ui-field">
+                <label for="ev-venue">Venue name {{ form.type !== 'online' ? '*' : '' }}</label>
+                <input id="ev-venue" v-model="form.venue_name" class="ui-input" :class="{ 'is-invalid': errors.venue }" placeholder="e.g. Town Hall, Room 2" />
+                <div v-if="errors.venue" class="err">{{ errors.venue }}</div>
+              </div>
+              <div class="ui-field">
+                <label for="ev-street">Street address</label>
+                <input id="ev-street" v-model="form.address.street" class="ui-input" autocomplete="street-address" />
+              </div>
+              <div class="grid-4">
+                <div class="ui-field"><label for="ev-sub">Suburb / city</label><input id="ev-sub" v-model="form.address.suburb" class="ui-input" /></div>
+                <div class="ui-field"><label for="ev-state">State</label><input id="ev-state" v-model="form.address.state" class="ui-input" /></div>
+                <div class="ui-field"><label for="ev-pc">Postcode</label><input id="ev-pc" v-model="form.address.postcode" class="ui-input" /></div>
+                <div class="ui-field"><label for="ev-country">Country</label><input id="ev-country" v-model="form.address.country" class="ui-input" /></div>
+              </div>
+            </template>
+            <div v-if="form.type !== 'in_person'" class="ui-grid-2">
+              <div class="ui-field">
+                <label for="ev-url">Online URL *</label>
+                <input id="ev-url" v-model.trim="form.online_url" type="url" class="ui-input" :class="{ 'is-invalid': errors.online_url }" placeholder="https://…" />
+                <div v-if="errors.online_url" class="err">{{ errors.online_url }}</div>
+                <div v-else class="ui-hint">Only shown to registered attendees.</div>
+              </div>
+              <div class="ui-field">
+                <label for="ev-plat">Platform</label>
+                <select id="ev-plat" v-model="form.online_platform" class="ui-select">
+                  <option value="">Select…</option>
+                  <option>Zoom</option>
+                  <option>Microsoft Teams</option>
+                  <option>Google Meet</option>
+                  <option>YouTube Live</option>
+                  <option>Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tickets -->
+        <section id="tickets" class="ui-card">
+          <div class="ui-card__head">
+            <h2><i class="fa-solid fa-ticket"></i> Tickets &amp; capacity</h2>
+            <button type="button" class="ui-btn ui-btn--sm" @click="addTicket"><i class="fa-solid fa-plus"></i> Add ticket type</button>
+          </div>
+          <div class="ui-card__body stack">
+            <div class="ui-grid-2">
+              <div class="ui-field">
+                <label for="ev-cap">Event capacity</label>
+                <input id="ev-cap" v-model.number="form.max_capacity" type="number" min="0" class="ui-input" :class="{ 'is-invalid': errors.max_capacity }" placeholder="0 = unlimited" />
+                <div v-if="errors.max_capacity" class="err">{{ errors.max_capacity }}</div>
+                <div v-else class="ui-hint">Total seats across all tickets. Leave 0 for unlimited.</div>
+              </div>
+              <div class="ui-field">
+                <label for="ev-cur">Currency</label>
+                <select id="ev-cur" v-model="form.currency" class="ui-select">
+                  <option v-for="c in currencies" :key="c" :value="c">{{ c }}</option>
+                </select>
+              </div>
+            </div>
+
+            <div v-if="errors.tickets" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ errors.tickets }}</span></div>
+
+            <div class="tickets">
+              <div v-for="(t, i) in form.ticket_types" :key="t._key" class="ticket" :class="{ 'is-off': !t.is_active }">
+                <div class="ticket__grid">
+                  <div class="ui-field t-name">
+                    <label :for="`t-name-${i}`">Ticket name *</label>
+                    <input :id="`t-name-${i}`" v-model="t.name" class="ui-input" :class="{ 'is-invalid': ticketErr(i, 'name') }" placeholder="General admission" />
+                  </div>
+                  <div class="ui-field">
+                    <label :for="`t-price-${i}`">Price ({{ form.currency }})</label>
+                    <input :id="`t-price-${i}`" v-model.number="t.price" type="number" min="0" step="0.01" class="ui-input num" :class="{ 'is-invalid': ticketErr(i, 'price') }" placeholder="0.00" />
+                  </div>
+                  <div class="ui-field">
+                    <label :for="`t-qty-${i}`">Quantity</label>
+                    <input :id="`t-qty-${i}`" v-model.number="t.quantity" type="number" min="0" class="ui-input num" :class="{ 'is-invalid': ticketErr(i, 'quantity') }" placeholder="0 = unlimited" />
+                  </div>
+                  <div class="ui-field">
+                    <label :for="`t-max-${i}`">Max / order</label>
+                    <input :id="`t-max-${i}`" v-model.number="t.max_per_order" type="number" min="1" max="100" class="ui-input num" />
+                  </div>
+                  <div class="ui-field t-desc">
+                    <label :for="`t-desc-${i}`">Description</label>
+                    <input :id="`t-desc-${i}`" v-model="t.description" class="ui-input" placeholder="Optional — what's included" />
+                  </div>
+                </div>
+                <div class="ticket__foot">
+                  <label class="ui-switch"><input v-model="t.is_active" type="checkbox" /> On sale</label>
+                  <span v-if="t.sold_quantity" class="muted"><i class="fa-solid fa-ticket"></i> {{ t.sold_quantity }} sold</span>
+                  <span class="muted t-info">{{ t.price > 0 ? money(t.price) : 'Free' }}{{ t.quantity > 0 ? ` · ${t.quantity} available` : ' · unlimited' }}</span>
+                  <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon rm" :aria-label="`Remove ticket ${t.name || i + 1}`" :disabled="form.ticket_types.length === 1" @click="removeTicket(i)"><i class="fa-regular fa-trash-can"></i></button>
                 </div>
               </div>
             </div>
+            <div class="ui-hint">Tickets that already have registrations are taken off sale instead of deleted.</div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <!-- Step 5: Media & Publishing -->
-      <div v-if="currentStep === 4" class="form-step">
-        <div class="step-header">
-          <h2>Media & Publishing</h2>
-          <p>Add images and set publishing options</p>
-        </div>
-
-        <div class="media-section">
-          <h3>Event Images</h3>
-
-          <div class="cover-image-section">
-            <label>Cover Image</label>
-            <div class="image-upload-area">
-              <div v-if="event.cover_image_url" class="image-preview">
-                <img :src="event.cover_image_url" alt="Cover image" />
-                <button type="button" class="btn-remove-image" @click="removeCoverImage">
-                  <i class="fas fa-trash"></i>
-                </button>
+        <!-- Media & settings -->
+        <section id="settings" class="ui-card">
+          <div class="ui-card__head"><h2><i class="fa-solid fa-sliders"></i> Media &amp; settings</h2></div>
+          <div class="ui-card__body stack">
+            <div class="cover-row">
+              <div class="ui-field" style="flex: 1">
+                <label for="ev-cover">Cover image URL</label>
+                <input id="ev-cover" v-model.trim="form.cover_image_url" type="url" class="ui-input" :class="{ 'is-invalid': errors.cover }" placeholder="https://…/image.jpg" @input="coverBroken = false" />
+                <div v-if="errors.cover" class="err">{{ errors.cover }}</div>
+                <div v-else class="ui-hint">Landscape images around 1600×800 work best.</div>
               </div>
-              <div v-else class="upload-placeholder">
-                <i class="fas fa-cloud-upload-alt"></i>
-                <p>Upload a cover image</p>
-                <span>Recommended: 1200x630px, JPG or PNG</span>
-                <button type="button" class="btn btn-primary">Choose File</button>
+              <div class="cover-preview" :class="{ empty: !form.cover_image_url || coverBroken }">
+                <img v-if="form.cover_image_url && !coverBroken" :src="form.cover_image_url" alt="Cover preview" @error="coverBroken = true" />
+                <span v-else><i class="fa-regular fa-image"></i>{{ coverBroken ? 'Image could not load' : 'No image' }}</span>
               </div>
             </div>
-          </div>
-
-          <div class="video-section">
-            <div class="form-group">
-              <label>Video URL (Optional)</label>
-              <input
-                v-model="event.video_url"
-                type="url"
-                placeholder="https://youtube.com/watch?v=..."
-                class="form-input"
-              />
-              <div class="input-help">Add a promotional video for your event</div>
+            <div class="ui-grid-2">
+              <div class="ui-field">
+                <label for="ev-cname">Contact name</label>
+                <input id="ev-cname" v-model="form.contact_name" class="ui-input" placeholder="Organiser shown on the event page" />
+              </div>
+              <div class="ui-field">
+                <label for="ev-cemail">Contact email</label>
+                <input id="ev-cemail" v-model.trim="form.contact_email" type="email" class="ui-input" :class="{ 'is-invalid': errors.contact_email }" />
+                <div v-if="errors.contact_email" class="err">{{ errors.contact_email }}</div>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div class="publishing-section">
-          <h3>Publishing Options</h3>
-
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Event Status</label>
-              <select v-model="event.status" class="form-select">
-                <option value="draft">Draft - Not visible to public</option>
-                <option value="published">Published - Live and visible</option>
+            <div class="toggles">
+              <label class="toggle">
+                <span><strong>Public registration page</strong><small>Anyone with the link can view the event and register.</small></span>
+                <span class="ui-switch"><input v-model="form.is_public" type="checkbox" aria-label="Public registration page" /></span>
+              </label>
+              <label class="toggle">
+                <span><strong>Require approval</strong><small>New public registrations start as pending until you confirm them.</small></span>
+                <span class="ui-switch"><input v-model="form.requires_approval" type="checkbox" aria-label="Require approval" /></span>
+              </label>
+              <label class="toggle">
+                <span><strong>Waitlist when sold out</strong><small>Let people join a waitlist once tickets run out.</small></span>
+                <span class="ui-switch"><input v-model="form.allow_waitlist" type="checkbox" aria-label="Waitlist when sold out" /></span>
+              </label>
+            </div>
+            <div v-if="isEdit" class="ui-field" style="max-width: 280px">
+              <label for="ev-status">Status</label>
+              <select id="ev-status" v-model="form.status" class="ui-select">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
               </select>
             </div>
-
-            <div class="form-group">
-              <label>Visibility</label>
-              <div class="toggle-switch">
-                <input
-                  v-model="event.is_public"
-                  type="checkbox"
-                  id="is_public"
-                  class="toggle-input"
-                />
-                <label for="is_public" class="toggle-label">
-                  <span class="toggle-slider"></span>
-                </label>
-                <span class="toggle-text">
-                  {{ event.is_public ? 'Public - Anyone can find this event' : 'Private - Only people with link can view' }}
-                </span>
-              </div>
-            </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Event Summary -->
-        <div class="event-summary">
-          <h3>Event Summary</h3>
-          <div class="summary-card">
-            <div class="summary-header">
-              <h4>{{ event.title || 'Your Event Title' }}</h4>
-              <div class="summary-badges">
-                <span class="badge" :class="`badge-${event.type}`">{{ formatEventType(event.type) }}</span>
-                <span class="badge" :class="`badge-${event.status}`">{{ formatStatus(event.status) }}</span>
-              </div>
-            </div>
-
-            <div class="summary-details">
-              <div class="summary-item">
-                <i class="fas fa-calendar"></i>
-                <span>{{ formatEventDate() }}</span>
-              </div>
-              <div class="summary-item">
-                <i class="fas fa-map-marker-alt"></i>
-                <span>{{ getEventLocation() }}</span>
-              </div>
-              <div class="summary-item">
-                <i class="fas fa-ticket-alt"></i>
-                <span>{{ getEventPrice() }}</span>
-              </div>
-              <div v-if="event.max_capacity" class="summary-item">
-                <i class="fas fa-users"></i>
-                <span>Max {{ event.max_capacity }} attendees</span>
-              </div>
-            </div>
-          </div>
+        <div class="bottom-actions">
+          <button type="button" class="ui-btn" :disabled="saving" @click="cancel">Cancel</button>
+          <button v-if="!isEdit || form.status === 'draft'" type="button" class="ui-btn" :disabled="saving" @click="save('draft')">Save draft</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving"><i :class="saving && saving !== 'draft' ? 'fa-solid fa-circle-notch fa-spin' : primaryIcon"></i> {{ primaryLabel }}</button>
         </div>
       </div>
-
-      <!-- Navigation Buttons -->
-      <div class="form-navigation">
-        <button
-          v-if="currentStep > 0"
-          type="button"
-          class="btn btn-outline-secondary"
-          @click="previousStep"
-        >
-          <i class="fas fa-arrow-left"></i>
-          Previous
-        </button>
-
-        <div class="nav-spacer"></div>
-
-        <button
-          v-if="currentStep < steps.length - 1"
-          type="button"
-          class="btn btn-primary"
-          @click="nextStep"
-          :disabled="!isCurrentStepValid()"
-        >
-          Next
-          <i class="fas fa-arrow-right"></i>
-        </button>
-
-        <button
-          v-if="currentStep === steps.length - 1"
-          type="button"
-          class="btn btn-success"
-          @click="createEvent"
-          :disabled="creating || !isCurrentStepValid()"
-        >
-          <i v-if="creating" class="fas fa-spinner fa-spin"></i>
-          <i v-else class="fas fa-check"></i>
-          {{ creating ? 'Creating...' : 'Create Event' }}
-        </button>
-      </div>
-    </div>
+    </form>
   </div>
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { eventsApi, EVENT_TYPES } from '@/services/events'
+import { apiErrorMessage } from '@/services/api'
+import { formatMoney } from '@/utils/format'
+import { toast } from '@/composables/useToast'
+
+let keySeq = 0
+const pad = (n) => String(n).padStart(2, '0')
+function toLocalInput(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function newTicket(over = {}) {
+  return { _key: ++keySeq, id: '', name: '', price: 0, quantity: 0, max_per_order: 10, description: '', is_active: true, sold_quantity: 0, ...over }
+}
+function emptyForm() {
+  let tz = 'UTC'
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    /* ignore */
+  }
+  return {
+    title: '',
+    short_description: '',
+    description: '',
+    category: '',
+    tags: '',
+    type: 'in_person',
+    status: 'draft',
+    start: '',
+    end: '',
+    timezone: tz,
+    venue_name: '',
+    address: { street: '', suburb: '', state: '', postcode: '', country: 'Australia' },
+    online_url: '',
+    online_platform: '',
+    max_capacity: 0,
+    currency: 'AUD',
+    cover_image_url: '',
+    contact_name: '',
+    contact_email: '',
+    is_public: true,
+    requires_approval: false,
+    allow_waitlist: false,
+    ticket_types: [newTicket({ name: 'General admission' })]
+  }
+}
 
 export default {
   name: 'EventCreate',
-  setup() {
-    const router = useRouter()
-
-    // State
-    const currentStep = ref(0)
-    const creating = ref(false)
-    const newTag = ref('')
-
-    const steps = [
-      { title: 'Basic Info', description: 'Event details' },
-      { title: 'Date & Time', description: 'When it happens' },
-      { title: 'Location', description: 'Where it happens' },
-      { title: 'Tickets', description: 'Pricing & capacity' },
-      { title: 'Publish', description: 'Media & settings' }
-    ]
-
-    const categories = ref([
-      { id: 'cat_001', name: 'Technology', icon: 'fas fa-laptop', color: '#3b82f6' },
-      { id: 'cat_002', name: 'Business', icon: 'fas fa-briefcase', color: '#059669' },
-      { id: 'cat_003', name: 'Entertainment', icon: 'fas fa-music', color: '#dc2626' },
-      { id: 'cat_004', name: 'Education', icon: 'fas fa-graduation-cap', color: '#7c3aed' },
-      { id: 'cat_005', name: 'Health', icon: 'fas fa-heartbeat', color: '#ea580c' },
-      { id: 'cat_006', name: 'Sports', icon: 'fas fa-futbol', color: '#16a34a' }
-    ])
-
-    const quickDurations = [
-      { label: '30 min', value: 30 },
-      { label: '1 hour', value: 60 },
-      { label: '2 hours', value: 120 },
-      { label: '4 hours', value: 240 },
-      { label: '1 day', value: 480 },
-      { label: '2 days', value: 960 }
-    ]
-
-    // Event data
-    const event = ref({
-      title: '',
-      description: '',
-      short_description: '',
-      category: '',
-      type: 'in_person',
-      status: 'draft',
-      start_date: '',
-      end_date: '',
-      timezone: 'Australia/Sydney',
-      duration: 120,
-      venue_name: '',
-      venue_address_street: '',
-      venue_address_city: '',
-      venue_address_state: '',
-      venue_address_postcode: '',
-      venue_address_country: 'Australia',
-      online_platform: '',
-      online_url: '',
-      is_free: true,
-      base_price: 0,
-      max_capacity: null,
-      cover_image_url: '',
-      video_url: '',
-      is_public: true,
-      requires_approval: false,
-      allow_waitlist: false,
-      tags: '',
-      ticket_types: []
-    })
-
-    const eventTags = ref([])
-
-    // Computed properties
-    const isCurrentStepValid = () => {
-      switch (currentStep.value) {
-        case 0: // Basic Info
-          return event.value.title && event.value.description && event.value.category && event.value.type
-        case 1: // Date & Time
-          return event.value.start_date && event.value.end_date
-        case 2: // Location
-          if (event.value.type === 'online') {
-            return event.value.online_platform
-          } else if (event.value.type === 'in_person') {
-            return event.value.venue_name && event.value.venue_address_city && event.value.venue_address_state
-          } else if (event.value.type === 'hybrid') {
-            return event.value.venue_name && event.value.venue_address_city && event.value.venue_address_state && event.value.online_platform
-          }
-          return true
-        case 3: // Tickets
-          if (event.value.is_free) {
-            return true
-          } else {
-            return event.value.ticket_types.length > 0 && event.value.ticket_types.every(ticket =>
-              ticket.name && ticket.price >= 0 && ticket.quantity > 0
-            )
-          }
-        case 4: // Publish
-          return true
-        default:
-          return true
-      }
-    }
-
-    // Methods
-    const formatDuration = (minutes) => {
-      if (!minutes) return ''
-      const hours = Math.floor(minutes / 60)
-      const mins = minutes % 60
-      if (hours === 0) return `${mins} minutes`
-      if (mins === 0) return `${hours} hour${hours > 1 ? 's' : ''}`
-      return `${hours} hour${hours > 1 ? 's' : ''} ${mins} minutes`
-    }
-
-    const formatDateTime = (dateString) => {
-      if (!dateString) return ''
-      return new Date(dateString).toLocaleString('en-AU', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    }
-
-    const getEventDuration = () => {
-      if (!event.value.start_date || !event.value.end_date) return ''
-      const start = new Date(event.value.start_date)
-      const end = new Date(event.value.end_date)
-      const diffMs = end - start
-      const diffMins = Math.floor(diffMs / (1000 * 60))
-      return formatDuration(diffMins)
-    }
-
-    const formatEventType = (type) => {
-      const types = {
-        'in_person': 'In Person',
-        'online': 'Online',
-        'hybrid': 'Hybrid'
-      }
-      return types[type] || type
-    }
-
-    const formatStatus = (status) => {
-      return status.charAt(0).toUpperCase() + status.slice(1)
-    }
-
-    const formatEventDate = () => {
-      if (!event.value.start_date) return 'Date TBA'
-      return formatDateTime(event.value.start_date)
-    }
-
-    const getEventLocation = () => {
-      if (event.value.type === 'online') {
-        return event.value.online_platform || 'Online'
-      } else if (event.value.type === 'hybrid') {
-        return `${event.value.venue_name || 'TBA'} + Online`
-      } else {
-        return `${event.value.venue_name || 'TBA'}, ${event.value.venue_address_city || ''}`
-      }
-    }
-
-    const getEventPrice = () => {
-      if (event.value.is_free) {
-        return 'Free'
-      }
-
-      if (event.value.ticket_types && event.value.ticket_types.length > 1) {
-        const prices = event.value.ticket_types.map(t => t.price).sort((a, b) => a - b)
-        return `$${prices[0]} - $${prices[prices.length - 1]}`
-      }
-
-      return `$${event.value.base_price || 0}`
-    }
-
-    const getTotalTickets = () => {
-      return event.value.ticket_types.reduce((sum, ticket) => sum + (ticket.quantity || 0), 0)
-    }
-
-    // Tag management
-    const addTag = () => {
-      const tag = newTag.value.trim()
-      if (tag && !eventTags.value.includes(tag)) {
-        eventTags.value.push(tag)
-        newTag.value = ''
-        updateTagsString()
-      }
-    }
-
-    const removeTag = (index) => {
-      eventTags.value.splice(index, 1)
-      updateTagsString()
-    }
-
-    const updateTagsString = () => {
-      event.value.tags = eventTags.value.join(', ')
-    }
-
-    // Pricing
-    const handlePricingChange = () => {
-      if (event.value.is_free) {
-        event.value.ticket_types = []
-        event.value.base_price = 0
-      } else {
-        if (event.value.ticket_types.length === 0) {
-          addTicketType()
-        }
-      }
-    }
-
-    const addTicketType = () => {
-      event.value.ticket_types.push({
-        name: '',
-        description: '',
-        price: 0,
-        quantity: 100,
-        max_per_order: 10,
-        sale_start_date: '',
-        sale_end_date: ''
-      })
-    }
-
-    const removeTicketType = (index) => {
-      event.value.ticket_types.splice(index, 1)
-    }
-
-    // Media
-    const removeCoverImage = () => {
-      event.value.cover_image_url = ''
-    }
-
-    // Navigation
-    const goToStep = (step) => {
-      if (step >= 0 && step < steps.length) {
-        currentStep.value = step
-      }
-    }
-
-    const nextStep = () => {
-      if (isCurrentStepValid() && currentStep.value < steps.length - 1) {
-        currentStep.value++
-      }
-    }
-
-    const previousStep = () => {
-      if (currentStep.value > 0) {
-        currentStep.value--
-      }
-    }
-
-    // Create event
-    const createEvent = async () => {
-      if (!isCurrentStepValid()) return
-
-      creating.value = true
-      try {
-        // TODO: API call to create event
-        console.log('Creating event:', event.value)
-
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 2000))
-
-        // Redirect to events list or event detail
-        router.push('/events')
-      } catch (error) {
-        console.error('Error creating event:', error)
-      } finally {
-        creating.value = false
-      }
-    }
-
-    // Watch for auto-calculate end date
-    watch(() => [event.value.start_date, event.value.duration], ([startDate, duration]) => {
-      if (startDate && duration && !event.value.end_date) {
-        const start = new Date(startDate)
-        const end = new Date(start.getTime() + duration * 60000)
-        event.value.end_date = end.toISOString().slice(0, 16)
-      }
-    })
-
+  data() {
     return {
-      // State
-      currentStep,
-      creating,
-      newTag,
-      steps,
-      categories,
-      quickDurations,
-      event,
-      eventTags,
-
-      // Methods
-      formatDuration,
-      formatDateTime,
-      getEventDuration,
-      formatEventType,
-      formatStatus,
-      formatEventDate,
-      getEventLocation,
-      getEventPrice,
-      getTotalTickets,
-      addTag,
-      removeTag,
-      updateTagsString,
-      handlePricingChange,
-      addTicketType,
-      removeTicketType,
-      removeCoverImage,
-      goToStep,
-      nextStep,
-      previousStep,
-      createEvent,
-      isCurrentStepValid
+      form: emptyForm(),
+      errors: {},
+      formError: '',
+      loading: false,
+      loadError: '',
+      saving: '',
+      categories: [],
+      coverBroken: false,
+      lastStatus: 'draft',
+      active: 'basics',
+      observer: null,
+      types: EVENT_TYPES,
+      currencies: ['AUD', 'NZD', 'USD', 'GBP', 'EUR', 'CAD', 'SGD'],
+      typeHelp: { in_person: 'At a physical venue', online: 'Streamed or video call', hybrid: 'Venue plus online' },
+      sections: [
+        { id: 'basics', label: 'Basics' },
+        { id: 'when', label: 'Date & time' },
+        { id: 'where', label: 'Location' },
+        { id: 'tickets', label: 'Tickets & capacity' },
+        { id: 'settings', label: 'Media & settings' }
+      ]
+    }
+  },
+  computed: {
+    id() {
+      return this.$route.params.id
+    },
+    isEdit() {
+      return !!this.id
+    },
+    primaryStatus() {
+      if (!this.isEdit) return 'published'
+      return this.form.status === 'draft' ? 'published' : this.form.status
+    },
+    primaryLabel() {
+      if (!this.isEdit) return 'Publish event'
+      return this.form.status === 'draft' ? 'Publish' : 'Save changes'
+    },
+    primaryIcon() {
+      return this.isEdit && this.form.status !== 'draft' ? 'fa-solid fa-check' : 'fa-solid fa-paper-plane'
+    },
+    durationLabel() {
+      if (!this.form.start || !this.form.end) return ''
+      const mins = Math.round((new Date(this.form.end) - new Date(this.form.start)) / 60000)
+      if (!(mins > 0)) return ''
+      const d = Math.floor(mins / 1440)
+      const h = Math.floor((mins % 1440) / 60)
+      const m = mins % 60
+      return [d && `${d}d`, h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ')
+    },
+    capacitySummary() {
+      if (this.form.max_capacity > 0) return this.form.max_capacity
+      const active = this.form.ticket_types.filter((t) => t.is_active)
+      if (active.length && active.every((t) => t.quantity > 0)) return active.reduce((s, t) => s + Number(t.quantity || 0), 0)
+      return 'Unlimited'
+    },
+    priceSummary() {
+      const prices = this.form.ticket_types.filter((t) => t.is_active).map((t) => Number(t.price) || 0)
+      if (!prices.length || prices.every((p) => !p)) return 'Free'
+      const min = Math.min(...prices)
+      const max = Math.max(...prices)
+      return min === max ? this.money(min) : `${min ? this.money(min) : 'Free'} – ${this.money(max)}`
+    }
+  },
+  watch: {
+    '$route.params.id'() {
+      this.init()
+    },
+    form: {
+      deep: true,
+      handler() {
+        // Re-check as the user fixes things so errors clear immediately.
+        if (Object.keys(this.errors).length) this.validate(this.lastStatus)
+      }
+    }
+  },
+  created() {
+    this.init()
+    eventsApi
+      .categories()
+      .then((d) => (this.categories = d.categories || []))
+      .catch(() => {})
+  },
+  mounted() {
+    this.setupObserver()
+  },
+  updated() {
+    this.setupObserver()
+  },
+  beforeUnmount() {
+    if (this.observer) this.observer.disconnect()
+  },
+  methods: {
+    money(v) {
+      return formatMoney(v, this.form.currency)
+    },
+    init() {
+      this.errors = {}
+      this.formError = ''
+      if (this.isEdit) this.loadEvent()
+      else this.form = emptyForm()
+    },
+    async loadEvent() {
+      this.loading = true
+      this.loadError = ''
+      try {
+        const e = await eventsApi.get(this.id)
+        const f = emptyForm()
+        Object.assign(f, {
+          title: e.title || '',
+          short_description: e.short_description || '',
+          description: e.description || '',
+          category: e.category || '',
+          tags: e.tags || '',
+          type: e.type || 'in_person',
+          status: e.status || 'draft',
+          start: toLocalInput(e.start_date),
+          end: toLocalInput(e.end_date),
+          venue_name: e.venue_name || '',
+          address: { ...f.address, ...(e.address || {}) },
+          online_url: e.online_url || '',
+          online_platform: e.online_platform || '',
+          max_capacity: e.max_capacity || 0,
+          currency: e.currency || 'AUD',
+          cover_image_url: e.cover_image_url || '',
+          contact_name: e.contact_name || '',
+          contact_email: e.contact_email || '',
+          is_public: !!e.is_public,
+          requires_approval: !!e.requires_approval,
+          allow_waitlist: !!e.allow_waitlist,
+          ticket_types: (e.ticket_types || []).map((t) =>
+            newTicket({ id: t.id, name: t.name, price: Number(t.price) || 0, quantity: t.quantity || 0, max_per_order: t.max_per_order || 10, description: t.description || '', is_active: !!t.is_active, sold_quantity: t.sold_quantity || 0 })
+          )
+        })
+        if (!f.ticket_types.length) f.ticket_types = [newTicket({ name: 'General admission' })]
+        this.form = f
+      } catch (err) {
+        this.loadError = apiErrorMessage(err, 'Could not load this event')
+      } finally {
+        this.loading = false
+      }
+    },
+    setupObserver() {
+      if (this.observer || typeof IntersectionObserver === 'undefined') return
+      const els = this.sections.map((s) => document.getElementById(s.id)).filter(Boolean)
+      if (!els.length) return
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+          if (vis.length) this.active = vis[0].target.id
+        },
+        { rootMargin: '-80px 0px -55% 0px' }
+      )
+      els.forEach((el) => this.observer.observe(el))
+    },
+    scrollTo(id) {
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      this.active = id
+    },
+    onStartChange() {
+      if (!this.form.start) return
+      if (!this.form.end || new Date(this.form.end) <= new Date(this.form.start)) {
+        const d = new Date(this.form.start)
+        d.setHours(d.getHours() + 2)
+        this.form.end = toLocalInput(d)
+      }
+    },
+    addTicket() {
+      this.form.ticket_types.push(newTicket())
+    },
+    removeTicket(i) {
+      this.form.ticket_types.splice(i, 1)
+    },
+    ticketErr(i, field) {
+      return this.errors[`t${i}_${field}`]
+    },
+    sectionHasError(id) {
+      const map = {
+        basics: ['title'],
+        when: ['start', 'end'],
+        where: ['venue', 'online_url'],
+        tickets: ['max_capacity', 'tickets'],
+        settings: ['cover', 'contact_email']
+      }
+      return (map[id] || []).some((k) => this.errors[k]) || (id === 'tickets' && Object.keys(this.errors).some((k) => /^t\d+_/.test(k)))
+    },
+    sectionDone(id) {
+      const f = this.form
+      switch (id) {
+        case 'basics':
+          return !!f.title
+        case 'when':
+          return !!(f.start && f.end)
+        case 'where':
+          return f.type === 'online' ? !!f.online_url : !!f.venue_name && (f.type === 'in_person' || !!f.online_url)
+        case 'tickets':
+          return f.ticket_types.length > 0 && f.ticket_types.every((t) => t.name)
+        default:
+          return false
+      }
+    },
+    validate(status) {
+      const f = this.form
+      const e = {}
+      if (!f.title) e.title = 'Give your event a title.'
+      if (!f.start) e.start = 'Choose when the event starts.'
+      if (!f.end) e.end = 'Choose when the event ends.'
+      if (f.start && f.end && new Date(f.end) <= new Date(f.start)) e.end = 'The end must be after the start.'
+      if (status === 'published') {
+        if (f.type !== 'online' && !f.venue_name && !f.address.street) e.venue = 'Add a venue before publishing.'
+        if (f.type !== 'in_person' && !f.online_url) e.online_url = 'Add the online link before publishing.'
+      }
+      if (f.online_url && !/^https?:\/\/\S+$/i.test(f.online_url)) e.online_url = 'Enter a full URL starting with https://'
+      if (f.cover_image_url && !/^https?:\/\/\S+$/i.test(f.cover_image_url)) e.cover = 'Enter a full image URL starting with https://'
+      if (f.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact_email)) e.contact_email = 'Enter a valid email address.'
+      if (!(Number(f.max_capacity) >= 0)) e.max_capacity = 'Capacity must be 0 or more.'
+      if (!f.ticket_types.length) e.tickets = 'Add at least one ticket type.'
+      f.ticket_types.forEach((t, i) => {
+        if (!String(t.name || '').trim()) e[`t${i}_name`] = true
+        if (!(Number(t.price) >= 0)) e[`t${i}_price`] = true
+        if (!(Number(t.quantity) >= 0)) e[`t${i}_quantity`] = true
+      })
+      if (!e.tickets && Object.keys(e).some((k) => /^t\d+_/.test(k))) e.tickets = 'Each ticket needs a name, and price/quantity cannot be negative.'
+      if (!e.tickets && f.ticket_types.length && !f.ticket_types.some((t) => t.is_active)) e.tickets = 'Keep at least one ticket type on sale.'
+      this.errors = e
+      return Object.keys(e).length === 0
+    },
+    payload(status) {
+      const f = this.form
+      return {
+        title: f.title,
+        short_description: f.short_description,
+        description: f.description,
+        category: f.category,
+        tags: f.tags,
+        type: f.type,
+        status,
+        start_date: new Date(f.start).toISOString(),
+        end_date: new Date(f.end).toISOString(),
+        timezone: f.timezone,
+        venue_name: f.type === 'online' ? '' : f.venue_name,
+        address: f.address,
+        online_url: f.type === 'in_person' ? '' : f.online_url,
+        online_platform: f.type === 'in_person' ? '' : f.online_platform,
+        max_capacity: Number(f.max_capacity) || 0,
+        currency: f.currency,
+        cover_image_url: f.cover_image_url,
+        contact_name: f.contact_name,
+        contact_email: f.contact_email,
+        is_public: f.is_public,
+        requires_approval: f.requires_approval,
+        allow_waitlist: f.allow_waitlist,
+        ticket_types: f.ticket_types.map((t, i) => ({
+          id: t.id || undefined,
+          name: String(t.name).trim(),
+          description: t.description,
+          price: Number(t.price) || 0,
+          quantity: Number(t.quantity) || 0,
+          max_per_order: Number(t.max_per_order) || 10,
+          is_active: t.is_active,
+          sort_order: i
+        }))
+      }
+    },
+    async save(status) {
+      this.formError = ''
+      this.lastStatus = status
+      if (!this.validate(status)) {
+        const first = this.sections.find((s) => this.sectionHasError(s.id))
+        if (first) this.scrollTo(first.id)
+        toast.error('Please fix the highlighted fields.')
+        return
+      }
+      this.saving = status
+      try {
+        const body = this.payload(status)
+        const ev = this.isEdit ? await eventsApi.update(this.id, body) : await eventsApi.create(body)
+        toast.success(this.isEdit ? 'Event updated' : status === 'published' ? 'Event published' : 'Draft saved')
+        this.$router.push(`/events/${ev.id}`)
+      } catch (err) {
+        this.formError = apiErrorMessage(err, 'Could not save the event')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } finally {
+        this.saving = ''
+      }
+    },
+    cancel() {
+      this.$router.push(this.isEdit ? `/events/${this.id}` : '/events')
     }
   }
 }
 </script>
 
 <style scoped>
-.event-create-page {
-  min-height: 100vh;
-  background: #f8fafc;
-  padding: 2rem;
-}
-
-.progress-header {
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.progress-content {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.page-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 2rem 0;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  justify-content: center;
-}
-
-.page-title i {
-  color: #3b82f6;
-}
-
-.progress-indicator {
-  position: relative;
-}
-
-.progress-steps {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  position: relative;
-  z-index: 2;
-}
-
-.progress-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.step-circle {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  background: #e5e7eb;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  margin-bottom: 0.5rem;
-}
-
-.progress-step.active .step-circle {
-  background: #3b82f6;
-  color: white;
-}
-
-.progress-step.completed .step-circle {
-  background: #10b981;
-  color: white;
-}
-
-.step-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #6b7280;
-  text-align: center;
-}
-
-.progress-step.active .step-label {
-  color: #3b82f6;
-}
-
-.progress-step.completed .step-label {
-  color: #10b981;
-}
-
-.progress-bar {
-  position: absolute;
-  top: 1.5rem;
-  left: 1.5rem;
-  right: 1.5rem;
-  height: 2px;
-  background: #e5e7eb;
-  z-index: 1;
-}
-
-.progress-fill {
-  height: 100%;
-  background: #3b82f6;
-  transition: width 0.5s ease;
-}
-
-.form-container {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.form-step {
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  margin-bottom: 2rem;
-}
-
-.step-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.step-header h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 0.5rem 0;
-}
-
-.step-header p {
-  color: #64748b;
-  margin: 0;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group.full-width {
-  grid-column: 1 / -1;
-}
-
-.form-group label {
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.form-group label.required::after {
-  content: ' *';
-  color: #ef4444;
-}
-
-.form-input,
-.form-select,
-.form-textarea {
-  padding: 0.75rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  transition: border-color 0.2s ease;
-}
-
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 120px;
-}
-
-.input-help {
-  font-size: 0.75rem;
-  color: #6b7280;
-  margin-top: 0.25rem;
-}
-
-.char-counter {
-  font-size: 0.75rem;
-  color: #6b7280;
-  margin-top: 0.25rem;
-  text-align: right;
-}
-
-.radio-group {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-}
-
-.radio-option {
-  cursor: pointer;
-}
-
-.radio-option input[type="radio"] {
-  display: none;
-}
-
-.radio-content {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.radio-option input[type="radio"]:checked + .radio-content {
-  border-color: #3b82f6;
-  background: #f0f9ff;
-}
-
-.radio-content i {
-  font-size: 1.25rem;
-  color: #6b7280;
-}
-
-.radio-option input[type="radio"]:checked + .radio-content i {
-  color: #3b82f6;
-}
-
-.radio-content strong {
-  display: block;
-  color: #1e293b;
-  margin-bottom: 0.25rem;
-}
-
-.radio-content span {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.tags-input {
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 0.5rem;
-  min-height: 2.5rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.tags-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.tag {
-  background: #3b82f6;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.tag-remove {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-  padding: 0;
-  width: 1rem;
-  height: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tag-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  min-width: 120px;
-}
-
-.duration-buttons {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.duration-btn {
-  padding: 0.5rem 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  background: white;
-  color: #374151;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-}
-
-.duration-btn:hover {
-  border-color: #3b82f6;
-}
-
-.duration-btn.active {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-}
-
-.schedule-preview {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 1.5rem;
-}
-
-.schedule-preview h4 {
-  margin: 0 0 1rem 0;
-  color: #1e293b;
-}
-
-.schedule-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.schedule-item i {
-  width: 1rem;
-  color: #3b82f6;
-}
-
-.schedule-placeholder {
-  text-align: center;
-  color: #6b7280;
-  font-style: italic;
-}
-
-.location-section {
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: #f8fafc;
-  border-radius: 12px;
-}
-
-.location-section h3 {
-  margin: 0 0 1.5rem 0;
-  color: #1e293b;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.pricing-options {
-  margin-bottom: 2rem;
-}
-
-.pricing-toggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.toggle-option {
-  cursor: pointer;
-}
-
-.toggle-option input[type="radio"] {
-  display: none;
-}
-
-.toggle-content {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.5rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  transition: all 0.2s ease;
-}
-
-.toggle-option input[type="radio"]:checked + .toggle-content {
-  border-color: #3b82f6;
-  background: #f0f9ff;
-}
-
-.toggle-content i {
-  font-size: 1.5rem;
-  color: #6b7280;
-}
-
-.toggle-option input[type="radio"]:checked + .toggle-content i {
-  color: #3b82f6;
-}
-
-.toggle-content strong {
-  display: block;
-  color: #1e293b;
-  margin-bottom: 0.25rem;
-}
-
-.toggle-content span {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.ticket-types-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.ticket-types-header h3 {
-  margin: 0;
-  color: #1e293b;
-}
-
-.ticket-type-card {
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid #e5e7eb;
-}
-
-.ticket-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.ticket-header h4 {
-  margin: 0;
-  color: #1e293b;
-}
-
-.btn-remove {
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 6px;
-  cursor: pointer;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.price-input {
-  position: relative;
-}
-
-.currency {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #6b7280;
-  font-weight: 600;
-}
-
-.price-input .form-input {
-  padding-left: 2rem;
-}
-
-.capacity-section {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.capacity-section h3 {
-  margin: 0 0 1.5rem 0;
-  color: #1e293b;
-}
-
-.toggle-switch {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.toggle-input {
-  display: none;
-}
-
-.toggle-label {
-  position: relative;
-  width: 3rem;
-  height: 1.5rem;
-  background: #e5e7eb;
-  border-radius: 1rem;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.toggle-slider {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 1.25rem;
-  height: 1.25rem;
-  background: white;
-  border-radius: 50%;
-  transition: transform 0.2s ease;
-}
-
-.toggle-input:checked + .toggle-label {
-  background: #3b82f6;
-}
-
-.toggle-input:checked + .toggle-label .toggle-slider {
-  transform: translateX(1.5rem);
-}
-
-.toggle-text {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.media-section {
-  margin-bottom: 2rem;
-}
-
-.media-section h3 {
-  margin: 0 0 1.5rem 0;
-  color: #1e293b;
-}
-
-.cover-image-section {
-  margin-bottom: 1.5rem;
-}
-
-.cover-image-section label {
-  display: block;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.image-upload-area {
-  border: 2px dashed #d1d5db;
-  border-radius: 12px;
-  background: #f9fafb;
-  transition: all 0.2s ease;
-}
-
-.image-upload-area:hover {
-  border-color: #3b82f6;
-  background: #f0f9ff;
-}
-
-.image-preview {
-  position: relative;
-  max-width: 400px;
-}
-
-.image-preview img {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.btn-remove-image {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: rgba(239, 68, 68, 0.9);
-  color: white;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 6px;
-  cursor: pointer;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.upload-placeholder {
-  text-align: center;
-  padding: 3rem;
-}
-
-.upload-placeholder i {
-  font-size: 3rem;
-  color: #9ca3af;
-  margin-bottom: 1rem;
-}
-
-.upload-placeholder p {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #374151;
-  margin: 0 0 0.5rem 0;
-}
-
-.upload-placeholder span {
-  font-size: 0.875rem;
-  color: #6b7280;
-  display: block;
-  margin-bottom: 1.5rem;
-}
-
-.publishing-section {
-  margin-bottom: 2rem;
-}
-
-.publishing-section h3 {
-  margin: 0 0 1.5rem 0;
-  color: #1e293b;
-}
-
-.event-summary {
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 1.5rem;
-}
-
-.event-summary h3 {
-  margin: 0 0 1rem 0;
-  color: #1e293b;
-}
-
-.summary-card {
-  background: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  border: 1px solid #e5e7eb;
-}
-
-.summary-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  gap: 1rem;
-}
-
-.summary-header h4 {
-  margin: 0;
-  color: #1e293b;
-  flex: 1;
-}
-
-.summary-badges {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.badge-in_person { background: #dbeafe; color: #1e40af; }
-.badge-online { background: #d1fae5; color: #065f46; }
-.badge-hybrid { background: #fef3c7; color: #92400e; }
-.badge-published { background: #d1fae5; color: #065f46; }
-.badge-draft { background: #f3f4f6; color: #374151; }
-
-.summary-details {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.summary-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.875rem;
-  color: #64748b;
-}
-
-.summary-item i {
-  width: 1rem;
-  color: #9ca3af;
-}
-
-.form-navigation {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 2rem;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.nav-spacer {
-  flex: 1;
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.crumb {
+  color: inherit;
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 6px;
+}
+.crumb:hover {
+  color: var(--accent);
+}
+.layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.steps {
+  position: sticky;
+  top: calc(var(--topbar-h, 64px) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
   text-decoration: none;
+  font-weight: 550;
+  font-size: 14px;
+}
+.step:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.step.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+.step__n {
+  width: 24px;
+  height: 24px;
+  border-radius: 99px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--bg-subtle);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.step.is-active .step__n {
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+}
+.step.has-error .step__n {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.summary {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+.summary__row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-3);
+}
+.summary__row strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.sections > .ui-card {
+  scroll-margin-top: calc(var(--topbar-h, 64px) + 16px);
+}
+.ui-card__head h2 i {
+  color: var(--accent);
+  margin-right: 6px;
+  font-size: 0.9em;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.stack > .ui-field,
+.stack .ui-field {
+  margin-bottom: 0;
+}
+.err {
+  color: var(--danger);
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+.seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.seg__opt {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.seg__opt i {
+  margin-top: 3px;
+  color: var(--text-3);
+}
+.seg__opt small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.seg__opt:hover {
+  border-color: var(--border-strong);
+}
+.seg__opt.is-on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.seg__opt.is-on i {
+  color: var(--accent);
+}
+.grid-4 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.4fr;
+  gap: 12px;
+}
+.tickets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ticket {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 14px;
+}
+.ticket.is-off {
+  opacity: 0.7;
+}
+.ticket__grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
+}
+.ticket__grid .t-desc {
+  grid-column: 1 / -1;
+}
+.ticket__foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.ticket__foot .rm {
+  margin-left: auto;
+}
+.ticket__foot .ui-switch {
+  white-space: nowrap;
+  margin: 0;
+}
+.ui-switch input {
+  flex-shrink: 0;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: var(--text-3);
+}
+.cover-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.cover-preview {
+  width: 220px;
+  height: 110px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+.cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cover-preview span {
+  color: var(--text-3);
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.cover-preview span i {
+  font-size: 20px;
+}
+.toggles {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  cursor: pointer;
+  margin: 0;
+}
+.toggle + .toggle {
+  border-top: 1px solid var(--border);
+}
+.toggle small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.toggle strong {
+  font-weight: 600;
+  font-size: 14px;
+}
+.bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-bottom: 24px;
 }
 
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.btn-success {
-  background: #10b981;
-  color: white;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: #059669;
-}
-
-.btn-outline-primary {
-  background: transparent;
-  color: #3b82f6;
-  border: 2px solid #3b82f6;
-}
-
-.btn-outline-primary:hover:not(:disabled) {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-outline-secondary {
-  background: transparent;
-  color: #6b7280;
-  border: 2px solid #d1d5db;
-}
-
-.btn-outline-secondary:hover:not(:disabled) {
-  background: #f3f4f6;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .event-create-page {
-    padding: 1rem;
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
   }
-
-  .progress-steps {
-    flex-direction: column;
-    gap: 1rem;
+  .steps {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 4px;
+    padding-bottom: 4px;
   }
-
-  .progress-bar {
+  .step {
+    white-space: nowrap;
+  }
+  .summary {
     display: none;
   }
-
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .radio-group {
-    grid-template-columns: 1fr;
-  }
-
-  .pricing-toggle {
-    grid-template-columns: 1fr;
-  }
-
-  .summary-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .form-navigation {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .nav-spacer {
-    display: none;
-  }
 }
-
-/* Animation for step transitions */
-.form-step {
-  animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+@media (max-width: 720px) {
+  .seg {
+    grid-template-columns: 1fr;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .grid-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ticket__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ticket__grid .t-name {
+    grid-column: 1 / -1;
+  }
+  .ticket__foot {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .ticket__foot .t-info {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .cover-row {
+    flex-direction: column;
+  }
+  .cover-preview {
+    width: 100%;
+    height: 140px;
+  }
+  .bottom-actions {
+    flex-wrap: wrap;
+  }
+  .bottom-actions .ui-btn {
+    flex: 1;
+    justify-content: center;
   }
 }
 </style>

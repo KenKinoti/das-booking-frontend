@@ -1,423 +1,244 @@
 <template>
-  <div v-if="show" class="modal-overlay" @click="closeModal">
-    <div class="modal-container" @click.stop>
-      <div class="modal-header">
-        <h2>{{ isEditing ? 'Edit Customer' : 'New Customer' }}</h2>
-        <button @click="closeModal" class="btn-close">
-          <i class="fas fa-times"></i>
+  <div v-if="show" class="ui-modal-backdrop" @mousedown.self="close">
+    <form class="ui-modal" style="max-width: 720px" role="dialog" aria-modal="true" :aria-label="title" @submit.prevent="submit">
+      <div class="ui-modal__head">
+        <div>
+          <h2>{{ title }}</h2>
+          <p class="sub">{{ isEditing ? 'Update contact details, address and notes.' : 'Add a person or business you work with.' }}</p>
+        </div>
+        <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" @click="close">
+          <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <form @submit.prevent="submitForm" class="modal-form">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="first_name">First Name *</label>
-            <input 
-              id="first_name" 
-              type="text" 
-              v-model="formData.first_name" 
-              class="form-input"
-              required
-            />
+      <div class="ui-modal__body">
+        <div v-if="error" class="ui-alert ui-alert--danger" style="margin-bottom: 16px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
+
+        <div class="section-label">Contact</div>
+        <div class="ui-grid-2">
+          <div class="ui-field">
+            <label for="cm-first">First name <span class="req">*</span></label>
+            <input id="cm-first" ref="first" v-model.trim="form.first_name" class="ui-input" :class="{ 'is-invalid': errors.first_name }" autocomplete="off" />
+            <span v-if="errors.first_name" class="field-error">{{ errors.first_name }}</span>
           </div>
-          
-          <div class="form-group">
-            <label for="last_name">Last Name *</label>
-            <input 
-              id="last_name" 
-              type="text" 
-              v-model="formData.last_name" 
-              class="form-input"
-              required
-            />
+          <div class="ui-field">
+            <label for="cm-last">Last name</label>
+            <input id="cm-last" v-model.trim="form.last_name" class="ui-input" autocomplete="off" />
+          </div>
+          <div class="ui-field">
+            <label for="cm-email">Email</label>
+            <div class="ui-input-group">
+              <i class="fa-regular fa-envelope"></i>
+              <input id="cm-email" v-model.trim="form.email" type="email" class="ui-input" :class="{ 'is-invalid': errors.email }" placeholder="name@example.com" />
+            </div>
+            <span v-if="errors.email" class="field-error">{{ errors.email }}</span>
+          </div>
+          <div class="ui-field">
+            <label for="cm-phone">Phone</label>
+            <div class="ui-input-group">
+              <i class="fa-solid fa-phone"></i>
+              <input id="cm-phone" v-model.trim="form.phone" type="tel" class="ui-input" :class="{ 'is-invalid': errors.phone }" placeholder="04xx xxx xxx" maxlength="20" />
+            </div>
+            <span v-if="errors.phone" class="field-error">{{ errors.phone }}</span>
+          </div>
+          <div class="ui-field">
+            <label for="cm-dob">Date of birth</label>
+            <input id="cm-dob" v-model="form.date_of_birth" type="date" class="ui-input" :max="today" />
+          </div>
+          <div v-if="isEditing" class="ui-field">
+            <label>Status</label>
+            <label class="ui-switch status-switch">
+              <input v-model="form.is_active" type="checkbox" />
+              {{ form.is_active ? 'Active' : 'Inactive' }}
+            </label>
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input 
-              id="email" 
-              type="email" 
-              v-model="formData.email" 
-              class="form-input"
-            />
+        <div class="section-label">Address</div>
+        <div class="ui-field" style="margin-bottom: 16px">
+          <label for="cm-street">Street address</label>
+          <input id="cm-street" v-model="form.address.street" class="ui-input" autocomplete="street-address" />
+        </div>
+        <div class="addr-grid">
+          <div class="ui-field">
+            <label for="cm-suburb">Suburb / city</label>
+            <input id="cm-suburb" v-model="form.address.suburb" class="ui-input" />
           </div>
-          
-          <div class="form-group">
-            <label for="phone">Phone *</label>
-            <input 
-              id="phone" 
-              type="tel" 
-              v-model="formData.phone" 
-              class="form-input"
-              required
-            />
+          <div class="ui-field">
+            <label for="cm-state">State</label>
+            <input id="cm-state" v-model="form.address.state" class="ui-input" list="cm-states" />
+            <datalist id="cm-states">
+              <option v-for="s in states" :key="s" :value="s" />
+            </datalist>
+          </div>
+          <div class="ui-field">
+            <label for="cm-post">Postcode</label>
+            <input id="cm-post" v-model="form.address.postcode" class="ui-input" maxlength="10" />
+          </div>
+          <div class="ui-field">
+            <label for="cm-country">Country</label>
+            <input id="cm-country" v-model="form.address.country" class="ui-input" />
           </div>
         </div>
 
-        <h3>Address Information</h3>
-        <div class="form-row">
-          <div class="form-group full-width">
-            <label for="street">Street Address</label>
-            <input 
-              id="street" 
-              type="text" 
-              v-model="formData.address.street" 
-              class="form-input"
-            />
-          </div>
+        <div class="section-label">Notes</div>
+        <div class="ui-field">
+          <textarea id="cm-notes" v-model="form.notes" class="ui-textarea" rows="3" placeholder="Preferences, allergies, how they found you…" aria-label="Notes"></textarea>
         </div>
+      </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="suburb">Suburb</label>
-            <input 
-              id="suburb" 
-              type="text" 
-              v-model="formData.address.suburb" 
-              class="form-input"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="state">State</label>
-            <select id="state" v-model="formData.address.state" class="form-select">
-              <option value="">Select State</option>
-              <option value="NSW">NSW</option>
-              <option value="VIC">VIC</option>
-              <option value="QLD">QLD</option>
-              <option value="SA">SA</option>
-              <option value="WA">WA</option>
-              <option value="TAS">TAS</option>
-              <option value="ACT">ACT</option>
-              <option value="NT">NT</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="postcode">Postcode</label>
-            <input 
-              id="postcode" 
-              type="text" 
-              v-model="formData.address.postcode" 
-              class="form-input"
-            />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="notes">Notes</label>
-          <textarea 
-            id="notes" 
-            v-model="formData.notes"
-            class="form-textarea"
-            rows="3"
-            placeholder="Any additional notes about the customer..."
-          ></textarea>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" @click="closeModal" class="btn btn-outline">
-            Cancel
-          </button>
-          
-          <button 
-            type="submit" 
-            class="btn btn-primary"
-            :disabled="isSubmitting"
-          >
-            <span v-if="isSubmitting">
-              <i class="fas fa-spinner fa-spin"></i>
-              Saving...
-            </span>
-            <span v-else>
-              <i class="fas fa-check"></i>
-              {{ isEditing ? 'Update Customer' : 'Create Customer' }}
-            </span>
-          </button>
-        </div>
-      </form>
-    </div>
+      <div class="ui-modal__foot">
+        <button type="button" class="ui-btn" @click="close">Cancel</button>
+        <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving">
+          <i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i>
+          {{ isEditing ? 'Save changes' : 'Create customer' }}
+        </button>
+      </div>
+    </form>
   </div>
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue'
+import { customerService } from '@/services/customerService'
+import { apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+import { isoDate } from '@/utils/format'
+
+const blank = () => ({
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  date_of_birth: '',
+  is_active: true,
+  notes: '',
+  address: { street: '', suburb: '', state: '', postcode: '', country: 'Australia' }
+})
 
 export default {
   name: 'CustomerModal',
   props: {
-    show: {
-      type: Boolean,
-      default: false
-    },
-    customer: {
-      type: Object,
-      default: null
+    show: { type: Boolean, default: false },
+    customer: { type: Object, default: null }
+  },
+  emits: ['close', 'saved'],
+  data() {
+    return {
+      form: blank(),
+      errors: {},
+      error: '',
+      saving: false,
+      today: isoDate(),
+      states: ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT']
     }
   },
-  emits: ['close', 'save'],
-  setup(props, { emit }) {
-    const isSubmitting = ref(false)
-    
-    const formData = ref({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      address: {
-        street: '',
-        suburb: '',
-        state: 'SA',
-        postcode: ''
-      },
-      notes: ''
-    })
-
-    const isEditing = computed(() => !!props.customer)
-
-    const closeModal = () => {
-      emit('close')
-      resetForm()
+  computed: {
+    isEditing() {
+      return !!this.customer?.id
+    },
+    title() {
+      return this.isEditing ? 'Edit customer' : 'New customer'
     }
-
-    const resetForm = () => {
-      formData.value = {
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        address: {
-          street: '',
-          suburb: '',
-          state: 'SA',
-          postcode: ''
-        },
-        notes: ''
+  },
+  watch: {
+    show: {
+      immediate: true,
+      handler(v) {
+        if (!v) return
+        const c = this.customer
+        this.form = c
+          ? {
+              ...blank(),
+              first_name: c.first_name || '',
+              last_name: c.last_name || '',
+              email: c.email || '',
+              phone: c.phone || '',
+              notes: c.notes || '',
+              is_active: c.is_active !== false,
+              date_of_birth: c.date_of_birth ? isoDate(c.date_of_birth) : '',
+              address: { ...blank().address, ...(c.address || {}) }
+            }
+          : blank()
+        this.errors = {}
+        this.error = ''
+        this.$nextTick(() => this.$refs.first?.focus())
       }
     }
-
-    const submitForm = async () => {
-      if (isSubmitting.value) return
-      
-      isSubmitting.value = true
+  },
+  methods: {
+    close() {
+      if (!this.saving) this.$emit('close')
+    },
+    validate() {
+      const e = {}
+      if (!this.form.first_name) e.first_name = 'First name is required'
+      if (this.form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email)) e.email = 'Enter a valid email address'
+      if (!this.form.email && !this.form.phone) e.phone = 'Add an email address or a phone number'
+      if (this.form.phone && !/^[+\d][\d\s()-]{5,19}$/.test(this.form.phone)) e.phone = 'Enter a valid phone number'
+      this.errors = e
+      return !Object.keys(e).length
+    },
+    async submit() {
+      if (!this.validate()) return
+      this.saving = true
+      this.error = ''
       try {
-        const customerData = { ...formData.value }
-        
-        if (isEditing.value) {
-          customerData.id = props.customer.id
-        }
-        
-        emit('save', customerData)
-      } catch (error) {
-        console.error('Failed to save customer:', error)
-        alert('Failed to save customer. Please try again.')
+        const payload = { ...this.form, address: { ...this.form.address } }
+        const saved = this.isEditing ? await customerService.update(this.customer.id, payload) : await customerService.create(payload)
+        toast.success(this.isEditing ? 'Customer updated' : 'Customer created')
+        this.$emit('saved', saved)
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not save the customer')
       } finally {
-        isSubmitting.value = false
+        this.saving = false
       }
-    }
-
-    // Watch for customer prop changes
-    watch(() => props.customer, (newCustomer) => {
-      if (newCustomer) {
-        formData.value = {
-          first_name: newCustomer.first_name || '',
-          last_name: newCustomer.last_name || '',
-          email: newCustomer.email || '',
-          phone: newCustomer.phone || '',
-          address: {
-            street: newCustomer.address?.street || '',
-            suburb: newCustomer.address?.suburb || '',
-            state: newCustomer.address?.state || 'SA',
-            postcode: newCustomer.address?.postcode || ''
-          },
-          notes: newCustomer.notes || ''
-        }
-      }
-    }, { immediate: true })
-
-    return {
-      isSubmitting,
-      formData,
-      isEditing,
-      closeModal,
-      submitForm
     }
   }
 }
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: var(--spacing-lg);
+.sub {
+  margin: 4px 0 0;
+  color: var(--text-3);
+  font-size: 13.5px;
 }
 
-.modal-container {
-  background: var(--card-bg);
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-strong);
-  width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+.section-label {
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  margin: 20px 0 12px;
 }
 
-[data-theme="dark"] .modal-container {
-  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(31, 41, 55, 0.85) 100%);
-  border: 1px solid rgba(75, 85, 99, 0.3);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 8px 16px rgba(0,0,0,0.3);
+.section-label:first-of-type {
+  margin-top: 4px;
 }
 
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-xl);
-  border-bottom: 1px solid var(--border-color);
-  background: var(--gradient-primary);
-  color: white;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: var(--spacing-sm);
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.btn-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: rotate(90deg);
-}
-
-.modal-form {
-  padding: var(--spacing-xl);
-  overflow-y: auto;
-  flex: 1;
-}
-
-.modal-form h3 {
-  color: var(--text-primary);
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin: var(--spacing-lg) 0 var(--spacing-md) 0;
-  border-bottom: 2px solid var(--primary);
-  padding-bottom: var(--spacing-sm);
-}
-
-.form-row {
+.addr-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
+  grid-template-columns: 2fr 1fr 1fr 1.4fr;
+  gap: 16px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
+.req {
+  color: var(--danger);
 }
 
-.form-group.full-width {
-  grid-column: span 2;
+.field-error {
+  font-size: 12px;
+  color: var(--danger);
 }
 
-.form-group label {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-xs);
+.status-switch {
+  height: 38px;
 }
 
-.form-input,
-.form-select,
-.form-textarea {
-  padding: var(--spacing-md);
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius);
-  font-size: 1rem;
-  transition: all 0.2s ease;
-  background: var(--card-bg);
-  color: var(--text-primary);
-}
-
-[data-theme="dark"] .form-input,
-[data-theme="dark"] .form-select,
-[data-theme="dark"] .form-textarea {
-  background: rgba(31, 41, 55, 0.8);
-  border-color: rgba(75, 85, 99, 0.5);
-  color: #f3f4f6;
-}
-
-[data-theme="dark"] .form-input::placeholder,
-[data-theme="dark"] .form-textarea::placeholder {
-  color: #9ca3af;
-}
-
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-md);
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--border-color);
-  margin-top: var(--spacing-lg);
-}
-
-@media (max-width: 768px) {
-  .modal-overlay {
-    padding: var(--spacing-md);
-  }
-  
-  .modal-container {
-    max-height: 95vh;
-  }
-  
-  .modal-header,
-  .modal-form {
-    padding: var(--spacing-lg);
-  }
-  
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-  
-  .form-group.full-width {
-    grid-column: span 1;
+@media (max-width: 640px) {
+  .addr-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>

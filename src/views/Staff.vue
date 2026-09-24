@@ -1,1168 +1,900 @@
 <template>
-  <PageTemplate
-    page-title="Staff Management"
-    page-description="Manage your team members, roles, and schedules for automotive & beauty services"
-    header-icon="fas fa-users-cog"
-    :stats-cards="statsCards"
-    :show-filters="true"
-    :show-status-filter="true"
-    :show-role-filter="true"
-    :show-add-button="true"
-    :show-view-toggle="true"
-    add-button-text="Add New Staff Member"
-    :search-query="searchQuery"
-    :status-filter="statusFilter"
-    :role-filter="roleFilter"
-    :current-view="currentView"
-    @add-clicked="showAddModal = true"
-    @search-updated="searchQuery = $event"
-    @status-filter-updated="statusFilter = $event"
-    @role-filter-updated="roleFilter = $event"
-    @clear-filters="clearFilters"
-    @view-changed="currentView = $event"
-  >
-    <template #role-options>
-      <option value="care_worker">👩‍⚕️ Care Worker</option>
-      <option value="manager">👨‍💼 Manager</option>
-      <option value="admin">⚙️ Administrator</option>
-      <option value="supervisor">👑 Supervisor</option>
-    </template>
-    <template #content>
-      <div class="staff-content">
-        <div v-if="isLoading" class="loading-state">
-          <div class="loading-spinner"></div>
-          <p>Loading staff members...</p>
-        </div>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">People</div>
+        <h1>Staff &amp; users</h1>
+        <p>Who can sign in, what they can do, and whether their account is active.</p>
+      </div>
+      <div class="ui-actions">
+        <router-link to="/scheduling" class="ui-btn"><i class="fa-regular fa-calendar"></i> Roster</router-link>
+        <button class="ui-btn" :disabled="!users.length" title="Download the current list as CSV" @click="exportCsv"><i class="fa-solid fa-download"></i> Export</button>
+        <button v-if="isAdmin" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-user-plus"></i> Add staff member</button>
+      </div>
+    </header>
 
-        <div v-else-if="filteredStaff.length === 0 && !searchQuery" class="empty-state">
-          <i class="fas fa-user-nurse"></i>
-          <h3>No Staff Members Yet</h3>
-          <p>Get started by adding your first staff member</p>
-          <button @click="showAddModal = true" class="btn btn-primary">
-            <i class="fas fa-plus"></i>
-            Add First Staff Member
+    <div class="ui-kpis">
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'all' && !role }" @click="setFilter('all', '')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-users"></i></span>Team members</div>
+        <div class="ui-kpi__value"><span v-if="!loaded" class="ui-skeleton sk-val"></span><template v-else>{{ summary.total || 0 }}</template></div>
+        <div class="ui-kpi__meta">In your organisation</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'active' && !role }" @click="setFilter('active', '')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-user-check"></i></span>Active</div>
+        <div class="ui-kpi__value"><span v-if="!loaded" class="ui-skeleton sk-val"></span><template v-else>{{ summary.active || 0 }}</template></div>
+        <div class="ui-kpi__meta">Can sign in</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'inactive' && !role }" @click="setFilter('inactive', '')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-neutral"><i class="fa-solid fa-user-slash"></i></span>Deactivated</div>
+        <div class="ui-kpi__value"><span v-if="!loaded" class="ui-skeleton sk-val"></span><template v-else>{{ summary.inactive || 0 }}</template></div>
+        <div class="ui-kpi__meta">Access removed, history kept</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': role === 'admin' }" @click="setFilter('all', 'admin')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-accent"><i class="fa-solid fa-user-shield"></i></span>Admins</div>
+        <div class="ui-kpi__value"><span v-if="!loaded" class="ui-skeleton sk-val"></span><template v-else>{{ summary.admins || 0 }}</template></div>
+        <div class="ui-kpi__meta">Full access to settings</div>
+      </button>
+    </div>
+
+    <section class="ui-card">
+      <div class="toolbar">
+        <div class="ui-tabs" role="tablist">
+          <button v-for="t in tabs" :key="t.value" class="ui-tab" :class="{ 'is-active': status === t.value }" role="tab" :aria-selected="status === t.value" @click="setFilter(t.value, role)">
+            {{ t.label }}
           </button>
         </div>
-
-        <div v-else-if="filteredStaff.length === 0 && searchQuery" class="empty-state">
-          <i class="fas fa-search"></i>
-          <h3>No Results Found</h3>
-          <p class="text-muted">Try adjusting your search criteria</p>
-        </div>
-
-        <!-- List View -->
-        <div v-else-if="currentView === 'list'" class="staff-list">
-          <div class="staff-table">
-            <div class="table-header">
-              <div class="header-cell">Staff Member</div>
-              <div class="header-cell">Role</div>
-              <div class="header-cell">Contact</div>
-              <div class="header-cell">Status</div>
-              <div class="header-cell">Last Activity</div>
-              <div class="header-cell">Actions</div>
-            </div>
-            
-            <div 
-              v-for="member in paginatedStaff" 
-              :key="member.id" 
-              class="table-row"
-              :class="{ 
-                'status-active': member.is_active !== false,
-                'status-inactive': member.is_active === false
-              }"
-            >
-              <div class="table-cell">
-                <div class="staff-info">
-                  <div class="staff-avatar">
-                    {{ getInitials(member.first_name, member.last_name) }}
-                  </div>
-                  <div class="staff-details">
-                    <div class="name">{{ member.first_name }} {{ member.last_name }}</div>
-                    <div class="email">{{ member.email }}</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="table-cell">
-                <div class="role-info">
-                  <span class="role-badge" :class="getRoleClass(member.role)">
-                    <i :class="getRoleIcon(member.role)"></i>
-                    {{ formatRole(member.role) }}
-                  </span>
-                </div>
-              </div>
-              
-              <div class="table-cell">
-                <div class="contact-info">
-                  <div class="phone">{{ member.phone || 'No phone' }}</div>
-                  <div class="company">{{ getCompanyName(member) }}</div>
-                </div>
-              </div>
-              
-              <div class="table-cell">
-                <div class="status-info">
-                  <div class="form-check form-switch">
-                    <input 
-                      class="form-check-input" 
-                      type="checkbox" 
-                      :checked="member.is_active !== false"
-                      @change="toggleStaffStatus(member)"
-                      :disabled="isSubmitting"
-                    />
-                  </div>
-                  <span :class="['status-badge', member.is_active !== false ? 'active' : 'inactive']">
-                    {{ member.is_active !== false ? 'Active' : 'Inactive' }}
-                  </span>
-                </div>
-              </div>
-              
-              <div class="table-cell">
-                <div class="activity-info">
-                  <i class="fas fa-clock"></i>
-                  {{ formatLastLogin(member.last_login_at) }}
-                </div>
-              </div>
-              
-              <div class="table-cell">
-                <div class="actions-menu">
-                  <button @click="viewStaff(member)" class="action-btn view" title="View Details">
-                    <i class="fas fa-eye"></i>
-                  </button>
-                  <button @click="scheduleStaff(member)" class="action-btn schedule" title="Schedule Shift">
-                    <i class="fas fa-calendar-plus"></i>
-                  </button>
-                  <button @click="editStaff(member)" class="action-btn edit" title="Edit Staff">
-                    <i class="fas fa-edit"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
+        <div class="toolbar__right">
+          <div class="ui-input-group search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input v-model="q" class="ui-input" type="search" placeholder="Search name, email or phone…" aria-label="Search staff" @input="debouncedLoad" />
           </div>
-        </div>
-
-        <!-- Grid View -->
-        <div v-else class="row">
-        <div v-for="member in paginatedStaff" :key="member.id" class="col-md-6 col-lg-4 mb-4">
-          <div class="card h-100">
-            <div class="card-header d-flex align-items-center justify-content-between">
-              <div class="d-flex align-items-center">
-                <div class="stat-icon me-3">
-                  {{ getInitials(member.first_name, member.last_name) }}
-                </div>
-                <div>
-                  <h6 class="mb-0">{{ member.first_name }} {{ member.last_name }}</h6>
-                  <span class="badge bg-primary">{{ formatRole(member.role) }}</span>
-                </div>
-              </div>
-              <div class="form-check form-switch">
-                <input 
-                  class="form-check-input" 
-                  type="checkbox" 
-                  :checked="member.is_active !== false"
-                  @change="toggleStaffStatus(member)"
-                  :disabled="isSubmitting"
-                />
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="mb-2">
-                <span :class="['badge', member.is_active !== false ? 'bg-success' : 'bg-secondary']">
-                  {{ member.is_active !== false ? 'Active' : 'Inactive' }}
-                </span>
-              </div>
-              <div class="small text-muted mb-3">
-                <div class="mb-1" v-if="isAdmin || isSuperAdmin">
-                  <i class="fas fa-envelope me-2"></i>{{ member.email }}
-                </div>
-                <div class="mb-1" v-else>
-                  <i class="fas fa-envelope me-2"></i>{{ member.email ? member.email.substring(0, 3) + '***@' + member.email.split('@')[1] : 'N/A' }}
-                </div>
-                <div class="mb-1" v-if="isAdmin || isSuperAdmin">
-                  <i class="fas fa-phone me-2"></i>{{ member.phone || 'No phone provided' }}
-                </div>
-                <div class="mb-1" v-else>
-                  <i class="fas fa-phone me-2"></i>{{ member.phone ? '***-***-' + member.phone.slice(-4) : 'N/A' }}
-                </div>
-                <div>
-                  <i class="fas fa-calendar me-2"></i>Added {{ formatDate(member.created_at) }}
-                </div>
-              </div>
-            </div>
-            <div class="card-footer bg-transparent">
-              <div class="action-buttons">
-                <button @click="viewStaff(member)" class="btn btn-outline-primary btn-sm">
-                  <i class="fas fa-eye"></i>
-                  View
-                </button>
-                <button @click="scheduleStaff(member)" class="btn btn-outline-success btn-sm">
-                  <i class="fas fa-calendar-plus"></i>
-                  Schedule
-                </button>
-                <button @click="editStaff(member)" class="btn btn-outline-secondary btn-sm">
-                  <i class="fas fa-edit"></i>
-                  Edit
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        </div>
-      </div> <!-- Close staff-content -->
-      
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="pagination-section">
-        <div class="pagination-info">
-          Showing {{ startIndex + 1 }}-{{ Math.min(endIndex, filteredStaff.length) }} of {{ filteredStaff.length }} staff members
-        </div>
-        
-        <div class="pagination-controls">
-          <button 
-            @click="goToPage(currentPage - 1)" 
-            :disabled="currentPage === 1" 
-            class="pagination-btn"
-            title="Previous page"
-          >
-            <i class="fas fa-chevron-left"></i>
-          </button>
-          
-          <div class="pagination-numbers">
-            <button 
-              v-for="page in visiblePages" 
-              :key="page" 
-              @click="goToPage(page)" 
-              :class="['pagination-number', { active: page === currentPage }]"
-            >
-              {{ page }}
-            </button>
-          </div>
-          
-          <button 
-            @click="goToPage(currentPage + 1)" 
-            :disabled="currentPage === totalPages" 
-            class="pagination-btn"
-            title="Next page"
-          >
-            <i class="fas fa-chevron-right"></i>
-          </button>
-        </div>
-        
-        <div class="pagination-options">
-          <label class="per-page-label">
-            <span>Per page:</span>
-            <select v-model="itemsPerPage" @change="handlePerPageChange" class="per-page-select">
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+          <label v-if="isSuperAdmin" class="ui-switch org-switch" title="Super admins can list users of every organisation">
+            <input v-model="allOrgs" type="checkbox" @change="reload" />
+            All organisations
           </label>
+          <select v-model="role" class="ui-select role-filter" aria-label="Role" @change="reload">
+            <option value="">All roles</option>
+            <option v-for="r in roleOptions" :key="r.value" :value="r.value">{{ r.label }}</option>
+          </select>
         </div>
       </div>
-    </template>
-  </PageTemplate>
+
+      <div v-if="error" class="ui-card__body">
+        <div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span></div>
+      </div>
+
+      <div v-else-if="loading && !users.length" class="ui-card__body">
+        <div v-for="n in 6" :key="n" class="sk-row">
+          <div class="ui-skeleton" style="width: 34px; height: 34px; border-radius: 50%"></div>
+          <div class="ui-skeleton" style="flex: 2"></div>
+          <div class="ui-skeleton" style="width: 100px"></div>
+          <div class="ui-skeleton" style="width: 120px"></div>
+        </div>
+      </div>
+
+      <div v-else-if="!users.length" class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-user-tie"></i></div>
+        <h3>{{ q || role || status !== 'all' ? 'No one matches your filters' : 'No team members yet' }}</h3>
+        <p>{{ q || role || status !== 'all' ? 'Try a different search, role or status.' : 'Invite the people who work with you so they can sign in and be rostered.' }}</p>
+        <div style="margin-top: 14px">
+          <button v-if="q || role || status !== 'all'" class="ui-btn" @click="clearFilters">Clear filters</button>
+          <button v-else-if="isAdmin" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-user-plus"></i> Add staff member</button>
+        </div>
+      </div>
+
+      <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th v-if="allOrgs" class="hide-md">Organisation</th>
+              <th class="hide-md">Phone</th>
+              <th class="hide-sm">Last sign-in</th>
+              <th class="hide-lg">Added</th>
+              <th>Status</th>
+              <th class="actions-col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="u in users" :key="u.id" :class="{ 'is-clickable': canEdit(u), 'is-off': !u.is_active }" @click="canEdit(u) && openEdit(u)">
+              <td>
+                <div class="person">
+                  <span class="avatar" :style="{ '--hue': hue(u.id) }">{{ initials(u) }}</span>
+                  <span class="person__text">
+                    <span class="person__name">{{ name(u) }} <span v-if="u.id === me?.id" class="you">You</span></span>
+                    <small>{{ u.email }}</small>
+                  </span>
+                </div>
+              </td>
+              <td><span class="ui-badge" :class="roleInfo(u.role).badge">{{ roleInfo(u.role).label }}</span></td>
+              <td v-if="allOrgs" class="hide-md muted">{{ orgNames[u.organization_id] || '—' }}</td>
+              <td class="hide-md nowrap">{{ u.phone || '—' }}</td>
+              <td class="hide-sm">
+                <span v-if="u.last_login_at" :title="dateTime(u.last_login_at)">{{ ago(u.last_login_at) }}</span>
+                <span v-else class="muted">Never</span>
+              </td>
+              <td class="hide-lg muted">{{ date(u.created_at) }}</td>
+              <td><span class="ui-badge" :class="u.is_active ? 'ui-badge--success' : 'ui-badge--draft'">{{ u.is_active ? 'Active' : 'Deactivated' }}</span></td>
+              <td class="actions-col" @click.stop>
+                <div v-if="canEdit(u)" class="row-actions">
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Edit" :aria-label="`Edit ${name(u)}`" @click="openEdit(u)"><i class="fa-regular fa-pen-to-square"></i></button>
+                  <template v-if="isAdmin && u.id !== me?.id">
+                    <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon hide-sm" title="Reset password" :aria-label="`Reset password for ${name(u)}`" @click="openReset(u)"><i class="fa-solid fa-key"></i></button>
+                    <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon hide-sm" :title="u.is_active ? 'Deactivate' : 'Reactivate'" :aria-label="u.is_active ? 'Deactivate' : 'Reactivate'" @click="toggleActive(u)">
+                      <i :class="u.is_active ? 'fa-solid fa-user-slash' : 'fa-solid fa-user-check'"></i>
+                    </button>
+                    <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon danger hide-sm" title="Delete user" :aria-label="`Delete ${name(u)}`" @click="remove(u)"><i class="fa-regular fa-trash-can"></i></button>
+                  </template>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer v-if="pagination.total > perPage" class="pager">
+        <span class="muted">{{ (page - 1) * perPage + 1 }}–{{ Math.min(page * perPage, pagination.total) }} of {{ pagination.total }}</span>
+        <div class="ui-actions">
+          <button class="ui-btn ui-btn--sm" :disabled="page <= 1" @click="go(page - 1)"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+          <button class="ui-btn ui-btn--sm" :disabled="page * perPage >= pagination.total" @click="go(page + 1)">Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </footer>
+    </section>
+
+    <!-- Create / edit -->
+    <div v-if="formOpen" class="ui-modal-backdrop" @mousedown.self="closeForm">
+      <form class="ui-modal" style="max-width: 680px" role="dialog" aria-modal="true" :aria-label="editing ? 'Edit staff member' : 'Add staff member'" @submit.prevent="save">
+        <div class="ui-modal__head">
+          <div>
+            <h2>{{ editing ? `Edit ${name(editing)}` : 'Add staff member' }}</h2>
+            <p class="sub">{{ editing ? 'Update their details and access.' : 'They can sign in with their email and the password below.' }}</p>
+          </div>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" @click="closeForm"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <div v-if="formError" class="ui-alert ui-alert--danger" style="margin-bottom: 16px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ formError }}</span></div>
+          <div class="ui-grid-2">
+            <div class="ui-field">
+              <label for="st-first">First name <span class="req">*</span></label>
+              <input id="st-first" ref="first" v-model.trim="form.first_name" class="ui-input" :class="{ 'is-invalid': errors.first_name }" />
+              <span v-if="errors.first_name" class="field-error">{{ errors.first_name }}</span>
+            </div>
+            <div class="ui-field">
+              <label for="st-last">Last name</label>
+              <input id="st-last" v-model.trim="form.last_name" class="ui-input" />
+            </div>
+            <div class="ui-field">
+              <label for="st-email">Email <span class="req">*</span></label>
+              <input id="st-email" v-model.trim="form.email" type="email" class="ui-input" :class="{ 'is-invalid': errors.email }" :disabled="editing && !isAdmin" autocomplete="off" />
+              <span v-if="errors.email" class="field-error">{{ errors.email }}</span>
+            </div>
+            <div class="ui-field">
+              <label for="st-phone">Phone</label>
+              <input id="st-phone" v-model.trim="form.phone" type="tel" class="ui-input" maxlength="20" />
+            </div>
+          </div>
+
+          <template v-if="isAdmin && !isSelf">
+            <div class="section-label">Role</div>
+            <div class="roles">
+              <label v-for="r in roleOptions" :key="r.value" class="role" :class="{ 'is-on': form.role === r.value }">
+                <input v-model="form.role" type="radio" name="role" :value="r.value" />
+                <span>
+                  <strong>{{ r.label }}</strong>
+                  <small>{{ r.description }}</small>
+                </span>
+              </label>
+            </div>
+          </template>
+
+          <template v-if="!editing">
+            <div class="section-label">Password</div>
+            <div class="pw-mode">
+              <label class="radio"><input v-model="pwMode" type="radio" value="generate" /> Generate a temporary password</label>
+              <label class="radio"><input v-model="pwMode" type="radio" value="set" /> Set a password now</label>
+            </div>
+            <div v-if="pwMode === 'set'" class="ui-field" style="margin-top: 12px">
+              <label for="st-pw">Password <span class="req">*</span></label>
+              <div class="pw-input">
+                <input id="st-pw" v-model="form.password" :type="showPw ? 'text' : 'password'" class="ui-input" :class="{ 'is-invalid': errors.password }" autocomplete="new-password" />
+                <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :title="showPw ? 'Hide password' : 'Show password'" :aria-label="showPw ? 'Hide password' : 'Show password'" @click="showPw = !showPw">
+                  <i :class="showPw ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+                </button>
+              </div>
+              <span class="ui-hint">At least 8 characters. Share it with them securely.</span>
+              <span v-if="errors.password" class="field-error">{{ errors.password }}</span>
+            </div>
+            <p v-else class="ui-hint" style="margin-top: 8px">We'll show the password once after the account is created so you can share it.</p>
+          </template>
+
+          <template v-if="editing && isAdmin && !isSelf">
+            <div class="section-label">Access</div>
+            <label class="ui-switch">
+              <input v-model="form.is_active" type="checkbox" />
+              {{ form.is_active ? 'Active: can sign in' : 'Deactivated: cannot sign in' }}
+            </label>
+          </template>
+        </div>
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn" @click="closeForm">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving">
+            <i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i>
+            {{ editing ? 'Save changes' : 'Create account' }}
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Reset password -->
+    <div v-if="resetting" class="ui-modal-backdrop" @mousedown.self="resetting = null">
+      <form class="ui-modal" role="dialog" aria-modal="true" aria-label="Reset password" @submit.prevent="doReset">
+        <div class="ui-modal__head">
+          <div>
+            <h2>Reset password</h2>
+            <p class="sub">{{ name(resetting) }} · {{ resetting.email }}</p>
+          </div>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" @click="resetting = null"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <div class="pw-mode">
+            <label class="radio"><input v-model="pwMode" type="radio" value="generate" /> Generate a temporary password</label>
+            <label class="radio"><input v-model="pwMode" type="radio" value="set" /> Choose a new password</label>
+          </div>
+          <div v-if="pwMode === 'set'" class="ui-field" style="margin-top: 12px">
+            <label for="rs-pw">New password</label>
+            <input id="rs-pw" v-model="resetPw" type="text" class="ui-input" :class="{ 'is-invalid': errors.password }" autocomplete="new-password" />
+            <span v-if="errors.password" class="field-error">{{ errors.password }}</span>
+          </div>
+          <p class="ui-hint" style="margin-top: 12px">They will be signed out of other devices.</p>
+        </div>
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn" @click="resetting = null">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving"><i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-key'"></i> Reset password</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- One-time password reveal -->
+    <div v-if="reveal" class="ui-modal-backdrop">
+      <div class="ui-modal" role="dialog" aria-modal="true" aria-label="Temporary password">
+        <div class="ui-modal__head">
+          <div>
+            <h2>{{ reveal.title }}</h2>
+            <p class="sub">{{ reveal.email }}</p>
+          </div>
+        </div>
+        <div class="ui-modal__body">
+          <div class="ui-alert ui-alert--warning"><i class="fa-solid fa-triangle-exclamation"></i><span>Copy this password now. It is only shown once and cannot be recovered.</span></div>
+          <div class="secret">
+            <code data-testid="temp-password">{{ reveal.password }}</code>
+            <button class="ui-btn ui-btn--sm" @click="copy(reveal.password)"><i :class="copied ? 'fa-solid fa-check' : 'fa-regular fa-copy'"></i> {{ copied ? 'Copied' : 'Copy' }}</button>
+          </div>
+          <p class="ui-hint">Ask them to sign in at {{ origin }}/login and change it from their profile.</p>
+        </div>
+        <div class="ui-modal__foot">
+          <button class="ui-btn ui-btn--primary" @click="reveal = null">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
-import { mapState, mapActions } from 'pinia'
-import { useUsersStore } from '../stores/users'
-import { useShiftsStore } from '../stores/shifts'
-import { useParticipantsStore } from '../stores/participants'
-import { useAuthStore } from '../stores/auth'
-import { useOrganizationContextStore } from '../stores/organizationContext'
-import PageTemplate from '../components/PageTemplate.vue'
-import { showSuccessNotification, showErrorNotification } from '../utils/notifications'
-import { debounce } from '../utils/debounce'
+import { usersService, ROLES, roleInfo, userName } from '@/services/users'
+import api, { apiErrorMessage } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+import { formatDate, formatDateTime, downloadBlob, isoDate } from '@/utils/format'
+
+const blank = () => ({ first_name: '', last_name: '', email: '', phone: '', role: 'staff', password: '', is_active: true })
 
 export default {
-  name: 'StaffView',
-  components: {
-    PageTemplate
-  },
+  name: 'Staff',
   data() {
     return {
-      searchQuery: '',
-      statusFilter: 'active',
-      roleFilter: '',
-      currentView: 'list',
-      showAddModal: false,
-      isSubmitting: false,
-      currentPage: 1,
-      itemsPerPage: 10,
-      newStaff: {
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        role: 'care_worker',
-        is_active: true
-      }
+      users: [],
+      summary: {},
+      pagination: {},
+      loaded: false,
+      loading: false,
+      error: '',
+      q: '',
+      role: '',
+      status: 'all',
+      allOrgs: false,
+      orgNames: {},
+      page: 1,
+      perPage: 50,
+      timer: null,
+      formOpen: false,
+      editing: null,
+      form: blank(),
+      errors: {},
+      formError: '',
+      saving: false,
+      pwMode: 'generate',
+      showPw: false,
+      resetting: null,
+      resetPw: '',
+      reveal: null,
+      copied: false,
+      origin: window.location.origin
     }
   },
   computed: {
-    ...mapState(useUsersStore, ['staff', 'isLoading']),
-    ...mapState(useAuthStore, ['user', 'isAdmin', 'isSuperAdmin']),
-    ...mapState(useOrganizationContextStore, ['currentOrganization']),
-
-    statsCards() {
+    auth() {
+      return useAuthStore()
+    },
+    me() {
+      return this.auth.user
+    },
+    isAdmin() {
+      return ['admin', 'super_admin'].includes(this.me?.role)
+    },
+    isSuperAdmin() {
+      return this.me?.role === 'super_admin'
+    },
+    isSelf() {
+      return this.editing && this.editing.id === this.me?.id
+    },
+    roleOptions() {
+      return ROLES
+    },
+    tabs() {
       return [
-        {
-          label: 'Total Staff',
-          value: this.staff.length,
-          icon: 'fas fa-user-nurse',
-          type: 'info'
-        },
-        {
-          label: 'Active Staff', 
-          value: this.activeStaff,
-          icon: 'fas fa-user-check',
-          type: 'success'
-        },
-        {
-          label: 'Available Today',
-          value: this.availableToday,
-          icon: 'fas fa-clock',
-          type: 'warning'
-        },
-        {
-          label: 'Scheduled Today',
-          value: this.scheduledToday,
-          icon: 'fas fa-calendar-alt',
-          type: 'info'
-        }
+        { value: 'all', label: 'All' },
+        { value: 'active', label: 'Active' },
+        { value: 'inactive', label: 'Deactivated' }
       ]
-    },
-
-    activeStaff() {
-      return this.staff.filter(s => s.is_active !== false).length
-    },
-
-    availableToday() {
-      return this.staff.filter(s => s.is_active !== false).length
-    },
-
-    scheduledToday() {
-      return Math.floor(this.staff.length * 0.6)
-    },
-
-    filteredStaff() {
-      return this.staff.filter(s => {
-        const query = this.searchQuery.toLowerCase()
-        const matchesSearch = !query || 
-          `${s.first_name || ''} ${s.last_name || ''}`.toLowerCase().includes(query) ||
-          (s.email && s.email.toLowerCase().includes(query)) ||
-          (s.phone && s.phone.includes(query)) ||
-          this.formatRole(s.role).toLowerCase().includes(query)
-        
-        const matchesStatus = !this.statusFilter || 
-          (this.statusFilter === 'active' && s.is_active !== false) ||
-          (this.statusFilter === 'inactive' && s.is_active === false)
-        
-        const matchesRole = !this.roleFilter || s.role === this.roleFilter
-        
-        return matchesSearch && matchesStatus && matchesRole
-      })
-    },
-
-    totalPages() {
-      return Math.ceil(this.filteredStaff.length / this.itemsPerPage)
-    },
-
-    paginatedStaff() {
-      const start = (this.currentPage - 1) * this.itemsPerPage
-      const end = start + this.itemsPerPage
-      return this.filteredStaff.slice(start, end)
-    },
-
-    startIndex() {
-      return (this.currentPage - 1) * this.itemsPerPage
-    },
-
-    endIndex() {
-      return Math.min(this.startIndex + this.itemsPerPage, this.filteredStaff.length)
-    },
-
-    visiblePages() {
-      const pages = []
-      const maxVisible = 5
-      let start = Math.max(1, this.currentPage - 2)
-      let end = Math.min(this.totalPages, start + maxVisible - 1)
-      
-      if (end - start < maxVisible - 1) {
-        start = Math.max(1, end - maxVisible + 1)
-      }
-      
-      for (let i = start; i <= end; i++) {
-        pages.push(i)
-      }
-      
-      return pages
     }
+  },
+  created() {
+    this.load()
+  },
+  beforeUnmount() {
+    clearTimeout(this.timer)
   },
   methods: {
-    ...mapActions(useUsersStore, ['fetchUsers', 'createUser', 'updateUser']),
-
+    roleInfo,
+    name: userName,
+    date: formatDate,
+    dateTime: formatDateTime,
+    initials(u) {
+      return ((u.first_name?.[0] || u.email?.[0] || '') + (u.last_name?.[0] || '')).toUpperCase()
+    },
+    hue(id = '') {
+      let h = 0
+      for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 360
+      return h
+    },
+    ago(v) {
+      const s = (Date.now() - new Date(v).getTime()) / 1000
+      if (s < 60) return 'Just now'
+      if (s < 3600) return `${Math.floor(s / 60)} min ago`
+      if (s < 86400) return `${Math.floor(s / 3600)} h ago`
+      if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`
+      return formatDate(v)
+    },
+    canEdit(u) {
+      if (u.role === 'super_admin' && !this.isSuperAdmin) return false
+      return this.isAdmin || u.id === this.me?.id
+    },
+    async load() {
+      this.loading = true
+      this.error = ''
+      try {
+        const params = { page: this.page, limit: this.perPage, sort: 'name', search: this.q || undefined, role: this.role || undefined }
+        if (this.status !== 'all') params.is_active = this.status === 'active'
+        if (this.allOrgs) params.all_orgs = true
+        const { users, pagination, summary } = await usersService.list(params)
+        this.users = users
+        this.pagination = pagination
+        this.summary = summary
+        this.loaded = true
+        if (this.allOrgs && !Object.keys(this.orgNames).length) this.loadOrgs()
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load staff')
+      } finally {
+        this.loading = false
+      }
+    },
+    async loadOrgs() {
+      try {
+        const r = await api.get('/super-admin/organizations', { params: { limit: 500 } })
+        const list = r.data?.data?.organizations || r.data?.organizations || []
+        this.orgNames = Object.fromEntries(list.map((o) => [o.id, o.name]))
+      } catch {
+        this.orgNames = {}
+      }
+    },
+    reload() {
+      this.page = 1
+      this.load()
+    },
+    go(p) {
+      this.page = p
+      this.load()
+    },
+    debouncedLoad() {
+      clearTimeout(this.timer)
+      this.timer = setTimeout(this.reload, 250)
+    },
+    setFilter(status, role) {
+      this.status = status
+      this.role = role
+      this.reload()
+    },
     clearFilters() {
-      this.statusFilter = 'active'
-      this.roleFilter = ''
-      this.searchQuery = ''
-      this.currentPage = 1
+      this.q = ''
+      this.role = ''
+      this.status = 'all'
+      this.reload()
     },
-    
-    goToPage(page) {
-      if (page >= 1 && page <= this.totalPages) {
-        this.currentPage = page
-      }
+    openCreate() {
+      this.editing = null
+      this.form = blank()
+      this.pwMode = 'generate'
+      this.showPw = false
+      this.errors = {}
+      this.formError = ''
+      this.formOpen = true
+      this.$nextTick(() => this.$refs.first?.focus())
     },
-    
-    handlePerPageChange() {
-      this.currentPage = 1
+    openEdit(u) {
+      this.editing = u
+      this.form = { ...blank(), ...u, password: '' }
+      this.errors = {}
+      this.formError = ''
+      this.formOpen = true
+      this.$nextTick(() => this.$refs.first?.focus())
     },
-
-    filterStaff() {
-      // Filtering is handled by computed property
+    closeForm() {
+      if (!this.saving) this.formOpen = false
     },
-
-    formatRole(role) {
-      const roleMap = {
-        care_worker: 'Care Worker',
-        support_coordinator: 'Support Coordinator', 
-        manager: 'Manager',
-        admin: 'Administrator'
-      }
-      return roleMap[role] || role
+    validate() {
+      const e = {}
+      if (!this.form.first_name) e.first_name = 'First name is required'
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email || '')) e.email = 'Enter a valid email address'
+      if (!this.editing && this.pwMode === 'set' && (this.form.password || '').length < 8) e.password = 'Use at least 8 characters'
+      this.errors = e
+      return !Object.keys(e).length
     },
-
-    getRoleClass(role) {
-      const classMap = {
-        care_worker: 'role-care-worker',
-        manager: 'role-manager', 
-        admin: 'role-admin',
-        supervisor: 'role-supervisor'
-      }
-      return classMap[role] || 'role-default'
-    },
-
-    getRoleIcon(role) {
-      const iconMap = {
-        care_worker: 'fas fa-user-nurse',
-        manager: 'fas fa-user-tie',
-        admin: 'fas fa-user-cog', 
-        supervisor: 'fas fa-crown'
-      }
-      return iconMap[role] || 'fas fa-user'
-    },
-
-    getInitials(firstName, lastName) {
-      return `${(firstName || '').charAt(0)}${(lastName || '').charAt(0)}`.toUpperCase()
-    },
-
-    getCompanyName(member) {
-      return 'DASYIN PRO'
-    },
-
-    formatLastLogin(loginDate) {
-      if (!loginDate) return 'Never'
-      return new Date(loginDate).toLocaleDateString()
-    },
-
-    async toggleStaffStatus(member) {
+    async save() {
+      if (!this.validate()) return
+      this.saving = true
+      this.formError = ''
       try {
-        this.isSubmitting = true
-        const updatedData = { ...member, is_active: !member.is_active }
-        await this.updateUser(member.id, updatedData)
-        showSuccessNotification('Staff status updated successfully!')
-      } catch (error) {
-        console.error('Error updating staff status:', error)
-        showErrorNotification(error, 'Error updating staff status')
+        if (this.editing) {
+          const payload = { first_name: this.form.first_name, last_name: this.form.last_name, phone: this.form.phone }
+          if (this.isAdmin) payload.email = this.form.email
+          if (this.isAdmin && !this.isSelf) {
+            payload.role = this.form.role
+            payload.is_active = this.form.is_active
+          }
+          await usersService.update(this.editing.id, payload)
+          toast.success('Changes saved')
+          this.formOpen = false
+        } else {
+          const payload = { first_name: this.form.first_name, last_name: this.form.last_name, email: this.form.email, phone: this.form.phone, role: this.form.role }
+          if (this.pwMode === 'set') payload.password = this.form.password
+          const { user, temporaryPassword } = await usersService.create(payload)
+          this.formOpen = false
+          toast.success(`${userName(user)} can now sign in`)
+          if (temporaryPassword) this.showReveal('Account created', user.email, temporaryPassword)
+        }
+        await this.load()
+      } catch (e) {
+        this.formError = apiErrorMessage(e, 'Could not save')
       } finally {
-        this.isSubmitting = false
+        this.saving = false
       }
     },
-
-    closeModal() {
-      this.showAddModal = false
-      this.newStaff = {
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        role: 'care_worker',
-        is_active: true
-      }
+    openReset(u) {
+      this.resetting = u
+      this.resetPw = ''
+      this.pwMode = 'generate'
+      this.errors = {}
     },
-
-    async addStaff() {
+    async doReset() {
+      if (this.pwMode === 'set' && this.resetPw.length < 8) {
+        this.errors = { password: 'Use at least 8 characters' }
+        return
+      }
+      this.saving = true
       try {
-        this.isSubmitting = true
-        await this.createUser(this.newStaff)
-        this.closeModal()
-        showSuccessNotification('Staff member added successfully!')
-      } catch (error) {
-        console.error('Error adding staff:', error)
-        showErrorNotification(error, 'Error adding staff member')
+        const temp = await usersService.resetPassword(this.resetting.id, this.pwMode === 'set' ? this.resetPw : '')
+        const u = this.resetting
+        this.resetting = null
+        toast.success('Password reset')
+        if (temp) this.showReveal('New temporary password', u.email, temp)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not reset the password'))
       } finally {
-        this.isSubmitting = false
+        this.saving = false
       }
     },
-
-    formatDate(date) {
-      if (!date) return 'N/A'
-      return new Date(date).toLocaleDateString()
+    showReveal(title, email, password) {
+      this.copied = false
+      this.reveal = { title, email, password }
     },
-
-    viewStaff(member) {
-      // Navigate to staff detail view or show modal
-      console.log('View staff:', member)
+    async copy(text) {
+      try {
+        await navigator.clipboard.writeText(text)
+        this.copied = true
+      } catch {
+        toast.info('Select the password and copy it manually')
+      }
     },
-
-    scheduleStaff(member) {
-      // Navigate to schedule view or show modal
-      console.log('Schedule staff:', member)
+    async toggleActive(u) {
+      if (u.is_active) {
+        const ok = await confirmDialog({
+          title: `Deactivate ${userName(u)}?`,
+          message: 'They will be signed out and can no longer sign in. Their shifts, bookings and history are kept. You can reactivate them later.',
+          confirmText: 'Deactivate',
+          danger: true
+        })
+        if (!ok) return
+      }
+      try {
+        await usersService.update(u.id, { is_active: !u.is_active })
+        toast.success(u.is_active ? `${userName(u)} deactivated` : `${userName(u)} reactivated`)
+        await this.load()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not update the account'))
+      }
     },
-
-    editStaff(member) {
-      // Navigate to edit view or show modal
-      console.log('Edit staff:', member)
+    async remove(u) {
+      const ok = await confirmDialog({
+        title: `Delete ${userName(u)}?`,
+        message: 'The account is removed and they can no longer sign in. Consider deactivating instead to keep them on past rosters.',
+        confirmText: 'Delete user',
+        danger: true
+      })
+      if (!ok) return
+      try {
+        await usersService.remove(u.id)
+        toast.success('User deleted')
+        await this.load()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete the user'))
+      }
+    },
+    exportCsv() {
+      const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+      const head = ['First name', 'Last name', 'Email', 'Phone', 'Role', 'Status', 'Last sign-in', 'Added']
+      const lines = this.users.map((u) => [u.first_name, u.last_name, u.email, u.phone, roleInfo(u.role).label, u.is_active ? 'Active' : 'Deactivated', u.last_login_at ? formatDateTime(u.last_login_at) : '', isoDate(new Date(u.created_at))].map(esc).join(','))
+      downloadBlob(new Blob([[head.map(esc).join(','), ...lines].join('\n')], { type: 'text/csv' }), `staff-${isoDate()}.csv`)
     }
-  },
-  async mounted() {
-    await this.fetchUsers()
   }
 }
 </script>
 
 <style scoped>
-.staff-page {
-  padding: 2rem;
-  width: 100%;
-  background: var(--bs-body-bg);
-  min-height: 100vh;
+.org-switch {
+  font-size: 13px;
+  white-space: nowrap;
+  margin-right: 4px;
 }
 
-/* Header Styles */
-.page-header {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--card-border);
-  border-radius: 24px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: var(--bs-box-shadow-lg);
+.kpi-btn {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.kpi-btn:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+.kpi-btn.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.kpi-success { background: var(--success-soft); color: var(--success); }
+.kpi-neutral { background: var(--neutral-soft); color: var(--text-2); }
+.kpi-accent { background: var(--warning-soft); color: var(--warning); }
+
+.sk-val {
+  display: inline-block;
+  width: 60px;
+  height: 26px;
+}
+
+.toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  position: relative;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar__right {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search {
+  width: 280px;
+}
+
+.role-filter {
+  width: 190px;
+}
+
+.sk-row {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  align-items: center;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.person__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.person__name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.person__text small {
+  color: var(--text-3);
+  font-size: 12.5px;
   overflow: hidden;
-  transition: all 0.3s ease;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
 }
 
-.page-header:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.1);
+.you {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
-.page-header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(147, 197, 253, 0.5), transparent);
-}
-
-.page-title {
-  font-size: 2.25rem;
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
   font-weight: 700;
-  color: var(--bs-body-color);
-  margin: 0 0 0.75rem 0;
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  line-height: 1.3;
-  letter-spacing: -0.025em;
-}
-
-.title-icon {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 32px rgba(240, 147, 251, 0.25);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: hsl(var(--hue) 60% 42%);
+  background: hsl(var(--hue) 70% 50% / 0.14);
   flex-shrink: 0;
 }
 
-.title-icon:hover {
-  transform: scale(1.05) translateY(-2px);
-  box-shadow: 0 12px 40px rgba(240, 147, 251, 0.35);
+:root[data-theme='dark'] .avatar {
+  color: hsl(var(--hue) 75% 72%);
 }
 
-.title-icon i {
-  font-size: 1.75rem;
-  color: white;
-}
-
-.page-description {
-  font-size: 1.125rem;
-  color: var(--bs-secondary);
-  margin: 0;
-  line-height: 1.6;
-  max-width: 640px;
-  font-weight: 400;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(240, 147, 251, 0.3);
-}
-
-/* Stats Grid */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: var(--card-bg);
-  padding: 1.5rem;
-  border-radius: 16px;
-  box-shadow: var(--stat-card-shadow);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  transition: all 0.3s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-}
-
-.stat-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  color: white;
-}
-
-.stat-icon.total { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.stat-icon.active { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.stat-icon.shifts { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.stat-icon.performance { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-
-.stat-content h3 {
-  font-size: 1.8rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--bs-body-color);
-}
-
-.stat-content p {
-  font-size: 0.9rem;
-  color: var(--bs-secondary);
-  margin: 0.25rem 0;
-}
-
-.stat-change {
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-}
-
-.stat-change.positive { 
-  color: #28a745; 
-  background: rgba(40, 167, 69, 0.1);
-}
-.stat-change.neutral { 
-  color: var(--bs-secondary); 
-  background: rgba(108, 117, 125, 0.1);
-}
-
-/* Filters Section */
-.filters-section {
-  background: var(--card-bg);
-  border-radius: 16px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: var(--stat-card-shadow);
-}
-
-.filters-container {
-  display: flex;
-  gap: 1.5rem;
-  align-items: end;
-  flex-wrap: wrap;
-}
-
-.search-box {
-  position: relative;
-  flex: 1;
-  min-width: 300px;
-}
-
-.search-box i {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--bs-secondary);
-  z-index: 2;
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border: 2px solid var(--card-border);
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: all 0.2s ease;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #f093fb;
-  box-shadow: 0 0 0 3px rgba(240, 147, 251, 0.1);
-}
-
-.filter-controls {
-  display: flex;
-  gap: 1rem;
-  align-items: end;
-  flex-wrap: wrap;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.filter-group label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--bs-body-color);
-}
-
-.filter-select {
-  padding: 0.75rem 1rem;
-  border: 2px solid var(--card-border);
-  border-radius: 8px;
-  font-size: 1rem;
-  background: var(--card-bg);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 150px;
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: #f093fb;
-  box-shadow: 0 0 0 3px rgba(240, 147, 251, 0.1);
-}
-
-.btn-secondary {
-  background: var(--bs-tertiary-bg);
-  color: var(--bs-secondary);
-  border: 2px solid var(--card-border);
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  background: #e9ecef;
-  color: #495057;
-}
-
-.staff-content {
-  min-height: 400px;
-}
-
-.loading-state, .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem;
-  text-align: center;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--color-border);
-  border-top: 4px solid var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.empty-state i {
-  font-size: 4rem;
-  color: var(--color-text-muted);
-  margin-bottom: 1rem;
-}
-
-.table-responsive {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.table {
-  margin-bottom: 0;
-}
-
-.table th {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: none;
-  padding: 1rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.table td {
-  padding: 1rem;
-  border: none;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.table tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.1);
-  transition: background 0.2s ease;
-}
-
-.badge {
-  font-size: 0.75rem;
-  padding: 0.375rem 0.75rem;
-  border-radius: 6px;
-}
-
-.form-check-input {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.5rem;
-}
-/* Staff Table Styles - Matching Bookings Table */
-.staff-list {
-  background: var(--card-bg);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: var(--card-shadow);
-}
-
-.staff-table {
-  width: 100%;
-}
-
-.table-header {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 120px;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: var(--table-header-bg);
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.header-cell {
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-}
-
-.table-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 120px;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.table-row:hover {
-  background: var(--hover-bg);
-}
-
-.table-row.status-active {
-  border-left: 3px solid #22c55e;
-}
-
-.table-row.status-inactive {
-  border-left: 3px solid #ef4444;
-  opacity: 0.7;
-}
-
-.table-cell {
-  display: flex;
-  align-items: center;
-  min-height: 60px;
-}
-
-/* Staff Info */
-.staff-info {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.staff-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.staff-details .name {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.staff-details .email {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-/* Role Info */
-.role-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.role-badge i {
-  font-size: 0.875rem;
-}
-
-.role-care-worker {
-  background: #e0f2fe;
-  color: #0277bd;
-}
-
-.role-manager {
-  background: #f3e5f5;
-  color: #7b1fa2;
-}
-
-.role-admin {
-  background: #ffecb3;
-  color: #ff8f00;
-}
-
-.role-supervisor {
-  background: #e8f5e8;
-  color: #2e7d32;
-}
-
-.role-default {
-  background: #f5f5f5;
-  color: #666;
-}
-
-[data-theme="dark"] .role-care-worker {
-  background: rgba(2, 119, 189, 0.2);
-  color: #4fc3f7;
-}
-
-[data-theme="dark"] .role-manager {
-  background: rgba(123, 31, 162, 0.2);
-  color: #ba68c8;
-}
-
-[data-theme="dark"] .role-admin {
-  background: rgba(255, 143, 0, 0.2);
-  color: #ffb74d;
-}
-
-[data-theme="dark"] .role-supervisor {
-  background: rgba(46, 125, 50, 0.2);
-  color: #81c784;
-}
-
-/* Contact Info */
-.contact-info .phone {
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.contact-info .company {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-/* Status Info */
-.status-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.status-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-.status-badge.active {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-badge.inactive {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-[data-theme="dark"] .status-badge.active {
-  background: rgba(22, 163, 74, 0.2);
-  color: #4ade80;
-}
-
-[data-theme="dark"] .status-badge.inactive {
-  background: rgba(220, 38, 38, 0.2);
-  color: #f87171;
-}
-
-/* Activity Info */
-.activity-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.activity-info i {
+.is-off .person__name,
+.is-off .avatar {
   opacity: 0.6;
 }
 
-/* Actions Menu */
-.actions-menu {
-  display: flex;
-  gap: 0.25rem;
+.muted {
+  color: var(--text-3);
 }
 
-.action-btn {
-  padding: 0.5rem;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
+.nowrap {
+  white-space: nowrap;
+}
+
+.actions-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.danger:hover {
+  color: var(--danger);
+}
+
+.is-loading {
+  opacity: 0.6;
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.sub {
+  margin: 4px 0 0;
+  color: var(--text-3);
+  font-size: 13.5px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  margin: 22px 0 10px;
+}
+
+.roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.role {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.role:hover {
+  border-color: var(--border-strong);
+}
+
+.role.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.role input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.role strong {
+  display: block;
+  font-size: 13.5px;
+}
+
+.role small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pw-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.radio input {
+  accent-color: var(--accent);
+}
+
+.pw-input {
+  display: flex;
+  gap: 6px;
+}
+
+.secret {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 10px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
 }
 
-.action-btn:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
+.secret code {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  word-break: break-all;
 }
 
-.action-btn.view:hover {
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+.req {
+  color: var(--danger);
 }
 
-.action-btn.schedule:hover {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
+.field-error {
+  font-size: 12px;
+  color: var(--danger);
 }
 
-.action-btn.edit:hover {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
-/* Responsive Design */
 @media (max-width: 1200px) {
-  .table-header,
-  .table-row {
-    grid-template-columns: 2fr 1fr 1.2fr 1fr 100px;
-  }
-  
-  .header-cell:nth-child(3),
-  .table-cell:nth-child(3) {
+  .hide-lg {
     display: none;
   }
 }
 
-@media (max-width: 768px) {
-  .table-header,
-  .table-row {
-    grid-template-columns: 2fr 1fr 80px;
-  }
-  
-  .header-cell:nth-child(4),
-  .header-cell:nth-child(5),
-  .table-cell:nth-child(4),
-  .table-cell:nth-child(5) {
+@media (max-width: 960px) {
+  .hide-md {
     display: none;
   }
-  
-  .staff-details .email {
+}
+
+@media (max-width: 640px) {
+  .hide-sm {
+    display: none;
+  }
+  .search,
+  .role-filter {
+    width: 100%;
+  }
+  .toolbar__right {
+    width: 100%;
+  }
+  .roles {
+    grid-template-columns: 1fr;
+  }
+  .person {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .ui-kpis {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .ui-kpi {
+    padding: 14px;
+  }
+  .ui-kpi__value {
+    font-size: 20px;
+  }
+  .ui-kpi__meta {
     display: none;
   }
 }

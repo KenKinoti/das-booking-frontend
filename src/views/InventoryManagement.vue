@@ -1,1010 +1,594 @@
 <template>
-  <div class="inventory-module">
-    <!-- Action Buttons Section -->
-    <div class="page-actions d-flex justify-content-end mb-4">
-      <button class="btn btn-outline-success me-2" @click="exportInventory">
-        <i class="bi bi-download me-2"></i>
-        Export
-      </button>
-      <button class="btn btn-primary" @click="showProductModal = true">
-        <i class="bi bi-plus-lg me-2"></i>
-        Add Product
-      </button>
-    </div>
-
-    <!-- Inventory Dashboard Cards -->
-    <div class="stats-overview mb-5">
-      <div class="row g-4">
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card bg-gradient-primary">
-            <div class="stat-content">
-              <div class="stat-icon">
-                <i class="bi bi-box-seam"></i>
-              </div>
-              <div class="stat-details">
-                <h3 class="stat-value">{{ dashboard?.total_products || 0 }}</h3>
-                <p class="stat-label">Total Products</p>
-                <small class="stat-change positive">
-                  <i class="bi bi-arrow-up"></i> +{{ dashboard?.new_products || 0 }} this month
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card bg-gradient-success">
-            <div class="stat-content">
-              <div class="stat-icon">
-                <i class="bi bi-check-circle"></i>
-              </div>
-              <div class="stat-details">
-                <h3 class="stat-value">{{ dashboard?.in_stock || 0 }}</h3>
-                <p class="stat-label">In Stock</p>
-                <small class="stat-change positive">
-                  <i class="bi bi-check"></i> {{ getStockPercentage() }}% available
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card bg-gradient-warning">
-            <div class="stat-content">
-              <div class="stat-icon">
-                <i class="bi bi-exclamation-triangle"></i>
-              </div>
-              <div class="stat-details">
-                <h3 class="stat-value">{{ dashboard?.low_stock || 0 }}</h3>
-                <p class="stat-label">Low Stock</p>
-                <small class="stat-change warning">
-                  <i class="bi bi-exclamation-triangle"></i> Needs attention
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card bg-gradient-info">
-            <div class="stat-content">
-              <div class="stat-icon">
-                <i class="bi bi-currency-dollar"></i>
-              </div>
-              <div class="stat-details">
-                <h3 class="stat-value">${{ formatMoney(dashboard?.total_value || 0) }}</h3>
-                <p class="stat-label">Inventory Value</p>
-                <small class="stat-change positive">
-                  <i class="bi bi-arrow-up"></i> +8.3% from last month
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Inventory & Supply</div>
+        <h1>Inventory</h1>
+        <p>Track products, stock on hand and every stock movement.</p>
       </div>
+      <div class="ui-actions">
+        <button class="ui-btn" @click="showCategories = true"><i class="fa-solid fa-tags"></i> Categories</button>
+        <button class="ui-btn" :disabled="!filtered.length" @click="exportCsv"><i class="fa-solid fa-download"></i> Export CSV</button>
+        <button class="ui-btn ui-btn--primary" @click="openProduct()"><i class="fa-solid fa-plus"></i> Add product</button>
+      </div>
+    </header>
+
+    <div class="ui-kpis">
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': !stockFilter && activeFilter === 'active' && !categoryFilter && !search }" @click="resetFilters">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-box"></i></span>Products</div>
+        <div class="ui-kpi__value"><template v-if="loaded">{{ kpi.active }}</template><span v-else class="ui-skeleton kpi-sk"></span></div>
+        <div class="ui-kpi__meta">{{ loaded ? `${kpi.units.toLocaleString()} units on hand${kpi.inactive ? ` · ${kpi.inactive} inactive` : ''}` : '&nbsp;' }}</div>
+      </button>
+      <div class="ui-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-sack-dollar"></i></span>Stock value</div>
+        <div class="ui-kpi__value"><template v-if="loaded">{{ money(kpi.value) }}</template><span v-else class="ui-skeleton kpi-sk"></span></div>
+        <div class="ui-kpi__meta">{{ loaded ? `${money(kpi.retail)} at selling price` : '&nbsp;' }}</div>
+      </div>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': stockFilter === 'low_stock' }" @click="toggleStock('low_stock')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-solid fa-arrow-trend-down"></i></span>Low stock</div>
+        <div class="ui-kpi__value" :class="{ 'txt-warning': kpi.low > 0 }"><template v-if="loaded">{{ kpi.low }}</template><span v-else class="ui-skeleton kpi-sk"></span></div>
+        <div class="ui-kpi__meta">At or below reorder level</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': stockFilter === 'out_of_stock' }" @click="toggleStock('out_of_stock')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-danger"><i class="fa-solid fa-circle-exclamation"></i></span>Out of stock</div>
+        <div class="ui-kpi__value" :class="{ 'txt-danger': kpi.out > 0 }"><template v-if="loaded">{{ kpi.out }}</template><span v-else class="ui-skeleton kpi-sk"></span></div>
+        <div class="ui-kpi__meta">Nothing on hand</div>
+      </button>
     </div>
 
-    <!-- Inventory Controls -->
-    <div class="inventory-controls mb-4">
-      <div class="row g-3 align-items-center">
-        <div class="col-lg-3 col-md-6">
-          <div class="search-box">
-            <i class="bi bi-search"></i>
-            <input
-              type="text"
-              class="form-control"
-              placeholder="Search products..."
-              v-model="searchQuery"
-              @input="filterProducts"
-            >
-          </div>
+    <div v-if="loaded && reorderable.length && (stockFilter === 'low_stock' || stockFilter === 'out_of_stock')" class="ui-alert ui-alert--warning reorder">
+      <i class="fa-solid fa-truck-arrow-right"></i>
+      <span>{{ reorderable.length }} product{{ reorderable.length === 1 ? '' : 's' }} need restocking.</span>
+      <button class="ui-btn ui-btn--sm" @click="reorder"><i class="fa-solid fa-file-circle-plus"></i> Create purchase order</button>
+    </div>
+
+    <section class="ui-card">
+      <div class="toolbar">
+        <div class="ui-input-group search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input v-model="search" class="ui-input" type="search" placeholder="Search name, SKU or barcode…" aria-label="Search products" />
         </div>
-        <div class="col-lg-2 col-md-6">
-          <select class="form-select" v-model="filterCategory" @change="filterProducts">
-            <option value="">All Categories</option>
-            <option v-for="category in categories" :key="category" :value="category">
-              {{ category }}
-            </option>
+        <div class="toolbar__right">
+          <select v-model="categoryFilter" class="ui-select sel" aria-label="Category">
+            <option value="">All categories</option>
+            <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+            <option value="none">Uncategorised</option>
+          </select>
+          <select v-model="stockFilter" class="ui-select sel" aria-label="Stock status">
+            <option value="">Any stock level</option>
+            <option value="in_stock">In stock</option>
+            <option value="low_stock">Low stock</option>
+            <option value="out_of_stock">Out of stock</option>
+          </select>
+          <select v-model="activeFilter" class="ui-select sel-sm" aria-label="Product status">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All products</option>
+          </select>
+          <select v-model="sort" class="ui-select sel-sm" aria-label="Sort">
+            <option value="name">Name A–Z</option>
+            <option value="stock">Lowest stock</option>
+            <option value="value">Highest value</option>
+            <option value="recent">Recently added</option>
           </select>
         </div>
-        <div class="col-lg-2 col-md-6">
-          <select class="form-select" v-model="filterStatus" @change="filterProducts">
-            <option value="">All Status</option>
-            <option value="in_stock">In Stock</option>
-            <option value="low_stock">Low Stock</option>
-            <option value="out_of_stock">Out of Stock</option>
-          </select>
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <div class="form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="hideDiscontinued"
-              v-model="hideDiscontinued"
-              @change="filterProducts"
-            >
-            <label class="form-check-label" for="hideDiscontinued">
-              Hide Discontinued
-            </label>
-          </div>
-        </div>
-        <div class="col-lg-2 col-md-12">
-          <button class="btn btn-outline-primary w-100" @click="resetFilters">
-            <i class="bi bi-arrow-clockwise me-1"></i>
-            Reset
-          </button>
+      </div>
+
+      <div v-if="error" class="ui-card__body">
+        <div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span></div>
+      </div>
+      <div v-else-if="loading && !loaded" class="ui-card__body">
+        <div v-for="n in 6" :key="n" class="sk-row">
+          <div class="ui-skeleton" style="flex: 1"></div>
+          <div class="ui-skeleton" style="width: 90px"></div>
+          <div class="ui-skeleton" style="width: 60px"></div>
+          <div class="ui-skeleton" style="width: 90px"></div>
         </div>
       </div>
-    </div>
-
-    <!-- Products Table -->
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">
-          <i class="bi bi-grid-3x3-gap me-2"></i>
-          Products Inventory
-        </h5>
-        <div class="view-toggle">
-          <div class="btn-group" role="group">
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-primary"
-              :class="{ active: viewMode === 'table' }"
-              @click="viewMode = 'table'"
-            >
-              <i class="bi bi-table"></i>
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-primary"
-              :class="{ active: viewMode === 'grid' }"
-              @click="viewMode = 'grid'"
-            >
-              <i class="bi bi-grid"></i>
-            </button>
-          </div>
-        </div>
+      <div v-else-if="!filtered.length" class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+        <h3>{{ products.length ? 'No products match' : 'No products yet' }}</h3>
+        <p>{{ products.length ? 'Try a different search or filter.' : 'Add the products you stock or sell. You can then adjust stock and order them from suppliers.' }}</p>
+        <button v-if="!products.length" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openProduct()"><i class="fa-solid fa-plus"></i> Add product</button>
+        <button v-else class="ui-btn" style="margin-top: 12px" @click="resetFilters">Clear filters</button>
       </div>
-      <div class="card-body">
-        <!-- Table View -->
-        <div v-show="viewMode === 'table'" class="table-responsive">
-          <table class="table table-hover">
-            <thead class="table-light">
-              <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Category</th>
-                <th>Stock Quantity</th>
-                <th>Unit Price</th>
-                <th>Total Value</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="product in filteredProducts" :key="product.id">
-                <td>
-                  <div class="d-flex align-items-center">
-                    <div class="product-image me-3">
-                      <img :src="product.image || '/placeholder-product.png'" :alt="product.name" class="rounded">
-                    </div>
-                    <div>
-                      <strong>{{ product.name }}</strong>
-                      <br>
-                      <small class="text-muted">{{ product.description }}</small>
-                    </div>
-                  </div>
-                </td>
-                <td><code>{{ product.sku }}</code></td>
-                <td>
-                  <span class="badge bg-light text-dark">{{ product.category }}</span>
-                </td>
-                <td>
-                  <div class="d-flex align-items-center">
-                    <span class="me-2">{{ product.stock_quantity }}</span>
-                    <span class="badge" :class="getStockBadgeClass(product)">
-                      {{ getStockStatus(product) }}
-                    </span>
-                  </div>
-                </td>
-                <td>${{ formatMoney(product.unit_price) }}</td>
-                <td>${{ formatMoney(product.stock_quantity * product.unit_price) }}</td>
-                <td>
-                  <span class="badge" :class="getStatusBadgeClass(product.status)">
-                    {{ product.status.replace('_', ' ').toUpperCase() }}
-                  </span>
-                </td>
-                <td>
-                  <div class="btn-group" role="group">
-                    <button class="btn btn-sm btn-outline-primary" @click="editProduct(product)">
-                      <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-info" @click="viewProduct(product)">
-                      <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-success" @click="adjustStock(product)">
-                      <i class="bi bi-plus-minus"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" @click="deleteProduct(product.id)">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Grid View -->
-        <div v-show="viewMode === 'grid'" class="row g-4">
-          <div v-for="product in filteredProducts" :key="product.id" class="col-lg-4 col-md-6">
-            <div class="product-card">
-              <div class="product-image">
-                <img :src="product.image || '/placeholder-product.png'" :alt="product.name" class="card-img-top">
-                <div class="stock-badge">
-                  <span class="badge" :class="getStockBadgeClass(product)">
-                    {{ getStockStatus(product) }}
+      <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th class="hide-sm">SKU</th>
+              <th class="num">On hand</th>
+              <th class="num hide-lg">Reorder at</th>
+              <th class="num hide-md">Cost</th>
+              <th class="num hide-md">Price</th>
+              <th class="num hide-lg">Value</th>
+              <th class="hide-sm">Status</th>
+              <th class="actions-col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in filtered" :key="p.id" class="is-clickable" :class="{ 'is-off': p.is_active === false }" @click="openDrawer(p)">
+              <td>
+                <div class="p-cell">
+                  <span class="p-icon" :class="p.stock_status"><i class="fa-solid fa-box"></i></span>
+                  <span class="min0">
+                    <span class="strong">{{ p.name }}</span>
+                    <small>{{ p.category?.name || 'Uncategorised' }}<template v-if="p.is_active === false"> · inactive</template></small>
                   </span>
                 </div>
-              </div>
-              <div class="card-body">
-                <h6 class="card-title">{{ product.name }}</h6>
-                <p class="card-text text-muted small">{{ product.description }}</p>
-
-                <div class="product-info">
-                  <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">SKU:</span>
-                    <code>{{ product.sku }}</code>
-                  </div>
-                  <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Stock:</span>
-                    <strong>{{ product.stock_quantity }}</strong>
-                  </div>
-                  <div class="d-flex justify-content-between mb-3">
-                    <span class="text-muted">Price:</span>
-                    <strong>${{ formatMoney(product.unit_price) }}</strong>
-                  </div>
+              </td>
+              <td class="hide-sm mono muted nowrap">{{ p.sku }}</td>
+              <td class="num">
+                <strong :class="stockClass(p)">{{ p.current_stock }}</strong>
+                <small class="unit">{{ p.unit_of_measure || 'each' }}</small>
+              </td>
+              <td class="num hide-lg muted">{{ threshold(p) || '—' }}</td>
+              <td class="num hide-md">{{ money(p.cost_price) }}</td>
+              <td class="num hide-md">{{ money(p.selling_price) }}</td>
+              <td class="num hide-lg strong">{{ money(p.stock_value) }}</td>
+              <td class="hide-sm"><span class="ui-badge" :class="`ui-badge--${status(p).badge}`">{{ status(p).label }}</span></td>
+              <td class="actions-col" @click.stop>
+                <div class="row-actions">
+                  <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" title="Adjust stock" :aria-label="`Adjust stock for ${p.name}`" @click="openAdjust(p)"><i class="fa-solid fa-sliders"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm hide-xs" title="Edit" :aria-label="`Edit ${p.name}`" @click="openProduct(p)"><i class="fa-regular fa-pen-to-square"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm danger-text hide-xs" title="Delete" :aria-label="`Delete ${p.name}`" @click="deleteProduct(p)"><i class="fa-regular fa-trash-can"></i></button>
                 </div>
-
-                <div class="product-actions">
-                  <button class="btn btn-sm btn-primary me-1" @click="editProduct(product)">
-                    <i class="bi bi-pencil"></i>
-                  </button>
-                  <button class="btn btn-sm btn-outline-success me-1" @click="adjustStock(product)">
-                    <i class="bi bi-plus-minus"></i>
-                  </button>
-                  <button class="btn btn-sm btn-outline-info" @click="viewProduct(product)">
-                    <i class="bi bi-eye"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Empty State -->
-        <div v-if="filteredProducts.length === 0" class="text-center py-5">
-          <i class="bi bi-box display-1 text-muted"></i>
-          <h4 class="mt-3">No Products Found</h4>
-          <p class="text-muted">No products match your current filters</p>
-          <button class="btn btn-primary" @click="resetFilters">
-            <i class="bi bi-arrow-clockwise me-2"></i>
-            Reset Filters
-          </button>
-        </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </div>
+      <footer v-if="filtered.length" class="foot">
+        <span>{{ filtered.length }} of {{ products.length }} product{{ products.length === 1 ? '' : 's' }}</span>
+        <span>Value shown: <strong>{{ money(filteredValue) }}</strong></span>
+      </footer>
+    </section>
 
-    <!-- Product Modal -->
-    <div v-if="showProductModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              <i class="bi bi-plus-circle me-2"></i>
-              {{ editingProduct ? 'Edit Product' : 'Add New Product' }}
-            </h5>
-            <button type="button" class="btn-close" @click="closeProductModal"></button>
-          </div>
-          <div class="modal-body">
-            <form @submit.prevent="saveProduct">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label">Product Name *</label>
-                  <input type="text" class="form-control" v-model="productForm.name" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">SKU *</label>
-                  <input type="text" class="form-control" v-model="productForm.sku" required>
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Description</label>
-                  <textarea class="form-control" rows="3" v-model="productForm.description"></textarea>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Category *</label>
-                  <select class="form-select" v-model="productForm.category" required>
-                    <option value="">Select Category</option>
-                    <option v-for="category in categories" :key="category" :value="category">
-                      {{ category }}
-                    </option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Unit Price *</label>
-                  <div class="input-group">
-                    <span class="input-group-text">$</span>
-                    <input type="number" class="form-control" v-model="productForm.unit_price" step="0.01" min="0" required>
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Initial Stock Quantity</label>
-                  <input type="number" class="form-control" v-model="productForm.stock_quantity" min="0">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Minimum Stock Level</label>
-                  <input type="number" class="form-control" v-model="productForm.min_stock_level" min="0">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Maximum Stock Level</label>
-                  <input type="number" class="form-control" v-model="productForm.max_stock_level" min="0">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Status</label>
-                  <select class="form-select" v-model="productForm.status">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="discontinued">Discontinued</option>
-                  </select>
-                </div>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="closeProductModal">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="saveProduct">
-              {{ editingProduct ? 'Update Product' : 'Create Product' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stock Adjustment Modal -->
-    <div v-if="showStockModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              <i class="bi bi-plus-minus-alt me-2"></i>
-              Adjust Stock - {{ selectedProduct?.name }}
-            </h5>
-            <button type="button" class="btn-close" @click="showStockModal = false"></button>
-          </div>
-          <div class="modal-body">
-            <div class="current-stock mb-3">
-              <label class="form-label">Current Stock</label>
-              <div class="input-group">
-                <input type="number" class="form-control" :value="selectedProduct?.stock_quantity" readonly>
-                <span class="input-group-text">units</span>
-              </div>
-            </div>
-
-            <div class="adjustment-type mb-3">
-              <label class="form-label">Adjustment Type</label>
-              <select class="form-select" v-model="stockAdjustment.type">
-                <option value="add">Add Stock</option>
-                <option value="subtract">Subtract Stock</option>
-                <option value="set">Set Exact Amount</option>
-              </select>
-            </div>
-
-            <div class="adjustment-quantity mb-3">
-              <label class="form-label">
-                {{ stockAdjustment.type === 'set' ? 'New Stock Quantity' : 'Adjustment Quantity' }}
-              </label>
-              <input type="number" class="form-control" v-model="stockAdjustment.quantity" min="0" required>
-            </div>
-
-            <div class="adjustment-reason mb-3">
-              <label class="form-label">Reason</label>
-              <select class="form-select" v-model="stockAdjustment.reason">
-                <option value="purchase">Purchase/Receiving</option>
-                <option value="sale">Sale</option>
-                <option value="damaged">Damaged Goods</option>
-                <option value="theft">Theft/Loss</option>
-                <option value="transfer">Transfer</option>
-                <option value="correction">Inventory Correction</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div class="adjustment-notes">
-              <label class="form-label">Notes</label>
-              <textarea class="form-control" rows="3" v-model="stockAdjustment.notes" placeholder="Additional notes..."></textarea>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showStockModal = false">Cancel</button>
-            <button type="button" class="btn btn-success" @click="saveStockAdjustment">
-              Adjust Stock
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ProductModal
+      v-if="productModal.open"
+      :product="productModal.product"
+      :categories="categories"
+      :products="products"
+      @close="productModal.open = false"
+      @saved="onProductSaved"
+      @category-created="loadCategories"
+    />
+    <StockAdjustmentModal v-if="adjustProduct" :product="adjustProduct" @close="adjustProduct = null" @saved="onAdjusted" />
+    <CategoriesModal v-if="showCategories" :categories="categories" @close="showCategories = false" @changed="onCategoriesChanged" />
+    <PurchaseOrderModal v-if="poPrefill" :prefill-products="poPrefill" @close="poPrefill = null" @saved="onPOCreated" />
+    <ProductDrawer
+      :open="!!drawerProduct"
+      :product="drawerProduct"
+      :version="drawerVersion"
+      @close="drawerProduct = null"
+      @adjust="openAdjust"
+      @edit="openProduct"
+      @delete="deleteProduct"
+    />
   </div>
 </template>
 
 <script>
+import ProductModal from '@/components/inventory/ProductModal.vue'
+import StockAdjustmentModal from '@/components/inventory/StockAdjustmentModal.vue'
+import CategoriesModal from '@/components/inventory/CategoriesModal.vue'
+import ProductDrawer from '@/components/inventory/ProductDrawer.vue'
+import PurchaseOrderModal from '@/components/suppliers/PurchaseOrderModal.vue'
+import { inventoryService, STOCK_STATUS } from '@/services/inventoryService'
 import { listFrom, apiErrorMessage } from '@/services/api'
+import { formatMoney, isoDate, downloadBlob } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
-import { downloadBlob } from '@/utils/format'
-import { ref, onMounted, computed } from 'vue'
-import { inventoryAPI } from '../services/api'
 
 export default {
   name: 'InventoryManagement',
-  setup() {
-    // State
-    const loading = ref(false)
-    const dashboard = ref(null)
-    const products = ref([])
-    const filteredProducts = ref([])
-    const viewMode = ref('table')
-
-    // Filters
-    const searchQuery = ref('')
-    const filterCategory = ref('')
-    const filterStatus = ref('')
-    const hideDiscontinued = ref(localStorage.getItem('hideDiscontinued') === 'true')
-
-    // Modals
-    const showProductModal = ref(false)
-    const showStockModal = ref(false)
-    const editingProduct = ref(null)
-    const selectedProduct = ref(null)
-
-    // Forms
-    const productForm = ref({
-      name: '',
-      sku: '',
-      description: '',
-      category: '',
-      unit_price: 0,
-      stock_quantity: 0,
-      min_stock_level: 0,
-      max_stock_level: 0,
-      status: 'active'
-    })
-
-    const stockAdjustment = ref({
-      type: 'add',
-      quantity: 0,
-      reason: 'purchase',
-      notes: ''
-    })
-
-    // Computed
-    const categories = computed(() => {
-      const cats = [...new Set(products.value.map(p => p.category).filter(Boolean))]
-      return cats.length > 0 ? cats : ['Electronics', 'Automotive', 'Beauty', 'Health', 'Services']
-    })
-
-    // Map between the API product model and the fields this view uses
-    const fromApi = (p) => ({
-      ...p,
-      category: p.category?.name || p.category_name || (typeof p.category === 'string' ? p.category : ''),
-      unit_price: Number(p.selling_price ?? p.unit_price ?? 0),
-      stock_quantity: Number(p.current_stock ?? p.stock_quantity ?? 0),
-      min_stock_level: Number(p.min_stock ?? p.min_stock_level ?? 0),
-      max_stock_level: Number(p.max_stock ?? p.max_stock_level ?? 0),
-      status: p.status || (p.is_active === false ? 'inactive' : 'active'),
-      image: p.image_url || p.image || ''
-    })
-    const toApi = (f) => ({
-      name: (f.name || '').trim(),
-      description: f.description || '',
-      sku: (f.sku || '').trim() || `SKU-${Date.now().toString(36).toUpperCase()}`,
-      selling_price: Number(f.unit_price) || 0,
-      cost_price: Number(f.cost_price) || 0,
-      current_stock: Math.max(0, parseInt(f.stock_quantity) || 0),
-      min_stock: Math.max(0, parseInt(f.min_stock_level) || 0),
-      max_stock: Math.max(0, parseInt(f.max_stock_level) || 0),
-      unit_of_measure: f.unit_of_measure || 'each',
-      is_active: f.status !== 'inactive' && f.status !== 'discontinued'
-    })
-
-    // Methods
-    const loadInventoryData = async () => {
-      try {
-        loading.value = true
-        const productsRes = await inventoryAPI.getProducts()
-        products.value = listFrom(productsRes, 'products').map(fromApi)
-        dashboard.value = generateMockDashboard()
-        filterProducts()
-      } catch (error) {
-        products.value = []
-        filteredProducts.value = []
-        dashboard.value = generateMockDashboard()
-        toast.error(apiErrorMessage(error, 'Could not load inventory'))
-      } finally {
-        loading.value = false
-      }
+  components: { ProductModal, StockAdjustmentModal, CategoriesModal, ProductDrawer, PurchaseOrderModal },
+  data() {
+    const q = this.$route.query
+    return {
+      products: [],
+      categories: [],
+      loading: false,
+      loaded: false,
+      error: '',
+      search: q.q || '',
+      categoryFilter: q.category || '',
+      stockFilter: ['in_stock', 'low_stock', 'out_of_stock'].includes(q.stock) ? q.stock : '',
+      activeFilter: 'active',
+      sort: 'name',
+      productModal: { open: false, product: null },
+      adjustProduct: null,
+      showCategories: false,
+      drawerProduct: null,
+      drawerVersion: 0,
+      poPrefill: null
     }
-
-    const generateMockDashboard = () => {
+  },
+  computed: {
+    kpi() {
+      const active = this.products.filter((p) => p.is_active !== false)
       return {
-        total_products: products.value.length,
-        in_stock: products.value.filter(p => p.stock_quantity > 0).length,
-        low_stock: products.value.filter(p => p.stock_quantity <= p.min_stock_level).length,
-        total_value: products.value.reduce((sum, p) => sum + (p.stock_quantity * p.unit_price), 0),
-        new_products: products.value.filter(p => p.created_at && Date.now() - new Date(p.created_at).getTime() < 30 * 86400000).length
+        active: active.length,
+        inactive: this.products.length - active.length,
+        units: active.reduce((s, p) => s + Math.max(0, p.current_stock || 0), 0),
+        value: active.reduce((s, p) => s + Math.max(0, p.current_stock || 0) * (Number(p.cost_price) || 0), 0),
+        retail: active.reduce((s, p) => s + Math.max(0, p.current_stock || 0) * (Number(p.selling_price) || 0), 0),
+        low: active.filter((p) => p.stock_status === 'low_stock').length,
+        out: active.filter((p) => p.stock_status === 'out_of_stock').length
       }
+    },
+    filtered() {
+      const q = this.search.trim().toLowerCase()
+      let rows = this.products.filter((p) => {
+        if (this.activeFilter === 'active' && p.is_active === false) return false
+        if (this.activeFilter === 'inactive' && p.is_active !== false) return false
+        if (this.categoryFilter === 'none' && p.category_id) return false
+        if (this.categoryFilter && this.categoryFilter !== 'none' && p.category_id !== this.categoryFilter) return false
+        if (this.stockFilter && p.stock_status !== this.stockFilter) return false
+        if (q && !`${p.name} ${p.sku} ${p.barcode || ''}`.toLowerCase().includes(q)) return false
+        return true
+      })
+      const by = {
+        name: (a, b) => a.name.localeCompare(b.name),
+        stock: (a, b) => a.current_stock - b.current_stock || a.name.localeCompare(b.name),
+        value: (a, b) => (b.stock_value || 0) - (a.stock_value || 0),
+        recent: (a, b) => String(b.created_at).localeCompare(String(a.created_at))
+      }[this.sort]
+      return [...rows].sort(by)
+    },
+    filteredValue() {
+      return this.filtered.reduce((s, p) => s + (Number(p.stock_value) || 0), 0)
+    },
+    reorderable() {
+      return this.filtered.filter((p) => p.is_active !== false && p.stock_status !== 'in_stock')
     }
-
-    const filterProducts = () => {
-      let filtered = [...products.value]
-
-      if (searchQuery.value) {
-        const query = searchQuery.value.toLowerCase()
-        filtered = filtered.filter(p =>
-          p.name.toLowerCase().includes(query) ||
-          p.sku.toLowerCase().includes(query) ||
-          p.description.toLowerCase().includes(query)
-        )
+  },
+  watch: {
+    search() {
+      this.syncQuery()
+    },
+    categoryFilter() {
+      this.syncQuery()
+    },
+    stockFilter() {
+      this.syncQuery()
+    }
+  },
+  created() {
+    this.load()
+    this.loadCategories()
+  },
+  methods: {
+    money: (v) => formatMoney(v),
+    status(p) {
+      return STOCK_STATUS[p.stock_status] || STOCK_STATUS.in_stock
+    },
+    threshold(p) {
+      return Math.max(p.reorder_point || 0, p.min_stock || 0)
+    },
+    stockClass(p) {
+      return p.stock_status === 'out_of_stock' ? 'txt-danger' : p.stock_status === 'low_stock' ? 'txt-warning' : ''
+    },
+    syncQuery() {
+      const query = {}
+      if (this.search) query.q = this.search
+      if (this.categoryFilter) query.category = this.categoryFilter
+      if (this.stockFilter) query.stock = this.stockFilter
+      this.$router.replace({ query }).catch(() => {})
+    },
+    resetFilters() {
+      this.search = ''
+      this.categoryFilter = ''
+      this.stockFilter = ''
+      this.activeFilter = 'active'
+    },
+    toggleStock(s) {
+      this.stockFilter = this.stockFilter === s ? '' : s
+      this.activeFilter = 'active'
+    },
+    async load() {
+      this.loading = true
+      this.error = ''
+      try {
+        const res = await inventoryService.getProducts()
+        this.products = listFrom(res, 'products')
+        this.loaded = true
+        if (this.drawerProduct) this.drawerProduct = this.products.find((p) => p.id === this.drawerProduct.id) || null
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load products')
+      } finally {
+        this.loading = false
       }
-
-      if (filterCategory.value) {
-        filtered = filtered.filter(p => p.category === filterCategory.value)
+    },
+    async loadCategories() {
+      try {
+        const res = await inventoryService.getCategories()
+        this.categories = listFrom(res, 'categories')
+      } catch {
+        /* categories are optional for the page */
       }
-
-      if (filterStatus.value) {
-        filtered = filtered.filter(p => {
-          switch (filterStatus.value) {
-            case 'in_stock':
-              return p.stock_quantity > p.min_stock_level
-            case 'low_stock':
-              return p.stock_quantity <= p.min_stock_level && p.stock_quantity > 0
-            case 'out_of_stock':
-              return p.stock_quantity === 0
-            default:
-              return true
-          }
-        })
-      }
-
-      // Filter out discontinued products if toggle is enabled
-      if (hideDiscontinued.value) {
-        filtered = filtered.filter(p => p.status !== 'discontinued')
-        localStorage.setItem('hideDiscontinued', 'true')
-      } else {
-        localStorage.setItem('hideDiscontinued', 'false')
-      }
-
-      filteredProducts.value = filtered
-    }
-
-    const resetFilters = () => {
-      searchQuery.value = ''
-      filterCategory.value = ''
-      filterStatus.value = ''
-      hideDiscontinued.value = false
-      localStorage.setItem('hideDiscontinued', 'false')
-      filteredProducts.value = [...products.value]
-    }
-
-    const getStockStatus = (product) => {
-      if (product.stock_quantity === 0) return 'Out of Stock'
-      if (product.stock_quantity <= product.min_stock_level) return 'Low Stock'
-      return 'In Stock'
-    }
-
-    const getStockBadgeClass = (product) => {
-      if (product.stock_quantity === 0) return 'bg-danger'
-      if (product.stock_quantity <= product.min_stock_level) return 'bg-warning'
-      return 'bg-success'
-    }
-
-    const getStatusBadgeClass = (status) => {
-      switch (status) {
-        case 'active': return 'bg-success'
-        case 'inactive': return 'bg-secondary'
-        case 'discontinued': return 'bg-danger'
-        default: return 'bg-secondary'
-      }
-    }
-
-    const getStockPercentage = () => {
-      if (!dashboard.value) return 0
-      const total = dashboard.value.total_products
-      const inStock = dashboard.value.in_stock
-      return total > 0 ? Math.round((inStock / total) * 100) : 0
-    }
-
-    const editProduct = (product) => {
-      editingProduct.value = product
-      productForm.value = { ...product }
-      showProductModal.value = true
-    }
-
-    const viewProduct = (product) => {
-      // Implement product details view
-      console.log('View product:', product)
-    }
-
-    const adjustStock = (product) => {
-      selectedProduct.value = product
-      stockAdjustment.value = {
-        type: 'add',
-        quantity: 0,
-        reason: 'purchase',
-        notes: ''
-      }
-      showStockModal.value = true
-    }
-
-    const deleteProduct = async (productId) => {
-      const ok = await confirmDialog({ title: 'Delete product?', message: 'This product will be removed from your catalogue.', confirmText: 'Delete', danger: true })
+    },
+    openProduct(p = null) {
+      this.productModal = { open: true, product: p }
+    },
+    openAdjust(p) {
+      this.adjustProduct = p
+    },
+    openDrawer(p) {
+      this.drawerProduct = p
+    },
+    async onProductSaved(p) {
+      this.productModal.open = false
+      await Promise.all([this.load(), this.loadCategories()])
+      if (p && this.drawerProduct?.id === p.id) this.drawerVersion++
+    },
+    async onAdjusted() {
+      this.adjustProduct = null
+      await this.load()
+      this.drawerVersion++
+    },
+    onCategoriesChanged() {
+      this.loadCategories()
+      this.load()
+    },
+    async deleteProduct(p) {
+      const ok = await confirmDialog({
+        title: `Delete ${p.name}?`,
+        message: `${p.sku} will be removed from your inventory${p.current_stock ? ` along with its ${p.current_stock} units on hand` : ''}. Its stock history is kept for reporting.`,
+        confirmText: 'Delete product',
+        danger: true
+      })
       if (!ok) return
       try {
-        await inventoryAPI.deleteProduct(productId)
-        products.value = products.value.filter(p => p.id !== productId)
-        dashboard.value = generateMockDashboard()
-        filterProducts()
-        toast.success('Product deleted')
-      } catch (error) {
-        toast.error(apiErrorMessage(error, 'Could not delete product'))
+        await inventoryService.deleteProduct(p.id)
+        toast.success(`${p.name} deleted`)
+        if (this.drawerProduct?.id === p.id) this.drawerProduct = null
+        this.load()
+        this.loadCategories()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete the product'))
       }
-    }
-
-    const saveProduct = async () => {
-      try {
-        if (!productForm.value.name?.trim()) {
-          toast.error('Give the product a name')
-          return
-        }
-        if (editingProduct.value) {
-          const res = await inventoryAPI.updateProduct(editingProduct.value.id, toApi(productForm.value))
-          const saved = res.data?.product || res.data?.data || { ...toApi(productForm.value), id: editingProduct.value.id }
-          const index = products.value.findIndex(p => p.id === editingProduct.value.id)
-          if (index !== -1) products.value[index] = { ...fromApi(saved), category: productForm.value.category }
-          toast.success('Product updated')
-        } else {
-          const res = await inventoryAPI.createProduct(toApi(productForm.value))
-          const saved = res.data?.product || res.data?.data
-          if (saved) products.value.push({ ...fromApi(saved), category: productForm.value.category })
-          toast.success('Product added')
-        }
-        dashboard.value = generateMockDashboard()
-        closeProductModal()
-        filterProducts()
-      } catch (error) {
-        toast.error(apiErrorMessage(error, 'Could not save product'))
+    },
+    reorder() {
+      this.poPrefill = this.reorderable.map((p) => p.id)
+    },
+    onPOCreated(po) {
+      this.poPrefill = null
+      if (po?.id) this.$router.push({ path: '/suppliers', query: { tab: 'orders' } })
+    },
+    exportCsv() {
+      const cols = [
+        ['SKU', (p) => p.sku],
+        ['Name', (p) => p.name],
+        ['Barcode', (p) => p.barcode || ''],
+        ['Category', (p) => p.category?.name || ''],
+        ['Unit', (p) => p.unit_of_measure || 'each'],
+        ['On hand', (p) => p.current_stock],
+        ['Min stock', (p) => p.min_stock || 0],
+        ['Reorder point', (p) => p.reorder_point || 0],
+        ['Max stock', (p) => p.max_stock || 0],
+        ['Cost price', (p) => Number(p.cost_price || 0).toFixed(2)],
+        ['Selling price', (p) => Number(p.selling_price || 0).toFixed(2)],
+        ['Stock value', (p) => Number(p.stock_value || 0).toFixed(2)],
+        ['Stock status', (p) => this.status(p).label],
+        ['Active', (p) => (p.is_active === false ? 'No' : 'Yes')]
+      ]
+      const cell = (v) => {
+        const s = String(v ?? '')
+        return /[",\n\r]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/^([=+\-@])/, "'$1").replace(/"/g, '""')}"` : s
       }
-    }
-
-    const saveStockAdjustment = async () => {
-      try {
-        let newQuantity = selectedProduct.value.stock_quantity
-
-        switch (stockAdjustment.value.type) {
-          case 'add':
-            newQuantity += parseInt(stockAdjustment.value.quantity)
-            break
-          case 'subtract':
-            newQuantity -= parseInt(stockAdjustment.value.quantity)
-            break
-          case 'set':
-            newQuantity = parseInt(stockAdjustment.value.quantity)
-            break
-        }
-
-        // Update product stock
-        const updatedProduct = { ...selectedProduct.value, stock_quantity: Math.max(0, newQuantity) }
-        await inventoryAPI.updateProduct(selectedProduct.value.id, toApi(updatedProduct))
-        toast.success('Stock updated')
-
-        // Update local data
-        const index = products.value.findIndex(p => p.id === selectedProduct.value.id)
-        if (index !== -1) {
-          products.value[index] = updatedProduct
-        }
-
-        showStockModal.value = false
-        filterProducts()
-      } catch (error) {
-        toast.error(apiErrorMessage(error, 'Could not update stock'))
-      }
-    }
-
-    const closeProductModal = () => {
-      showProductModal.value = false
-      editingProduct.value = null
-      productForm.value = {
-        name: '',
-        sku: '',
-        description: '',
-        category: '',
-        unit_price: 0,
-        stock_quantity: 0,
-        min_stock_level: 0,
-        max_stock_level: 0,
-        status: 'active'
-      }
-    }
-
-    const exportInventory = () => {
-      const rows = [['Name', 'SKU', 'Category', 'Stock', 'Min stock', 'Unit price', 'Value', 'Status']]
-      for (const p of filteredProducts.value) rows.push([p.name, p.sku, p.category, p.stock_quantity, p.min_stock_level, p.unit_price, (p.stock_quantity * p.unit_price).toFixed(2), p.status])
-      const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
-      downloadBlob(new Blob([csv], { type: 'text/csv' }), `inventory-${new Date().toISOString().slice(0, 10)}.csv`)
-    }
-
-    const formatMoney = (amount) => {
-      return new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(amount || 0)
-    }
-
-    // Lifecycle
-    onMounted(() => {
-      loadInventoryData()
-    })
-
-    return {
-      // State
-      loading,
-      dashboard,
-      products,
-      filteredProducts,
-      viewMode,
-
-      // Filters
-      searchQuery,
-      filterCategory,
-      filterStatus,
-      hideDiscontinued,
-
-      // Modals
-      showProductModal,
-      showStockModal,
-      editingProduct,
-      selectedProduct,
-
-      // Forms
-      productForm,
-      stockAdjustment,
-
-      // Computed
-      categories,
-
-      // Methods
-      filterProducts,
-      resetFilters,
-      getStockStatus,
-      getStockBadgeClass,
-      getStatusBadgeClass,
-      getStockPercentage,
-      editProduct,
-      viewProduct,
-      adjustStock,
-      deleteProduct,
-      saveProduct,
-      saveStockAdjustment,
-      closeProductModal,
-      exportInventory,
-      formatMoney
+      const lines = [cols.map((c) => c[0]).join(',')].concat(this.filtered.map((p) => cols.map((c) => cell(c[1](p))).join(',')))
+      downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `inventory-${isoDate()}.csv`)
+      toast.success(`Exported ${this.filtered.length} product${this.filtered.length === 1 ? '' : 's'}`)
     }
   }
 }
 </script>
 
 <style scoped>
-.inventory-module {
-  padding: 2rem;
-  min-height: 100vh;
-  background: var(--bs-body-bg);
+.kpi-btn {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.kpi-btn:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+.kpi-btn.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.kpi-sk {
+  display: inline-block;
+  width: 70px;
+  height: 26px;
+}
+.kpi-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.kpi-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.kpi-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.txt-danger {
+  color: var(--danger) !important;
+}
+.txt-warning {
+  color: var(--warning) !important;
+}
+.muted {
+  color: var(--text-3);
+}
+.strong {
+  font-weight: 600;
+  color: var(--text);
+}
+.mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  font-size: 13px;
+}
+.danger-text {
+  color: var(--danger);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.reorder {
+  margin-bottom: 16px;
+  align-items: center;
+}
+.reorder .ui-btn {
+  margin-left: auto;
 }
 
-.page-header {
-  margin-bottom: 3rem;
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.toolbar__right {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.search {
+  width: 320px;
+}
+.sel {
+  width: 170px;
+}
+.sel-sm {
+  width: 140px;
+}
+.sk-row {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+}
+.is-loading {
+  opacity: 0.6;
+  transition: opacity 0.2s;
 }
 
-.page-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--bs-body-color);
-  margin-bottom: 0.5rem;
-}
-
-.page-subtitle {
-  font-size: 1.1rem;
-  color: var(--bs-secondary);
-  margin: 0;
-}
-
-.stats-overview .stat-card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--bs-border-radius-lg);
-  padding: 2rem;
-  height: 100%;
-  transition: var(--transition-base);
-  box-shadow: var(--card-shadow);
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--bs-box-shadow-lg);
-}
-
-.bg-gradient-primary { background: linear-gradient(135deg, var(--brand-primary) 0%, #667eea 100%); color: white; }
-.bg-gradient-success { background: linear-gradient(135deg, var(--brand-success) 0%, #10b981 100%); color: white; }
-.bg-gradient-warning { background: linear-gradient(135deg, var(--brand-warning) 0%, #f59e0b 100%); color: white; }
-.bg-gradient-info { background: linear-gradient(135deg, var(--bs-info) 0%, #3b82f6 100%); color: white; }
-
-.stat-content {
+.p-cell {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 10px;
+  min-width: 200px;
 }
-
-.stat-icon i {
-  font-size: 3rem;
-  opacity: 0.8;
+.min0 {
+  min-width: 0;
 }
-
-.stat-value {
-  font-size: 2.5rem;
-  font-weight: 800;
-  margin: 0;
-  line-height: 1;
+.p-cell small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
 }
-
-.stat-label {
-  font-size: 1rem;
-  margin: 0.5rem 0;
-  opacity: 0.9;
+.p-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
 }
-
-.stat-change {
-  font-size: 0.875rem;
-  font-weight: 600;
+.p-icon.low_stock {
+  background: var(--warning-soft);
+  color: var(--warning);
 }
-
-.stat-change.positive { color: #10b981; }
-.stat-change.warning { color: #f59e0b; }
-
-.inventory-controls .search-box {
-  position: relative;
+.p-icon.out_of_stock {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
-
-.search-box i {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--bs-secondary);
-  z-index: 5;
+tr.is-off td {
+  opacity: 0.65;
 }
-
-.search-box input {
-  padding-left: 2.5rem;
+.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-
-.view-toggle .btn-group .btn.active {
-  background-color: var(--brand-primary);
-  border-color: var(--brand-primary);
-  color: white;
+.unit {
+  margin-left: 4px;
+  font-size: 11.5px;
+  color: var(--text-3);
 }
-
-.product-image img {
-  width: 50px;
-  height: 50px;
-  object-fit: cover;
+.actions-col {
+  width: 1%;
+  white-space: nowrap;
 }
-
-.product-card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--bs-border-radius-lg);
-  transition: var(--transition-base);
-  overflow: hidden;
-  box-shadow: var(--card-shadow);
-}
-
-.product-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--bs-box-shadow-lg);
-}
-
-.product-card .product-image {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
-}
-
-.product-card .product-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.stock-badge {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-}
-
-.product-info {
-  border-top: 1px solid var(--card-border);
-  padding-top: 1rem;
-  margin-top: 1rem;
-}
-
-.product-actions {
+.row-actions {
   display: flex;
-  justify-content: center;
-  gap: 0.5rem;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-3);
+}
+.foot strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
-.card {
-  border: 1px solid var(--card-border);
-  border-radius: var(--bs-border-radius-lg);
-  box-shadow: var(--card-shadow);
-  background: var(--card-bg);
-}
-
-.card-header {
-  background: rgba(var(--bs-primary-rgb), 0.05);
-  border-bottom: 1px solid var(--card-border);
-  padding: 1.5rem;
-}
-
-.table th {
-  font-weight: 600;
-  color: var(--bs-body-color);
-  border-bottom: 2px solid var(--card-border);
-}
-
-.modal-content {
-  border: none;
-  border-radius: var(--bs-border-radius-xl);
-  box-shadow: var(--bs-box-shadow-xl);
-}
-
-.modal-header {
-  background: var(--brand-primary-soft);
-  border-bottom: 1px solid var(--card-border);
-  border-radius: var(--bs-border-radius-xl) var(--bs-border-radius-xl) 0 0;
-}
-
-@media (max-width: 768px) {
-  .inventory-module {
-    padding: 1rem;
+@media (max-width: 1320px) {
+  .hide-lg {
+    display: none;
   }
-
-  .page-title {
-    font-size: 2rem;
+}
+@media (max-width: 1000px) {
+  .hide-md {
+    display: none;
   }
-
-  .stat-content {
-    flex-direction: column;
-    text-align: center;
-    gap: 1rem;
+}
+@media (max-width: 700px) {
+  .hide-sm {
+    display: none;
   }
-
-  .stat-icon i {
-    font-size: 2.5rem;
+  .search,
+  .toolbar__right {
+    width: 100%;
   }
-
-  .stat-value {
-    font-size: 2rem;
+  .toolbar__right {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .sel,
+  .sel-sm {
+    width: 100%;
+  }
+  .p-cell {
+    min-width: 0;
+  }
+  .reorder {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 480px) {
+  .hide-xs {
+    display: none;
   }
 }
 </style>

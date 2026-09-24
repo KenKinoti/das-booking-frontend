@@ -1,887 +1,377 @@
 <template>
-  <div class="communication-page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-left">
-          <div class="page-title-section">
-            <div class="page-title">
-              <i class="fas fa-comments page-icon"></i>
-              Communication Hub
-            </div>
-            <p class="page-subtitle">Team messaging, calls, video conferences, and collaboration tools</p>
-          </div>
-        </div>
-        <div class="header-right">
-          <button class="btn btn-primary" @click="startNewConversation">
-            <i class="fas fa-plus"></i>
-            New Conversation
-          </button>
-        </div>
+  <div class="mp ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Communication</div>
+        <h1>Communication hub</h1>
+        <p>Your conversations and calls at a glance.</p>
       </div>
+      <div class="ui-actions">
+        <router-link to="/meetings" class="ui-btn"><i class="fa-solid fa-calendar-plus"></i> Schedule meeting</router-link>
+        <router-link :to="{ path: '/messages', query: { new: '1' } }" class="ui-btn ui-btn--primary"><i class="fa-regular fa-pen-to-square"></i> New message</router-link>
+      </div>
+    </header>
+
+    <div class="ui-kpis">
+      <router-link to="/messages" class="ui-kpi kpi-btn link-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-envelope"></i></span>Unread messages</div>
+        <div class="ui-kpi__value tnum" :class="{ accent: unread > 0 }">{{ loaded ? unread : '–' }}</div>
+        <div class="ui-kpi__meta">{{ loaded ? `Across ${threads.length} conversation${threads.length === 1 ? '' : 's'}` : ' ' }}</div>
+      </router-link>
+      <router-link to="/meetings" class="ui-kpi kpi-btn link-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-info"><i class="fa-solid fa-calendar-day"></i></span>Meetings today</div>
+        <div class="ui-kpi__value tnum">{{ loaded ? meetingsToday : '–' }}</div>
+        <div class="ui-kpi__meta">{{ loaded ? `${upcoming.length} upcoming in total` : ' ' }}</div>
+      </router-link>
+      <router-link :to="next ? `/meetings?open=${next.id}` : '/meetings'" class="ui-kpi kpi-btn link-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-video"></i></span>Next call</div>
+        <div class="ui-kpi__value next">{{ next ? relTime(next.start_at) : loaded ? 'None' : '–' }}</div>
+        <div class="ui-kpi__meta ellipsis">{{ next ? next.title : 'Nothing scheduled' }}</div>
+      </router-link>
+      <router-link to="/messages" class="ui-kpi kpi-btn link-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-solid fa-user-group"></i></span>People you talk to</div>
+        <div class="ui-kpi__value tnum">{{ loaded ? contacts : '–' }}</div>
+        <div class="ui-kpi__meta">In your conversations</div>
+      </router-link>
     </div>
 
-    <!-- Communication Stats -->
-    <div class="stats-overview">
-      <div class="row">
-        <div class="col-md-3">
-          <div class="stat-card">
-            <div class="stat-icon messages">
-              <i class="fas fa-envelope"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.totalMessages }}</div>
-              <div class="stat-label">Messages Today</div>
-            </div>
-          </div>
+    <div class="grid">
+      <section class="ui-card">
+        <div class="ui-card__head">
+          <h2>Recent conversations</h2>
+          <router-link to="/messages" class="ui-btn ui-btn--ghost ui-btn--sm">All messages <i class="fa-solid fa-arrow-right"></i></router-link>
         </div>
-        <div class="col-md-3">
-          <div class="stat-card">
-            <div class="stat-icon calls">
-              <i class="fas fa-phone"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.totalCalls }}</div>
-              <div class="stat-label">Calls Today</div>
-            </div>
-          </div>
+        <div v-if="!loaded" class="ui-card__body"><div v-for="n in 4" :key="n" class="sk-row"><div class="ui-skeleton" style="width: 40px; height: 40px"></div><div class="ui-skeleton" style="flex: 1"></div></div></div>
+        <div v-else-if="threadsError" class="ui-card__body"><div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ threadsError }}</span></div></div>
+        <div v-else-if="!threads.length" class="ui-empty">
+          <div class="ui-empty__icon"><i class="fa-regular fa-comments"></i></div>
+          <h3>No conversations yet</h3>
+          <p>Message a teammate to get started.</p>
+          <router-link :to="{ path: '/messages', query: { new: '1' } }" class="ui-btn ui-btn--primary" style="margin-top: 12px"><i class="fa-regular fa-pen-to-square"></i> New message</router-link>
         </div>
-        <div class="col-md-3">
-          <div class="stat-card">
-            <div class="stat-icon active">
-              <i class="fas fa-users"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.activeUsers }}</div>
-              <div class="stat-label">Active Users</div>
-            </div>
-          </div>
+        <ul v-else class="rows">
+          <li v-for="t in threads.slice(0, 6)" :key="t.id">
+            <router-link :to="{ path: '/messages', query: { thread: String(t.id) } }" class="crow">
+              <span class="avatar" :class="{ group: t.isGroup }"><i v-if="t.isGroup" class="fa-solid fa-user-group"></i><template v-else>{{ initials(t.name) }}</template></span>
+              <span class="crow__body">
+                <span class="crow__title">{{ t.name }}</span>
+                <span class="crow__sub">{{ t.last ? (t.last.sender_id === meId ? 'You: ' : '') + t.last.content : 'No messages yet' }}</span>
+              </span>
+              <span class="crow__side">
+                <span class="muted small">{{ time(t.updatedAt) }}</span>
+                <span v-if="t.unread" class="unread">{{ t.unread }}</span>
+              </span>
+            </router-link>
+          </li>
+        </ul>
+      </section>
+
+      <section class="ui-card">
+        <div class="ui-card__head">
+          <h2>Upcoming meetings</h2>
+          <router-link to="/meetings" class="ui-btn ui-btn--ghost ui-btn--sm">All meetings <i class="fa-solid fa-arrow-right"></i></router-link>
         </div>
-        <div class="col-md-3">
-          <div class="stat-card">
-            <div class="stat-icon meetings">
-              <i class="fas fa-video"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.scheduledMeetings }}</div>
-              <div class="stat-label">Scheduled Meetings</div>
-            </div>
-          </div>
+        <div v-if="!loaded" class="ui-card__body"><div v-for="n in 4" :key="n" class="sk-row"><div class="ui-skeleton" style="width: 48px; height: 44px"></div><div class="ui-skeleton" style="flex: 1"></div></div></div>
+        <div v-else-if="meetingsError" class="ui-card__body"><div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ meetingsError }}</span></div></div>
+        <div v-else-if="!upcoming.length" class="ui-empty">
+          <div class="ui-empty__icon"><i class="fa-regular fa-calendar"></i></div>
+          <h3>Nothing scheduled</h3>
+          <p>Schedule a call and invite teammates or customers.</p>
+          <router-link to="/meetings" class="ui-btn ui-btn--primary" style="margin-top: 12px"><i class="fa-solid fa-calendar-plus"></i> Schedule meeting</router-link>
         </div>
-      </div>
+        <ul v-else class="rows">
+          <li v-for="m in upcoming.slice(0, 6)" :key="m.id">
+            <router-link :to="`/meetings?open=${m.id}`" class="crow">
+              <span class="date-chip"><strong>{{ day(m.start_at) }}</strong><small>{{ month(m.start_at) }}</small></span>
+              <span class="crow__body">
+                <span class="crow__title">{{ m.title }}</span>
+                <span class="crow__sub">{{ clock(m.start_at) }} – {{ clock(m.end_at) }} · {{ (m.participants || []).length }} invited</span>
+              </span>
+              <span class="crow__side">
+                <span v-if="m.status === 'in_progress'" class="ui-badge ui-badge--success">Live</span>
+                <span v-else class="muted small">{{ relTime(m.start_at) }}</span>
+              </span>
+            </router-link>
+          </li>
+        </ul>
+      </section>
     </div>
 
-    <!-- Main Communication Interface -->
-    <div class="communication-container">
-      <div class="row">
-        <!-- Sidebar with conversations -->
-        <div class="col-md-4">
-          <div class="communication-sidebar">
-            <div class="sidebar-header">
-              <h5>Recent Conversations</h5>
-              <div class="search-conversations">
-                <div class="search-box">
-                  <i class="fas fa-search"></i>
-                  <input type="text" placeholder="Search conversations..." v-model="searchQuery">
-                </div>
-              </div>
-            </div>
-
-            <div class="conversations-list">
-              <div v-for="conversation in filteredConversations" :key="conversation.id"
-                   class="conversation-item" :class="{ active: selectedConversation?.id === conversation.id }"
-                   @click="selectConversation(conversation)">
-                <div class="conversation-avatar">
-                  <img v-if="conversation.avatar" :src="conversation.avatar" :alt="conversation.name">
-                  <div v-else class="avatar-placeholder">
-                    {{ getInitials(conversation.name) }}
-                  </div>
-                  <div v-if="conversation.isOnline" class="online-indicator"></div>
-                </div>
-                <div class="conversation-info">
-                  <div class="conversation-header">
-                    <span class="conversation-name">{{ conversation.name }}</span>
-                    <span class="conversation-time">{{ formatTime(conversation.lastMessage.timestamp) }}</span>
-                  </div>
-                  <div class="conversation-preview">
-                    <span class="last-message">{{ conversation.lastMessage.text }}</span>
-                    <span v-if="conversation.unreadCount > 0" class="unread-badge">{{ conversation.unreadCount }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Main chat area -->
-        <div class="col-md-8">
-          <div class="chat-container" v-if="selectedConversation">
-            <!-- Chat Header -->
-            <div class="chat-header">
-              <div class="chat-participant">
-                <div class="participant-avatar">
-                  <img v-if="selectedConversation.avatar" :src="selectedConversation.avatar" :alt="selectedConversation.name">
-                  <div v-else class="avatar-placeholder">
-                    {{ getInitials(selectedConversation.name) }}
-                  </div>
-                  <div v-if="selectedConversation.isOnline" class="online-indicator"></div>
-                </div>
-                <div class="participant-info">
-                  <h6>{{ selectedConversation.name }}</h6>
-                  <span class="status">{{ selectedConversation.isOnline ? 'Online' : 'Offline' }}</span>
-                </div>
-              </div>
-              <div class="chat-actions">
-                <button class="action-btn" @click="startVoiceCall" title="Voice Call">
-                  <i class="fas fa-phone"></i>
-                </button>
-                <button class="action-btn" @click="startVideoCall" title="Video Call">
-                  <i class="fas fa-video"></i>
-                </button>
-                <button class="action-btn" @click="openChatSettings" title="Settings">
-                  <i class="fas fa-cog"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- Messages Area -->
-            <div class="messages-area" ref="messagesContainer">
-              <div v-for="message in selectedConversation.messages" :key="message.id"
-                   class="message" :class="{ 'own-message': message.sender === 'me' }">
-                <div class="message-avatar" v-if="message.sender !== 'me'">
-                  <div class="avatar-small">{{ getInitials(message.senderName) }}</div>
-                </div>
-                <div class="message-content">
-                  <div class="message-bubble">
-                    <p>{{ message.text }}</p>
-                    <span class="message-time">{{ formatTime(message.timestamp) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Message Input -->
-            <div class="message-input-area">
-              <div class="input-container">
-                <button class="input-action" @click="openEmojiPicker" title="Emoji">
-                  <i class="fas fa-smile"></i>
-                </button>
-                <input type="text"
-                       v-model="newMessage"
-                       placeholder="Type a message..."
-                       @keypress.enter="sendMessage"
-                       class="message-input">
-                <button class="input-action" @click="attachFile" title="Attach File">
-                  <i class="fas fa-paperclip"></i>
-                </button>
-                <button class="send-btn" @click="sendMessage" :disabled="!newMessage.trim()">
-                  <i class="fas fa-paper-plane"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Empty State -->
-          <div v-else class="empty-state">
-            <div class="empty-icon">
-              <i class="fas fa-comments"></i>
-            </div>
-            <h5>Select a conversation</h5>
-            <p>Choose a conversation from the sidebar to start chatting</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Communication Modals -->
-    <VideoCallModal v-if="showVideoCall" @close="showVideoCall = false" :participant="callParticipant" />
-    <VoiceCallModal v-if="showVoiceCall" @close="showVoiceCall = false" :participant="callParticipant" />
-    <MessagingModal v-if="showMessaging" @close="showMessaging = false" />
+    <section class="tools">
+      <router-link v-for="tool in tools" :key="tool.to" :to="tool.to" class="ui-card tool">
+        <span class="tool__icon" :class="tool.tone"><i :class="tool.icon"></i></span>
+        <span>
+          <strong>{{ tool.label }}</strong>
+          <small>{{ tool.hint }}</small>
+        </span>
+        <i class="fa-solid fa-chevron-right muted"></i>
+      </router-link>
+    </section>
   </div>
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
-import VideoCallModal from '@/components/communication/VideoCallModal.vue'
-import VoiceCallModal from '@/components/communication/VoiceCallModal.vue'
-import MessagingModal from '@/components/communication/MessagingModal.vue'
+import '@/styles/module-page.css'
+import { apiErrorMessage } from '@/services/api'
+import { messagingService, normalizeThread, initials, formatMessageTime } from '@/services/messaging'
+import { meetingsApi } from '@/services/meetings'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
-  name: 'CommunicationPage',
-  components: {
-    VideoCallModal,
-    VoiceCallModal,
-    MessagingModal
-  },
-  setup() {
-    const searchQuery = ref('')
-    const newMessage = ref('')
-    const selectedConversation = ref(null)
-    const messagesContainer = ref(null)
-
-    // Modal states
-    const showVideoCall = ref(false)
-    const showVoiceCall = ref(false)
-    const showMessaging = ref(false)
-    const callParticipant = ref(null)
-
-    // Sample data - replace with real API calls
-    const stats = reactive({
-      totalMessages: 127,
-      totalCalls: 8,
-      activeUsers: 12,
-      scheduledMeetings: 3
-    })
-
-    const conversations = ref([
-      {
-        id: 1,
-        name: 'John Smith',
-        avatar: null,
-        isOnline: true,
-        unreadCount: 2,
-        lastMessage: {
-          text: 'Can we schedule a meeting for tomorrow?',
-          timestamp: new Date(Date.now() - 5 * 60 * 1000)
-        },
-        messages: [
-          {
-            id: 1,
-            sender: 'john',
-            senderName: 'John Smith',
-            text: 'Hi, how are you doing?',
-            timestamp: new Date(Date.now() - 60 * 60 * 1000)
-          },
-          {
-            id: 2,
-            sender: 'me',
-            senderName: 'Me',
-            text: 'I\'m good, thanks! How about you?',
-            timestamp: new Date(Date.now() - 50 * 60 * 1000)
-          },
-          {
-            id: 3,
-            sender: 'john',
-            senderName: 'John Smith',
-            text: 'Can we schedule a meeting for tomorrow?',
-            timestamp: new Date(Date.now() - 5 * 60 * 1000)
-          }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Sarah Johnson',
-        avatar: null,
-        isOnline: false,
-        unreadCount: 0,
-        lastMessage: {
-          text: 'Thanks for the update!',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000)
-        },
-        messages: [
-          {
-            id: 1,
-            sender: 'me',
-            senderName: 'Me',
-            text: 'Here\'s the project update you requested.',
-            timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000)
-          },
-          {
-            id: 2,
-            sender: 'sarah',
-            senderName: 'Sarah Johnson',
-            text: 'Thanks for the update!',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000)
-          }
-        ]
-      }
-    ])
-
-    const filteredConversations = computed(() => {
-      if (!searchQuery.value) return conversations.value
-      return conversations.value.filter(conv =>
-        conv.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-      )
-    })
-
-    // Methods
-    const getInitials = (name) => {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase()
-    }
-
-    const formatTime = (timestamp) => {
-      const now = new Date()
-      const date = new Date(timestamp)
-      const diffInHours = (now - date) / (1000 * 60 * 60)
-
-      if (diffInHours < 1) {
-        const minutes = Math.floor((now - date) / (1000 * 60))
-        return minutes === 0 ? 'now' : `${minutes}m`
-      } else if (diffInHours < 24) {
-        return `${Math.floor(diffInHours)}h`
-      } else {
-        return date.toLocaleDateString()
-      }
-    }
-
-    const selectConversation = (conversation) => {
-      selectedConversation.value = conversation
-      conversation.unreadCount = 0
-      nextTick(() => {
-        scrollToBottom()
-      })
-    }
-
-    const scrollToBottom = () => {
-      if (messagesContainer.value) {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-      }
-    }
-
-    const sendMessage = () => {
-      if (!newMessage.value.trim() || !selectedConversation.value) return
-
-      const message = {
-        id: Date.now(),
-        sender: 'me',
-        senderName: 'Me',
-        text: newMessage.value.trim(),
-        timestamp: new Date()
-      }
-
-      selectedConversation.value.messages.push(message)
-      selectedConversation.value.lastMessage = {
-        text: message.text,
-        timestamp: message.timestamp
-      }
-
-      newMessage.value = ''
-      nextTick(() => {
-        scrollToBottom()
-      })
-    }
-
-    const startVoiceCall = () => {
-      if (!selectedConversation.value) return
-      callParticipant.value = selectedConversation.value
-      showVoiceCall.value = true
-    }
-
-    const startVideoCall = () => {
-      if (!selectedConversation.value) return
-      callParticipant.value = selectedConversation.value
-      showVideoCall.value = true
-    }
-
-    const startNewConversation = () => {
-      showMessaging.value = true
-    }
-
-    const openEmojiPicker = () => {
-      // TODO: Implement emoji picker
-      console.log('Open emoji picker')
-    }
-
-    const attachFile = () => {
-      // TODO: Implement file attachment
-      console.log('Attach file')
-    }
-
-    const openChatSettings = () => {
-      // TODO: Implement chat settings
-      console.log('Open chat settings')
-    }
-
-    onMounted(() => {
-      // Auto-select first conversation
-      if (conversations.value.length > 0) {
-        selectConversation(conversations.value[0])
-      }
-    })
-
+  name: 'Communication',
+  data() {
     return {
-      searchQuery,
-      newMessage,
-      selectedConversation,
-      messagesContainer,
-      showVideoCall,
-      showVoiceCall,
-      showMessaging,
-      callParticipant,
-      stats,
-      conversations,
-      filteredConversations,
-      getInitials,
-      formatTime,
-      selectConversation,
-      sendMessage,
-      startVoiceCall,
-      startVideoCall,
-      startNewConversation,
-      openEmojiPicker,
-      attachFile,
-      openChatSettings
+      threads: [],
+      meetings: [],
+      unread: 0,
+      loaded: false,
+      threadsError: '',
+      meetingsError: '',
+      tools: [
+        { to: '/messages', label: 'Messages', hint: 'Team chat, one-to-one and groups', icon: 'fa-regular fa-message', tone: '' },
+        { to: '/meetings', label: 'Meetings & calls', hint: 'Schedule calls with calendar invites and transcripts', icon: 'fa-solid fa-calendar-plus', tone: 'info' },
+        { to: '/video-call', label: 'Video call room', hint: 'Start an instant call and share the room link', icon: 'fa-solid fa-video', tone: 'success' },
+        { to: '/messaging-settings', label: 'Messaging settings', hint: 'Team chat options and WhatsApp Business', icon: 'fa-solid fa-gear', tone: 'warning' }
+      ]
+    }
+  },
+  computed: {
+    meId() {
+      return useAuthStore().user?.id || ''
+    },
+    upcoming() {
+      return this.meetings.filter((m) => m.status !== 'cancelled').sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
+    },
+    meetingsToday() {
+      const today = new Date().toDateString()
+      return this.upcoming.filter((m) => new Date(m.start_at).toDateString() === today).length
+    },
+    next() {
+      return this.upcoming[0] || null
+    },
+    contacts() {
+      const ids = new Set()
+      this.threads.forEach((t) => t.others.forEach((p) => ids.add(p.user_id)))
+      return ids.size
+    }
+  },
+  async created() {
+    await Promise.all([this.loadThreads(), this.loadMeetings(), this.loadUnread()])
+    this.loaded = true
+  },
+  methods: {
+    initials,
+    time: formatMessageTime,
+    async loadThreads() {
+      try {
+        const list = await messagingService.getThreads()
+        this.threads = (list || []).map((t) => normalizeThread(t, this.meId)).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
+      } catch (e) {
+        this.threadsError = apiErrorMessage(e, 'Could not load conversations')
+      }
+    },
+    async loadMeetings() {
+      try {
+        const { meetings } = await meetingsApi.list({ scope: 'upcoming' })
+        this.meetings = meetings
+      } catch (e) {
+        this.meetingsError = apiErrorMessage(e, 'Could not load meetings')
+      }
+    },
+    async loadUnread() {
+      try {
+        this.unread = await messagingService.getUnreadCount()
+      } catch {
+        this.unread = 0
+      }
+    },
+    day: (d) => new Date(d).getDate(),
+    month: (d) => new Date(d).toLocaleDateString([], { month: 'short' }),
+    clock: (d) => new Date(d).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    relTime(d) {
+      const diff = new Date(d) - Date.now()
+      const mins = Math.round(diff / 60000)
+      if (mins <= 0) return 'Now'
+      if (mins < 60) return `In ${mins} min`
+      const hrs = Math.round(mins / 60)
+      if (hrs < 24) return `In ${hrs} h`
+      const days = Math.round(hrs / 24)
+      return days === 1 ? 'Tomorrow' : `In ${days} days`
     }
   }
 }
 </script>
 
 <style scoped>
-.communication-page {
-  padding: 1.5rem;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  min-height: 100vh;
+.link-kpi {
+  text-decoration: none;
+  display: block;
 }
 
-.page-header {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+.ui-kpi__value.accent {
+  color: var(--accent);
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.ui-kpi__value.next {
+  font-size: 22px;
 }
 
-.page-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #2d3748;
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.page-icon {
-  color: #10b981;
-}
-
-.page-subtitle {
-  color: #718096;
-  margin: 0;
-  font-size: 1rem;
-}
-
-.stats-overview {
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  transition: transform 0.2s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  color: white;
-}
-
-.stat-icon.messages { background: #10b981; }
-.stat-icon.calls { background: #3b82f6; }
-.stat-icon.active { background: #8b5cf6; }
-.stat-icon.meetings { background: #f59e0b; }
-
-.stat-value {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #2d3748;
-  margin-bottom: 0.25rem;
-}
-
-.stat-label {
-  color: #718096;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.communication-container {
-  background: white;
-  border-radius: 12px;
+.ellipsis {
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  min-height: 600px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.communication-sidebar {
-  border-right: 1px solid #e5e7eb;
-  height: 600px;
-  display: flex;
-  flex-direction: column;
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
 }
 
-.sidebar-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
 }
 
-.sidebar-header h5 {
-  margin: 0 0 1rem 0;
-  color: #374151;
-  font-weight: 600;
-}
-
-.search-box {
-  position: relative;
-}
-
-.search-box i {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-}
-
-.search-box input {
-  width: 100%;
-  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.875rem;
-}
-
-.conversations-list {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.conversation-item {
+.crow {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  border-bottom: 1px solid #f3f4f6;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
 }
 
-.conversation-item:hover {
-  background-color: #f9fafb;
+.crow:hover {
+  background: var(--surface-hover);
 }
 
-.conversation-item.active {
-  background-color: #ecfdf5;
-  border-left: 3px solid #10b981;
+.avatar.group {
+  background: var(--info-soft);
+  color: var(--info);
 }
 
-.conversation-avatar {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.conversation-avatar img,
-.avatar-placeholder {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.online-indicator {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 12px;
-  height: 12px;
-  background: #10b981;
-  border: 2px solid white;
-  border-radius: 50%;
-}
-
-.conversation-info {
+.crow__body {
   flex: 1;
   min-width: 0;
 }
 
-.conversation-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.25rem;
-}
-
-.conversation-name {
+.crow__title {
+  display: block;
   font-weight: 600;
-  color: #374151;
-  font-size: 0.875rem;
-}
-
-.conversation-time {
-  color: #9ca3af;
-  font-size: 0.75rem;
-}
-
-.conversation-preview {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.last-message {
-  color: #6b7280;
-  font-size: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
 }
 
-.unread-badge {
-  background: #ef4444;
-  color: white;
-  font-size: 0.625rem;
-  padding: 0.125rem 0.375rem;
-  border-radius: 10px;
-  min-width: 16px;
-  text-align: center;
+.crow__sub {
+  display: block;
+  font-size: 13px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.chat-container {
-  height: 600px;
+.crow__side {
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-.chat-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.unread {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
 }
 
-.chat-participant {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.participant-avatar {
-  position: relative;
-}
-
-.participant-avatar img,
-.participant-avatar .avatar-placeholder {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.participant-info h6 {
-  margin: 0;
-  color: #374151;
-  font-weight: 600;
-}
-
-.participant-info .status {
-  color: #10b981;
-  font-size: 0.75rem;
-}
-
-.chat-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background: white;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.action-btn:hover {
-  background: #f9fafb;
-  color: #10b981;
-}
-
-.messages-area {
-  flex: 1;
-  padding: 1.5rem;
-  overflow-y: auto;
-  background: #f9fafb;
-}
-
-.message {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.message.own-message {
-  flex-direction: row-reverse;
-}
-
-.message-avatar .avatar-small {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: #6b7280;
-  font-size: 0.75rem;
-}
-
-.message-content {
-  max-width: 70%;
-}
-
-.message.own-message .message-content {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.message-bubble {
-  background: white;
-  padding: 0.75rem 1rem;
+.date-chip {
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
-  position: relative;
-}
-
-.message.own-message .message-bubble {
-  background: #10b981;
-  color: white;
-}
-
-.message-bubble p {
-  margin: 0 0 0.25rem 0;
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
-
-.message-time {
-  font-size: 0.625rem;
-  opacity: 0.7;
-}
-
-.message-input-area {
-  padding: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-  background: white;
-}
-
-.input-container {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: #f9fafb;
-  border-radius: 24px;
-  padding: 0.5rem;
-}
-
-.input-action {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: #6b7280;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s;
-}
-
-.input-action:hover {
-  color: #10b981;
-}
-
-.message-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 0.5rem;
-  font-size: 0.875rem;
-  outline: none;
-}
-
-.send-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: #10b981;
-  color: white;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-}
-
-.send-btn:disabled {
-  background: #d1d5db;
-  cursor: not-allowed;
-}
-
-.send-btn:hover:not(:disabled) {
-  background: #059669;
-}
-
-.empty-state {
-  height: 600px;
+  background: var(--accent-soft);
+  color: var(--accent);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  color: #6b7280;
+  line-height: 1.1;
+  flex-shrink: 0;
 }
 
-.empty-icon {
-  font-size: 4rem;
-  color: #e5e7eb;
-  margin-bottom: 1rem;
+.date-chip strong {
+  font-size: 17px;
 }
 
-.empty-state h5 {
-  color: #374151;
-  margin-bottom: 0.5rem;
+.date-chip small {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tool:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+.tool > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.tool small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.tool__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.tool__icon.info { background: var(--info-soft); color: var(--info); }
+.tool__icon.success { background: var(--success-soft); color: var(--success); }
+.tool__icon.warning { background: var(--warning-soft); color: var(--warning); }
+
+@media (max-width: 1000px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

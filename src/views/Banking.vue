@@ -1,1332 +1,862 @@
 <template>
-  <div class="finance-page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-left">
-          <h1 class="page-title">
-            <i class="bi bi-bank"></i>
-            Banking & Transactions
-          </h1>
-          <p class="page-subtitle">Manage bank accounts and transactions</p>
-        </div>
-        <div class="header-actions">
-          <button class="btn btn-outline-primary btn-sm me-2" @click="showAddAccountModal = true">
-            <i class="bi bi-plus-lg"></i>
-            Add Account
-          </button>
-          <button class="btn btn-primary" @click="showAddTransactionModal = true">
-            <i class="bi bi-plus-lg"></i>
-            New Transaction
-          </button>
-        </div>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Finance</div>
+        <h1>Banking</h1>
+        <p>Bank accounts, cards and cash — categorise and reconcile every transaction.</p>
+      </div>
+      <div class="ui-actions">
+        <button class="ui-btn" @click="accountModal = { account: null }"><i class="fa-solid fa-building-columns"></i> Add account</button>
+        <button class="ui-btn ui-btn--primary" :disabled="!activeBanks.length" @click="txnModal = true"><i class="fa-solid fa-plus"></i> Add transaction</button>
+      </div>
+    </header>
+
+    <div v-if="banksError" class="ui-alert ui-alert--danger" style="margin-bottom: 16px">
+      <i class="fa-solid fa-circle-exclamation"></i><span>{{ banksError }} <a href="#" @click.prevent="loadBanks">Try again</a></span>
+    </div>
+
+    <!-- Accounts -->
+    <div v-if="banksLoading && !banks.length" class="cards">
+      <div v-for="n in 3" :key="n" class="bank-card sk-card">
+        <div class="ui-skeleton" style="width: 60%"></div>
+        <div class="ui-skeleton" style="width: 40%; margin-top: 10px"></div>
+        <div class="ui-skeleton" style="width: 50%; height: 26px; margin-top: 26px"></div>
       </div>
     </div>
 
-    <!-- Bank Accounts Overview -->
-    <div class="accounts-overview">
-      <div class="section-header">
-        <h2 class="section-title">
-          <i class="bi bi-wallet2"></i>
-          Bank Accounts
-        </h2>
+    <section v-else-if="!banks.length && !banksError" class="ui-card">
+      <div class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-building-columns"></i></div>
+        <h3>Connect your first account</h3>
+        <p>Add your business bank account, credit card or petty cash with its opening balance to start tracking transactions.</p>
+        <button class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="accountModal = { account: null }"><i class="fa-solid fa-plus"></i> Add bank account</button>
       </div>
-      <div class="row g-3">
-        <div class="col-lg-4 col-md-6" v-for="account in bankAccounts" :key="account.id">
-          <div class="account-card" :class="account.type.toLowerCase()">
-            <div class="account-header">
-              <div class="account-info">
-                <h3 class="account-name">{{ account.name }}</h3>
-                <p class="account-type">{{ account.type }} • {{ account.bank }}</p>
-              </div>
-              <div class="account-icon">
-                <i :class="getAccountIcon(account.type)"></i>
-              </div>
-            </div>
-            <div class="account-balance">
-              <div class="balance-amount" :class="{ negative: account.balance < 0 }">
-                {{ formatCurrency(account.balance) }}
-              </div>
-              <div class="account-number">•••• {{ account.number.slice(-4) }}</div>
-            </div>
-            <div class="account-actions">
-              <button class="btn-account-action" @click="viewAccountTransactions(account.id)">
-                <i class="bi bi-list"></i>
-                View Transactions
-              </button>
-            </div>
-          </div>
+    </section>
+
+    <template v-else>
+      <div class="totals-bar">
+        <div>
+          <span>Cash available</span><strong>{{ money(totals.cash) }}</strong>
         </div>
+        <div v-if="totals.cards">
+          <span>Credit cards</span><strong :class="{ neg: totals.cards < 0 }">{{ money(totals.cards) }}</strong>
+        </div>
+        <div>
+          <span>To review</span><strong>{{ totals.uncategorised }} uncategorised · {{ totals.unreconciled }} unreconciled</strong>
+        </div>
+        <label v-if="banks.some((b) => !b.is_active)" class="ui-switch small">
+          <input v-model="showArchived" type="checkbox" />
+          <span>Show archived</span>
+        </label>
       </div>
-    </div>
 
-    <!-- Transactions Section -->
-    <div class="transactions-section">
-      <div class="content-card">
-        <div class="card-header">
-          <div class="header-left">
-            <h2 class="card-title">
-              <i class="bi bi-arrow-left-right"></i>
-              Recent Transactions
-            </h2>
-          </div>
-          <div class="header-actions">
-            <div class="search-box">
-              <i class="bi bi-search search-icon"></i>
-              <input
-                type="text"
-                class="search-input"
-                placeholder="Search transactions..."
-                v-model="searchQuery"
-                @input="filterTransactions"
-              >
+      <div class="cards">
+        <article
+          v-for="b in visibleBanks"
+          :key="b.id"
+          class="bank-card"
+          :class="{ 'is-selected': filters.bank === b.id, archived: !b.is_active }"
+          tabindex="0"
+          role="button"
+          :aria-pressed="filters.bank === b.id"
+          @click="selectBank(b.id)"
+          @keydown.enter.prevent="selectBank(b.id)"
+        >
+          <div class="bank-card__top">
+            <span class="bank-icon" :class="b.account_type"><i :class="typeIcon(b.account_type)"></i></span>
+            <div class="bank-card__name">
+              <strong>{{ b.account_name }}</strong>
+              <small>{{ b.bank_name }}<template v-if="b.account_number"> · {{ mask(b.account_number) }}</template></small>
+            </div>
+            <div class="bank-card__actions" @click.stop>
+              <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Edit ${b.account_name}`" title="Edit" @click="accountModal = { account: b }"><i class="fa-solid fa-pen"></i></button>
+              <button v-if="b.is_active" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Delete ${b.account_name}`" title="Delete" @click="removeBank(b)"><i class="fa-regular fa-trash-can"></i></button>
+              <button v-else class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Restore ${b.account_name}`" title="Restore" @click="restoreBank(b)"><i class="fa-solid fa-rotate-left"></i></button>
             </div>
           </div>
-        </div>
+          <div class="bank-card__label">{{ b.account_type === 'credit_card' ? 'Balance' : 'Available balance' }}</div>
+          <div class="bank-card__balance" :class="{ neg: b.balance < 0 }">{{ money(b.balance, b.currency) }}</div>
+          <div class="bank-card__foot">
+            <span class="type-pill">{{ typeLabel(b.account_type) }}</span>
+            <span v-if="!b.is_active" class="ui-badge ui-badge--void">Archived</span>
+            <span v-else-if="b.uncategorised_count" class="flag warn"><i class="fa-solid fa-tags"></i> {{ b.uncategorised_count }} to categorise</span>
+            <span v-else-if="b.unreconciled_count" class="flag"><i class="fa-regular fa-circle"></i> {{ b.unreconciled_count }} unreconciled</span>
+            <span v-else class="flag ok"><i class="fa-solid fa-circle-check"></i> All reconciled</span>
+          </div>
+        </article>
+        <button class="bank-card add-card" @click="accountModal = { account: null }">
+          <i class="fa-solid fa-plus"></i>
+          <span>Add account</span>
+        </button>
+      </div>
 
-        <!-- Filter Buttons -->
-        <div class="filter-section">
-          <div class="filter-buttons">
-            <button
-              v-for="type in transactionTypes"
-              :key="type.key"
-              class="filter-btn"
-              :class="{ active: activeTypeFilter === type.key }"
-              @click="setTypeFilter(type.key)"
-            >
-              <i :class="type.icon"></i>
-              {{ type.label }}
+      <!-- Transactions -->
+      <section class="ui-card">
+        <div class="ui-card__head">
+          <h2>
+            Transactions
+            <span v-if="selectedBank" class="head-sub">· {{ selectedBank.account_name }} <button class="link-btn" @click="selectBank('')">Show all</button></span>
+          </h2>
+          <button class="ui-btn ui-btn--sm" :disabled="!activeBanks.length" @click="txnModal = true"><i class="fa-solid fa-plus"></i> Add</button>
+        </div>
+        <div class="toolbar">
+          <div class="ui-tabs" role="tablist" aria-label="Transaction status">
+            <button v-for="t in statusTabs" :key="t.value" class="ui-tab" :class="{ 'is-active': filters.status === t.value }" role="tab" :aria-selected="filters.status === t.value" @click="setFilter('status', t.value)">
+              {{ t.label }}
             </button>
           </div>
+          <div class="toolbar__right">
+            <div class="ui-input-group search">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input v-model="filters.q" class="ui-input" type="search" placeholder="Search description…" aria-label="Search transactions" @input="debounced" />
+            </div>
+            <select v-model="filters.direction" class="ui-select dir" aria-label="Direction" @change="loadTxns">
+              <option value="">In & out</option>
+              <option value="in">Money in</option>
+              <option value="out">Money out</option>
+            </select>
+            <input v-model="filters.from" type="date" class="ui-input date" aria-label="From date" @change="loadTxns" />
+            <input v-model="filters.to" type="date" class="ui-input date" aria-label="To date" @change="loadTxns" />
+          </div>
         </div>
 
-        <div class="table-container">
-          <div class="table-wrapper">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th @click="sortBy('date')" class="sortable">
-                    Date
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('description')" class="sortable">
-                    Description
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('category')" class="sortable">
-                    Category
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('account')" class="sortable">
-                    Account
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('amount')" class="sortable">
-                    Amount
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="transaction in filteredTransactions" :key="transaction.id">
-                  <td>{{ formatDate(transaction.date) }}</td>
-                  <td class="description">{{ transaction.description }}</td>
-                  <td>
-                    <span class="category-badge" :style="{ backgroundColor: transaction.category_color + '20', color: transaction.category_color }">
-                      {{ transaction.category }}
-                    </span>
-                  </td>
-                  <td class="account-name">{{ transaction.account }}</td>
-                  <td class="amount" :class="{ negative: transaction.amount < 0, positive: transaction.amount > 0 }">
-                    {{ formatCurrency(Math.abs(transaction.amount)) }}
-                  </td>
-                  <td>
-                    <span class="type-badge" :class="transaction.type.toLowerCase()">
-                      <i :class="getTypeIcon(transaction.type)"></i>
-                      {{ transaction.type }}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="status-badge" :class="transaction.status.toLowerCase()">
-                      {{ transaction.status }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="action-buttons">
-                      <button class="btn-action view" title="View">
-                        <i class="bi bi-eye"></i>
-                      </button>
-                      <button class="btn-action edit" title="Edit">
-                        <i class="bi bi-pencil"></i>
-                      </button>
-                      <button class="btn-action delete" title="Delete">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <div v-if="txnError" class="ui-card__body">
+          <div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ txnError }} <a href="#" @click.prevent="loadTxns">Try again</a></span></div>
+        </div>
+        <div v-else-if="txnLoading && !txns.length" class="ui-card__body">
+          <div v-for="n in 6" :key="n" class="sk-row">
+            <div class="ui-skeleton" style="width: 80px"></div>
+            <div class="ui-skeleton" style="flex: 1"></div>
+            <div class="ui-skeleton" style="width: 90px"></div>
           </div>
         </div>
-      </div>
-    </div>
+        <div v-else-if="!txns.length" class="ui-empty">
+          <div class="ui-empty__icon"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
+          <h3>{{ hasFilters ? 'No transactions match your filters' : 'No transactions yet' }}</h3>
+          <p>{{ hasFilters ? 'Try a different status, date range or search.' : 'Add deposits and withdrawals manually. Bill payments appear here automatically.' }}</p>
+          <button v-if="hasFilters" class="ui-btn" style="margin-top: 12px" @click="clearFilters">Clear filters</button>
+          <button v-else-if="activeBanks.length" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="txnModal = true"><i class="fa-solid fa-plus"></i> Add transaction</button>
+        </div>
+        <div v-else class="ui-table-wrap" :class="{ 'is-loading': txnLoading }">
+          <table class="ui-table">
+            <thead>
+              <tr>
+                <th class="hide-sm">Date</th>
+                <th>Description</th>
+                <th v-if="!filters.bank" class="hide-md">Account</th>
+                <th class="cat-col">Category</th>
+                <th class="num">Amount</th>
+                <th v-if="filters.bank" class="num hide-sm">Balance</th>
+                <th class="center" title="Reconciled">Rec.</th>
+                <th style="width: 44px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in txns" :key="t.id" :class="{ 'row-review': !t.account_id }">
+                <td class="nowrap hide-sm">{{ date(t.date) }}</td>
+                <td>
+                  <div class="desc">{{ t.description }}</div>
+                  <small class="show-sm muted">{{ date(t.date) }}</small>
+                  <small v-if="t.reference || t.source !== 'manual'" class="muted">
+                    <template v-if="t.source === 'bill_payment'"><i class="fa-solid fa-file-invoice"></i> Bill payment</template>
+                    <template v-else-if="t.source === 'opening_balance'"><i class="fa-solid fa-flag"></i> Opening balance</template>
+                    <template v-if="t.reference"> · {{ t.reference }}</template>
+                  </small>
+                </td>
+                <td v-if="!filters.bank" class="hide-md muted">{{ t.bank_account_name }}</td>
+                <td class="cat-col">
+                  <template v-if="t.source !== 'manual'">
+                    <span class="cat locked">{{ t.category || '—' }}</span>
+                  </template>
+                  <AccountSelect
+                    v-else-if="!t.account_id || editingCat === t.id"
+                    :model-value="t.account_id"
+                    class="cat-select"
+                    :class="{ pending: !t.account_id }"
+                    :accounts="accounts"
+                    :exclude="bankLedgerIds"
+                    placeholder="Categorise…"
+                    :disabled="busy === t.id"
+                    :aria-label="`Category for ${t.description}`"
+                    @update:model-value="(v) => categorize(t, v)"
+                  />
+                  <button v-else class="cat" title="Change category" @click="editingCat = t.id">
+                    <span class="mono">{{ t.account_code }}</span> {{ t.category }} <i class="fa-solid fa-pen"></i>
+                  </button>
+                </td>
+                <td class="num amt" :class="t.amount >= 0 ? 'in' : 'out'">{{ t.amount >= 0 ? '+' : '−' }}{{ money(Math.abs(t.amount), bankCurrency(t)) }}</td>
+                <td v-if="filters.bank" class="num hide-sm muted">{{ money(t.balance, bankCurrency(t)) }}</td>
+                <td class="center">
+                  <button class="rec" :class="{ on: t.is_reconciled }" :disabled="busy === t.id" :aria-pressed="t.is_reconciled" :aria-label="t.is_reconciled ? 'Mark as unreconciled' : 'Mark as reconciled'" :title="t.is_reconciled ? 'Reconciled' : 'Mark as reconciled'" @click="toggleRec(t)">
+                    <i :class="t.is_reconciled ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'"></i>
+                  </button>
+                </td>
+                <td class="center">
+                  <button v-if="t.source === 'manual'" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Delete ${t.description}`" title="Delete" @click="removeTxn(t)"><i class="fa-regular fa-trash-can"></i></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <footer class="list-foot">
+            <span>{{ txns.length }} transaction{{ txns.length === 1 ? '' : 's' }}</span>
+            <span>In <strong class="in">{{ money(flow.in) }}</strong></span>
+            <span>Out <strong class="out">{{ money(flow.out) }}</strong></span>
+          </footer>
+        </div>
+      </section>
+    </template>
 
-    <!-- Add Account Modal -->
-    <div class="modal fade" :class="{ show: showAddAccountModal }" tabindex="-1" style="display: block;" v-if="showAddAccountModal">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              <i class="bi bi-plus-circle"></i>
-              Add Bank Account
-            </h5>
-            <button type="button" class="btn-close" @click="showAddAccountModal = false"></button>
-          </div>
-          <div class="modal-body">
-            <form @submit.prevent="addAccount">
-              <div class="row g-3">
-                <div class="col-12">
-                  <label class="form-label">Account Name</label>
-                  <input type="text" class="form-control" v-model="newAccount.name" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Bank</label>
-                  <input type="text" class="form-control" v-model="newAccount.bank" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Account Type</label>
-                  <select class="form-control" v-model="newAccount.type" required>
-                    <option value="">Select Type</option>
-                    <option value="Checking">Checking</option>
-                    <option value="Savings">Savings</option>
-                    <option value="Credit">Credit Card</option>
-                    <option value="Business">Business</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Account Number</label>
-                  <input type="text" class="form-control" v-model="newAccount.number" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Initial Balance</label>
-                  <input type="number" step="0.01" class="form-control" v-model="newAccount.balance" required>
-                </div>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showAddAccountModal = false">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="addAccount">
-              <i class="bi bi-plus-lg"></i>
-              Add Account
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add Transaction Modal -->
-    <div class="modal fade" :class="{ show: showAddTransactionModal }" tabindex="-1" style="display: block;" v-if="showAddTransactionModal">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              <i class="bi bi-plus-circle"></i>
-              Add Transaction
-            </h5>
-            <button type="button" class="btn-close" @click="showAddTransactionModal = false"></button>
-          </div>
-          <div class="modal-body">
-            <form @submit.prevent="addTransaction">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label">Account</label>
-                  <select class="form-control" v-model="newTransaction.account" required>
-                    <option value="">Select Account</option>
-                    <option v-for="account in bankAccounts" :key="account.id" :value="account.name">
-                      {{ account.name }}
-                    </option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Type</label>
-                  <select class="form-control" v-model="newTransaction.type" required>
-                    <option value="">Select Type</option>
-                    <option value="Income">Income</option>
-                    <option value="Expense">Expense</option>
-                    <option value="Transfer">Transfer</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Amount</label>
-                  <input type="number" step="0.01" class="form-control" v-model="newTransaction.amount" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Date</label>
-                  <input type="date" class="form-control" v-model="newTransaction.date" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Category</label>
-                  <select class="form-control" v-model="newTransaction.category" required>
-                    <option value="">Select Category</option>
-                    <option value="Sales">Sales</option>
-                    <option value="Office Expenses">Office Expenses</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Utilities">Utilities</option>
-                    <option value="Travel">Travel</option>
-                    <option value="Equipment">Equipment</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Status</label>
-                  <select class="form-control" v-model="newTransaction.status" required>
-                    <option value="Completed">Completed</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Failed">Failed</option>
-                  </select>
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Description</label>
-                  <input type="text" class="form-control" v-model="newTransaction.description" required>
-                </div>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showAddTransactionModal = false">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="addTransaction">
-              <i class="bi bi-plus-lg"></i>
-              Add Transaction
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-backdrop fade show" v-if="showAddAccountModal || showAddTransactionModal"></div>
+    <BankAccountModal v-if="accountModal" :account="accountModal.account" @close="accountModal = null" @saved="onBankSaved" />
+    <TransactionModal v-if="txnModal" :banks="activeBanks" :accounts="accounts" :bank-account-id="filters.bank" @close="txnModal = false" @saved="onTxnSaved" />
   </div>
 </template>
 
 <script>
-import { globalTheme } from '../composables/useTheme'
+import BankAccountModal from '@/components/finance/BankAccountModal.vue'
+import TransactionModal from '@/components/finance/TransactionModal.vue'
+import AccountSelect from '@/components/finance/AccountSelect.vue'
+import { financeApi, BANK_TYPES, maskNumber, toCents } from '@/services/finance'
+import { apiErrorMessage } from '@/services/api'
+import { formatMoney, formatDate } from '@/utils/format'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+
+const STATUSES = ['all', 'uncategorised', 'unreconciled', 'reconciled']
 
 export default {
   name: 'Banking',
-  setup() {
-    const { isDark } = globalTheme
-    return { isDarkMode: isDark }
-  },
+  components: { BankAccountModal, TransactionModal, AccountSelect },
   data() {
+    const qs = this.$route.query
     return {
-      searchQuery: '',
-      activeTypeFilter: 'all',
-      showAddAccountModal: false,
-      showAddTransactionModal: false,
-      sortField: 'date',
-      sortDirection: 'desc',
-
-      categoryColors: {
-        'Sales': '#059669',
-        'Office Expenses': '#3b82f6',
-        'Marketing': '#ef4444',
-        'Utilities': '#f59e0b',
-        'Travel': '#06b6d4',
-        'Equipment': '#6b7280',
-        'Other': '#8b5cf6'
+      banks: [],
+      banksLoading: false,
+      banksError: '',
+      showArchived: false,
+      accounts: [],
+      txns: [],
+      txnLoading: false,
+      txnError: '',
+      filters: {
+        bank: qs.account || '',
+        status: STATUSES.includes(qs.status) ? qs.status : 'all',
+        direction: '',
+        q: '',
+        from: '',
+        to: ''
       },
-
-      transactionTypes: [
-        { key: 'all', label: 'All Types', icon: 'bi bi-list' },
-        { key: 'income', label: 'Income', icon: 'bi bi-arrow-down-left' },
-        { key: 'expense', label: 'Expense', icon: 'bi bi-arrow-up-right' },
-        { key: 'transfer', label: 'Transfer', icon: 'bi bi-arrow-left-right' }
-      ],
-
-      newAccount: {
-        name: '',
-        bank: '',
-        type: '',
-        number: '',
-        balance: ''
-      },
-
-      newTransaction: {
-        account: '',
-        type: '',
-        amount: '',
-        date: '',
-        category: '',
-        status: 'Completed',
-        description: ''
-      },
-
-      bankAccounts: [
-        {
-          id: 1,
-          name: 'Business Checking',
-          bank: 'Chase Bank',
-          type: 'Checking',
-          number: '1234567890',
-          balance: 45750.00
-        },
-        {
-          id: 2,
-          name: 'Business Savings',
-          bank: 'Chase Bank',
-          type: 'Savings',
-          number: '0987654321',
-          balance: 125000.00
-        },
-        {
-          id: 3,
-          name: 'Corporate Credit',
-          bank: 'American Express',
-          type: 'Credit',
-          number: '4567890123',
-          balance: -3250.00
-        }
-      ],
-
-      transactions: [
-        {
-          id: 1,
-          date: '2024-01-15',
-          description: 'Client Payment - Invoice #001',
-          category: 'Sales',
-          category_color: '#059669',
-          account: 'Business Checking',
-          amount: 15000.00,
-          type: 'Income',
-          status: 'Completed'
-        },
-        {
-          id: 2,
-          date: '2024-01-14',
-          description: 'Office Supplies Purchase',
-          category: 'Office Expenses',
-          category_color: '#3b82f6',
-          account: 'Corporate Credit',
-          amount: -485.00,
-          type: 'Expense',
-          status: 'Completed'
-        },
-        {
-          id: 3,
-          date: '2024-01-13',
-          description: 'Marketing Campaign Payment',
-          category: 'Marketing',
-          category_color: '#ef4444',
-          account: 'Business Checking',
-          amount: -2500.00,
-          type: 'Expense',
-          status: 'Completed'
-        },
-        {
-          id: 4,
-          date: '2024-01-12',
-          description: 'Utility Bill Payment',
-          category: 'Utilities',
-          category_color: '#f59e0b',
-          account: 'Business Checking',
-          amount: -750.00,
-          type: 'Expense',
-          status: 'Completed'
-        },
-        {
-          id: 5,
-          date: '2024-01-11',
-          description: 'Transfer to Savings',
-          category: 'Other',
-          category_color: '#8b5cf6',
-          account: 'Business Checking',
-          amount: -10000.00,
-          type: 'Transfer',
-          status: 'Completed'
-        },
-        {
-          id: 6,
-          date: '2024-01-10',
-          description: 'Equipment Purchase',
-          category: 'Equipment',
-          category_color: '#6b7280',
-          account: 'Corporate Credit',
-          amount: -1800.00,
-          type: 'Expense',
-          status: 'Pending'
-        }
-      ],
-
-      filteredTransactions: []
+      accountModal: null,
+      txnModal: false,
+      editingCat: '',
+      busy: '',
+      timer: null
     }
   },
-
+  computed: {
+    activeBanks() {
+      return this.banks.filter((b) => b.is_active)
+    },
+    visibleBanks() {
+      return this.showArchived ? this.banks : this.activeBanks
+    },
+    selectedBank() {
+      return this.banks.find((b) => b.id === this.filters.bank) || null
+    },
+    bankLedgerIds() {
+      return this.banks.map((b) => b.chart_account_id).filter(Boolean)
+    },
+    totals() {
+      let cash = 0
+      let cards = 0
+      let un = 0
+      let uc = 0
+      for (const b of this.activeBanks) {
+        if (b.account_type === 'credit_card') cards += toCents(b.balance)
+        else cash += toCents(b.balance)
+        un += b.unreconciled_count || 0
+        uc += b.uncategorised_count || 0
+      }
+      return { cash: cash / 100, cards: cards / 100, unreconciled: un, uncategorised: uc }
+    },
+    statusTabs() {
+      return [
+        { value: 'all', label: 'All' },
+        { value: 'uncategorised', label: 'To categorise' },
+        { value: 'unreconciled', label: 'Unreconciled' },
+        { value: 'reconciled', label: 'Reconciled' }
+      ]
+    },
+    hasFilters() {
+      const f = this.filters
+      return f.status !== 'all' || !!f.direction || !!f.q || !!f.from || !!f.to
+    },
+    flow() {
+      let i = 0
+      let o = 0
+      for (const t of this.txns) {
+        if (t.amount >= 0) i += toCents(t.amount)
+        else o -= toCents(t.amount)
+      }
+      return { in: i / 100, out: o / 100 }
+    }
+  },
+  created() {
+    this.loadBanks()
+    this.loadTxns()
+    this.loadAccounts()
+  },
+  beforeUnmount() {
+    clearTimeout(this.timer)
+  },
   methods: {
-    getAccountIcon(type) {
-      const icons = {
-        'Checking': 'bi bi-cash-coin',
-        'Savings': 'bi bi-piggy-bank',
-        'Credit': 'bi bi-credit-card',
-        'Business': 'bi bi-building'
-      }
-      return icons[type] || 'bi bi-bank'
+    money(v, cur) {
+      return formatMoney(v, cur || 'AUD')
     },
-
-    getTypeIcon(type) {
-      const icons = {
-        'Income': 'bi bi-arrow-down-left',
-        'Expense': 'bi bi-arrow-up-right',
-        'Transfer': 'bi bi-arrow-left-right'
-      }
-      return icons[type] || 'bi bi-question'
+    date: formatDate,
+    mask: maskNumber,
+    typeIcon(t) {
+      return BANK_TYPES.find((x) => x.value === t)?.icon || 'fa-solid fa-building-columns'
     },
-
-    viewAccountTransactions(accountId) {
-      const account = this.bankAccounts.find(a => a.id === accountId)
-      if (account) {
-        this.searchQuery = account.name
-        this.filterTransactions()
+    typeLabel(t) {
+      return BANK_TYPES.find((x) => x.value === t)?.label || t
+    },
+    bankCurrency(t) {
+      return this.banks.find((b) => b.id === t.bank_account_id)?.currency || 'AUD'
+    },
+    syncQuery() {
+      const query = {}
+      if (this.filters.bank) query.account = this.filters.bank
+      if (this.filters.status !== 'all') query.status = this.filters.status
+      this.$router.replace({ query })
+    },
+    selectBank(id) {
+      this.filters.bank = this.filters.bank === id ? '' : id
+      this.syncQuery()
+      this.loadTxns()
+    },
+    setFilter(k, v) {
+      this.filters[k] = v
+      this.syncQuery()
+      this.loadTxns()
+    },
+    clearFilters() {
+      Object.assign(this.filters, { status: 'all', direction: '', q: '', from: '', to: '' })
+      this.syncQuery()
+      this.loadTxns()
+    },
+    debounced() {
+      clearTimeout(this.timer)
+      this.timer = setTimeout(this.loadTxns, 280)
+    },
+    async loadBanks() {
+      this.banksLoading = true
+      this.banksError = ''
+      try {
+        this.banks = (await financeApi.bankAccounts({ include_inactive: 'true' })) || []
+      } catch (e) {
+        this.banksError = apiErrorMessage(e, 'Could not load bank accounts')
+      } finally {
+        this.banksLoading = false
       }
     },
-
-    filterTransactions() {
-      let filtered = [...this.transactions]
-
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase()
-        filtered = filtered.filter(transaction =>
-          transaction.description.toLowerCase().includes(query) ||
-          transaction.category.toLowerCase().includes(query) ||
-          transaction.account.toLowerCase().includes(query)
-        )
+    async loadAccounts() {
+      try {
+        this.accounts = (await financeApi.accounts()) || []
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not load the chart of accounts'))
       }
-
-      if (this.activeTypeFilter !== 'all') {
-        filtered = filtered.filter(transaction =>
-          transaction.type.toLowerCase() === this.activeTypeFilter
-        )
+    },
+    async loadTxns() {
+      if (this.filters.from && this.filters.to && this.filters.to < this.filters.from) {
+        this.txnError = 'The end date must be on or after the start date.'
+        return
       }
-
-      this.filteredTransactions = this.sortTransactions(filtered)
-    },
-
-    setTypeFilter(type) {
-      this.activeTypeFilter = type
-      this.filterTransactions()
-    },
-
-    sortBy(field) {
-      if (this.sortField === field) {
-        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc'
-      } else {
-        this.sortField = field
-        this.sortDirection = 'asc'
+      this.txnLoading = true
+      this.txnError = ''
+      const f = this.filters
+      try {
+        this.txns =
+          (await financeApi.transactions({
+            bank_account_id: f.bank || undefined,
+            status: f.status !== 'all' ? f.status : undefined,
+            direction: f.direction || undefined,
+            q: f.q || undefined,
+            from: f.from || undefined,
+            to: f.to || undefined
+          })) || []
+      } catch (e) {
+        this.txnError = apiErrorMessage(e, 'Could not load transactions')
+      } finally {
+        this.txnLoading = false
       }
-      this.filterTransactions()
     },
-
-    sortTransactions(transactions) {
-      return transactions.sort((a, b) => {
-        let aValue = a[this.sortField]
-        let bValue = b[this.sortField]
-
-        if (this.sortField === 'amount') {
-          aValue = parseFloat(aValue)
-          bValue = parseFloat(bValue)
-        }
-
-        if (this.sortDirection === 'asc') {
-          return aValue > bValue ? 1 : -1
-        } else {
-          return aValue < bValue ? 1 : -1
-        }
+    refresh() {
+      this.loadBanks()
+      this.loadTxns()
+    },
+    onBankSaved() {
+      this.accountModal = null
+      this.refresh()
+      this.loadAccounts()
+    },
+    onTxnSaved() {
+      this.txnModal = false
+      this.refresh()
+    },
+    async removeBank(b) {
+      const hasActivity = b.last_transaction_date
+      const ok = await confirmDialog({
+        title: `Delete ${b.account_name}?`,
+        message: hasActivity
+          ? 'This account has transactions, so it will be archived. Its history stays in your ledger and reports.'
+          : 'This account has no transactions and will be permanently removed.',
+        confirmText: hasActivity ? 'Archive account' : 'Delete account',
+        danger: true
       })
-    },
-
-    addAccount() {
-      const newId = Math.max(...this.bankAccounts.map(a => a.id)) + 1
-      const account = {
-        id: newId,
-        ...this.newAccount,
-        balance: parseFloat(this.newAccount.balance)
-      }
-
-      this.bankAccounts.push(account)
-      this.showAddAccountModal = false
-      this.resetNewAccount()
-    },
-
-    addTransaction() {
-      const newId = Math.max(...this.transactions.map(t => t.id)) + 1
-      let amount = parseFloat(this.newTransaction.amount)
-
-      if (this.newTransaction.type === 'Expense') {
-        amount = -Math.abs(amount)
-      } else if (this.newTransaction.type === 'Transfer') {
-        amount = -Math.abs(amount)
-      }
-
-      const transaction = {
-        id: newId,
-        ...this.newTransaction,
-        amount: amount,
-        category_color: this.categoryColors[this.newTransaction.category] || '#6b7280'
-      }
-
-      this.transactions.unshift(transaction)
-      this.filterTransactions()
-      this.showAddTransactionModal = false
-      this.resetNewTransaction()
-    },
-
-    resetNewAccount() {
-      this.newAccount = {
-        name: '',
-        bank: '',
-        type: '',
-        number: '',
-        balance: ''
+      if (!ok) return
+      try {
+        const res = await financeApi.deleteBankAccount(b.id)
+        toast.success(res?.archived ? `${b.account_name} archived` : `${b.account_name} deleted`)
+        if (this.filters.bank === b.id) this.filters.bank = ''
+        this.refresh()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete the account'))
       }
     },
-
-    resetNewTransaction() {
-      this.newTransaction = {
-        account: '',
-        type: '',
-        amount: '',
-        date: '',
-        category: '',
-        status: 'Completed',
-        description: ''
+    async restoreBank(b) {
+      try {
+        await financeApi.updateBankAccount(b.id, { ...b, is_active: true })
+        toast.success(`${b.account_name} restored`)
+        this.loadBanks()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not restore the account'))
       }
     },
-
-    formatCurrency(amount) {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-      }).format(amount)
+    async categorize(t, accountId) {
+      if (accountId === t.account_id) {
+        this.editingCat = ''
+        return
+      }
+      this.busy = t.id
+      try {
+        const updated = await financeApi.categorize(t.id, accountId)
+        const acc = this.accounts.find((a) => a.id === updated.account_id)
+        Object.assign(t, { account_id: updated.account_id, category: acc?.name || updated.category, account_code: acc?.code || '' })
+        this.editingCat = ''
+        toast.success(accountId ? `Categorised as ${acc?.name || 'selected account'}` : 'Category removed')
+        this.loadBanks()
+        if (this.filters.status === 'uncategorised') this.loadTxns()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not categorise the transaction'))
+      } finally {
+        this.busy = ''
+      }
     },
-
-    formatDate(dateString) {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
+    async toggleRec(t) {
+      this.busy = t.id
+      try {
+        await financeApi.reconcile(t.id, !t.is_reconciled)
+        t.is_reconciled = !t.is_reconciled
+        this.loadBanks()
+        if (this.filters.status === 'reconciled' || this.filters.status === 'unreconciled') this.loadTxns()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not update the transaction'))
+      } finally {
+        this.busy = ''
+      }
+    },
+    async removeTxn(t) {
+      const ok = await confirmDialog({
+        title: 'Delete transaction?',
+        message: `“${t.description}” (${this.money(Math.abs(t.amount))}) will be removed, the account balance adjusted and any ledger posting reversed.`,
+        confirmText: 'Delete',
+        danger: true
       })
+      if (!ok) return
+      try {
+        await financeApi.deleteTransaction(t.id)
+        toast.success('Transaction deleted')
+        this.refresh()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete the transaction'))
+      }
     }
-  },
-
-  mounted() {
-    this.filteredTransactions = [...this.transactions]
-    this.filterTransactions()
   }
 }
 </script>
 
 <style scoped>
-/* CSS Variables for Dark Theme */
-.finance-page {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-card: #ffffff;
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --border-color: #e2e8f0;
-  --border-light: #f1f5f9;
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="dark"] .finance-page {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border-color: #475569;
-  --border-light: #64748b;
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
-}
-
-.finance-page {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  transition: all 0.3s ease;
-}
-
-/* Page Header */
-.page-header {
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-color);
-  padding: 1.5rem 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: var(--shadow);
-}
-
-.header-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1rem;
+.totals-bar {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.page-subtitle {
-  color: var(--text-secondary);
-  margin: 0.25rem 0 0 0;
-  font-size: 0.9rem;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* Accounts Overview */
-.accounts-overview {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-
-.section-header {
-  margin-bottom: 1.5rem;
-}
-
-.section-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.account-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: var(--shadow);
-  transition: all 0.3s ease;
-  height: 100%;
-}
-
-.account-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.account-card.checking {
-  border-left: 4px solid #3b82f6;
-}
-
-.account-card.savings {
-  border-left: 4px solid #059669;
-}
-
-.account-card.credit {
-  border-left: 4px solid #ef4444;
-}
-
-.account-card.business {
-  border-left: 4px solid #8b5cf6;
-}
-
-.account-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.account-name {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.25rem 0;
-}
-
-.account-type {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin: 0;
-}
-
-.account-icon {
-  width: 40px;
-  height: 40px;
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  font-size: 1.125rem;
-}
-
-.account-balance {
-  margin-bottom: 1rem;
-}
-
-.balance-amount {
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.balance-amount.negative {
-  color: #ef4444;
-}
-
-.account-number {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
-}
-
-.btn-account-action {
-  width: 100%;
-  padding: 0.5rem 1rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-account-action:hover {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: white;
-}
-
-/* Transactions Section */
-.transactions-section {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1rem 2rem;
-}
-
-.content-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-
-.card-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-light);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--bg-secondary);
-}
-
-.card-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-/* Search Box */
-.search-box {
-  position: relative;
-  width: 300px;
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.search-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-/* Filter Section */
-.filter-section {
-  padding: 1rem 1.5rem;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-light);
-}
-
-.filter-buttons {
-  display: flex;
-  gap: 0.5rem;
   flex-wrap: wrap;
-}
-
-.filter-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 12px 32px;
+  margin-bottom: 14px;
 }
-
-.filter-btn:hover {
-  background: var(--bg-card);
-  border-color: #3b82f6;
+.totals-bar span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
+  font-weight: 550;
 }
-
-.filter-btn.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: white;
+.totals-bar strong {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
 }
-
-/* Table */
-.table-container {
-  overflow-x: auto;
+.totals-bar .ui-switch {
+  margin-left: auto;
 }
-
-.table-wrapper {
-  min-width: 1000px;
+.small {
+  font-size: 13px;
 }
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
+.neg {
+  color: var(--danger);
 }
-
-.data-table th {
-  padding: 1rem;
-  text-align: left;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-  border-bottom: 1px solid var(--border-light);
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.bank-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: 18px 18px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+}
+.bank-card:hover,
+.bank-card:focus-visible {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+.bank-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.bank-card.archived {
+  opacity: 0.6;
+}
+.sk-card {
+  cursor: default;
+}
+.bank-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.bank-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.bank-icon.savings {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.bank-icon.credit_card {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.bank-icon.cash {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.bank-card__name {
+  flex: 1;
+  min-width: 0;
+}
+.bank-card__name strong {
+  display: block;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.data-table th.sortable {
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.2s ease;
+.bank-card__name small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
 }
-
-.data-table th.sortable:hover {
-  color: var(--text-primary);
-}
-
-.sort-icon {
-  margin-left: 0.25rem;
-  opacity: 0.5;
-  font-size: 0.75rem;
-}
-
-.data-table td {
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-light);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  vertical-align: middle;
-}
-
-.data-table tbody tr {
-  transition: background-color 0.2s ease;
-}
-
-.data-table tbody tr:hover {
-  background: var(--bg-secondary);
-}
-
-.description {
-  font-weight: 500;
-}
-
-.account-name {
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.amount {
-  font-weight: 600;
-  text-align: right;
-}
-
-.amount.positive {
-  color: #059669;
-}
-
-.amount.negative {
-  color: #ef4444;
-}
-
-.category-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.type-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
+.bank-card__actions {
   display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  width: fit-content;
+  gap: 2px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
 }
-
-.type-badge.income {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.type-badge.expense {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.type-badge.transfer {
-  background: #e0f2fe;
-  color: #0c4a6e;
-}
-
-[data-theme="dark"] .type-badge.income {
-  background: #166534;
-  color: #dcfce7;
-}
-
-[data-theme="dark"] .type-badge.expense {
-  background: #991b1b;
-  color: #fee2e2;
-}
-
-[data-theme="dark"] .type-badge.transfer {
-  background: #0c4a6e;
-  color: #e0f2fe;
-}
-
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.status-badge.completed {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-badge.pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge.failed {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-[data-theme="dark"] .status-badge.completed {
-  background: #166534;
-  color: #dcfce7;
-}
-
-[data-theme="dark"] .status-badge.pending {
-  background: #92400e;
-  color: #fef3c7;
-}
-
-[data-theme="dark"] .status-badge.failed {
-  background: #991b1b;
-  color: #fee2e2;
-}
-
-/* Action Buttons */
-.action-buttons {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.btn-action {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
-}
-
-.btn-action.view {
-  background: #eff6ff;
-  color: #2563eb;
-}
-
-.btn-action.view:hover {
-  background: #dbeafe;
-}
-
-.btn-action.edit {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.btn-action.edit:hover {
-  background: #fde68a;
-}
-
-.btn-action.delete {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.btn-action.delete:hover {
-  background: #fecaca;
-}
-
-/* Modal Styles */
-.modal {
-  background: rgba(0, 0, 0, 0.5);
-}
-
-.modal-content {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg);
-}
-
-.modal-header {
-  border-bottom: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-}
-
-.modal-title {
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-close {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+.bank-card:hover .bank-card__actions,
+.bank-card:focus-within .bank-card__actions {
   opacity: 1;
 }
-
-.modal-footer {
-  border-top: 1px solid var(--border-light);
-  background: var(--bg-secondary);
+.bank-card__label {
+  margin-top: auto;
+  padding-top: 18px;
+  font-size: 12px;
+  color: var(--text-3);
 }
-
-.form-label {
-  color: var(--text-secondary);
+.bank-card__balance {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.bank-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.type-pill {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--text-2);
+  font-weight: 550;
+}
+.flag {
+  color: var(--text-3);
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+.flag.warn {
+  color: var(--warning);
+}
+.flag.ok {
+  color: var(--success);
+}
+.add-card {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-3);
+  font: inherit;
+  font-weight: 600;
+}
+.add-card i {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bg-subtle);
+}
+.add-card:hover {
+  color: var(--accent);
+}
+.head-sub {
   font-weight: 500;
-  margin-bottom: 0.5rem;
+  color: var(--text-3);
 }
-
-.form-control {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
+.link-btn {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.toolbar__right {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.search {
+  width: 220px;
+}
+.dir {
+  width: 130px;
+}
+.date {
+  width: 145px;
+}
+.sk-row {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.desc {
+  font-weight: 500;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.muted {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.muted i {
+  font-size: 10px;
+}
+.row-review td:first-child {
+  box-shadow: inset 3px 0 0 var(--warning);
+}
+.cat-col {
+  width: 240px;
+}
+.cat-select {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 13px;
+}
+.cat-select.pending {
+  border-color: var(--warning);
+  border-style: dashed;
+}
+.cat {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  padding: 4px 6px;
+  margin-left: -6px;
   border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  text-align: left;
 }
-
-.form-control:focus {
-  background: var(--bg-primary);
-  border-color: #3b82f6;
-  color: var(--text-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.cat:hover {
+  background: var(--surface-hover);
 }
-
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .header-content {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
+.cat i {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-left: 4px;
+  opacity: 0;
+}
+.cat:hover i {
+  opacity: 1;
+}
+.cat.locked {
+  cursor: default;
+  color: var(--text-2);
+}
+.cat .mono {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.amt {
+  font-weight: 600;
+}
+.in {
+  color: var(--success);
+}
+.out {
+  color: var(--text);
+}
+.center {
+  text-align: center;
+}
+.show-sm {
+  display: none;
+}
+.rec {
+  border: 0;
+  background: none;
+  font-size: 17px;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+}
+.rec.on {
+  color: var(--success);
+}
+.rec:hover {
+  color: var(--success);
+}
+.list-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
+  font-size: 13px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.list-foot strong {
+  margin-left: 4px;
+}
+.is-loading {
+  opacity: 0.6;
+}
+@media (max-width: 1100px) {
+  .hide-md {
+    display: none;
   }
-
-  .header-actions {
+}
+@media (max-width: 700px) {
+  .hide-sm {
+    display: none;
+  }
+  .toolbar__right,
+  .search {
     width: 100%;
+  }
+  .dir {
+    flex: 1 1 100%;
+    width: auto;
+  }
+  .date {
+    flex: 1 1 120px;
+    width: auto;
+  }
+  .cat-col {
+    width: auto;
+    min-width: 140px;
+  }
+  .show-sm {
+    display: block;
+  }
+  .desc {
+    max-width: 160px;
+  }
+  .totals-bar {
+    gap: 10px 20px;
+  }
+  .list-foot {
     justify-content: space-between;
-  }
-
-  .search-box {
-    width: 250px;
-  }
-}
-
-@media (max-width: 768px) {
-  .page-header {
-    padding: 1rem 0;
-  }
-
-  .accounts-overview {
-    padding: 1rem;
-  }
-
-  .account-card {
-    padding: 1rem;
-  }
-
-  .account-header {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .balance-amount {
-    font-size: 1.5rem;
-  }
-
-  .transactions-section {
-    padding: 0 1rem 1rem;
-  }
-
-  .card-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
-  }
-
-  .header-actions {
-    width: 100%;
-  }
-
-  .search-box {
-    width: 100%;
-  }
-
-  .filter-buttons {
-    justify-content: center;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 0.75rem 0.5rem;
-  }
-
-  .action-buttons {
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .btn-action {
-    width: 28px;
-    height: 28px;
-    font-size: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .accounts-overview {
-    padding: 0.75rem;
-  }
-
-  .account-card {
-    padding: 0.75rem;
-  }
-
-  .balance-amount {
-    font-size: 1.25rem;
-  }
-
-  .filter-section {
-    padding: 0.75rem;
-  }
-
-  .filter-btn {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.8rem;
-  }
-
-  .table-wrapper {
-    min-width: 800px;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.8rem;
+    gap: 8px;
   }
 }
 </style>

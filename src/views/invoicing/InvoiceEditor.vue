@@ -57,22 +57,37 @@
                   @keydown.up.prevent="clientIdx = Math.max(clientIdx - 1, 0)"
                   @keydown.enter.prevent="clientMatches[clientIdx] && pickClient(clientMatches[clientIdx])"
                 />
-                <div v-if="clientOpen && clientMatches.length" class="suggest">
+                <div v-if="clientOpen && (clientMatches.length || clientQuery)" class="suggest" role="listbox">
                   <button
                     v-for="(c, i) in clientMatches"
-                    :key="c.name + c.email"
+                    :key="c.source + (c.customer_id || '') + c.name + c.email"
                     type="button"
                     class="suggest__row"
+                    role="option"
                     :class="{ 'is-active': i === clientIdx }"
                     @mousedown.prevent="pickClient(c)"
                   >
                     <span class="suggest__avatar">{{ (c.name || '?')[0].toUpperCase() }}</span>
-                    <span>
+                    <span class="suggest__text">
                       <strong>{{ c.name }}</strong>
-                      <small>{{ c.email || c.phone || (c.source === 'customers' ? 'Customer record' : 'Previous client') }}</small>
+                      <small>{{ [c.email, c.phone].filter(Boolean).join(' · ') || 'No contact details' }}</small>
+                    </span>
+                    <span class="ui-badge" :class="c.source === 'customers' ? 'ui-badge--info' : 'ui-badge--draft'">{{ c.source === 'customers' ? 'Customer' : 'Previous client' }}</span>
+                  </button>
+                  <div v-if="!clientMatches.length" class="suggest__empty">No saved clients match “{{ doc.client_name.trim() }}”.</div>
+                  <button v-if="canCreateCustomer" type="button" class="suggest__row suggest__new" @mousedown.prevent="openNewClient">
+                    <span class="suggest__avatar"><i class="fa-solid fa-plus"></i></span>
+                    <span class="suggest__text">
+                      <strong>Add “{{ doc.client_name.trim() }}” as a new customer</strong>
+                      <small>Saves a customer record you can reuse on future invoices</small>
                     </span>
                   </button>
                 </div>
+                <div v-if="doc.customer_id" class="client-linked">
+                  <i class="fa-solid fa-link"></i> Linked to a customer record
+                  <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="doc.customer_id = null">Unlink</button>
+                </div>
+                <div v-else-if="clientsLoaded && !clients.length" class="ui-hint">No saved clients yet — type a name, or add it as a customer.</div>
               </div>
               <div class="ui-field">
                 <label for="client_email">Email</label>
@@ -114,7 +129,7 @@
               <div class="ui-field">
                 <label for="currency">Currency</label>
                 <select id="currency" v-model="doc.currency" class="ui-select">
-                  <option v-for="c in currencies" :key="c" :value="c">{{ c }}</option>
+                  <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region"><option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option></optgroup>
                 </select>
               </div>
               <div class="ui-field">
@@ -287,10 +302,36 @@
         </div>
       </aside>
     </div>
+
+    <div v-if="newClient" class="ui-modal-backdrop" @mousedown.self="newClient = null">
+      <div class="ui-modal" style="max-width: 560px" role="dialog" aria-label="New customer">
+        <div class="ui-modal__head">
+          <h2>New customer</h2>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" title="Close" @click="newClient = null"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <div class="ui-grid-2">
+            <div class="ui-field"><label for="nc_first">First name / company *</label><input id="nc_first" v-model="newClient.first_name" class="ui-input" /></div>
+            <div class="ui-field"><label for="nc_last">Last name</label><input id="nc_last" v-model="newClient.last_name" class="ui-input" /></div>
+            <div class="ui-field"><label for="nc_email">Email</label><input id="nc_email" v-model="newClient.email" type="email" class="ui-input" /></div>
+            <div class="ui-field"><label for="nc_phone">Phone</label><input id="nc_phone" v-model="newClient.phone" class="ui-input" /></div>
+          </div>
+          <div class="ui-field"><label for="nc_street">Address</label><input id="nc_street" v-model="newClient.street" class="ui-input" placeholder="Street address" /></div>
+          <p class="ui-hint">An email or phone number is required.</p>
+        </div>
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn ui-btn--ghost" @click="newClient = null">Cancel</button>
+          <button type="button" class="ui-btn ui-btn--primary" :disabled="savingClient" @click="saveNewClient">
+            <i :class="savingClient ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> Save customer
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+import { currencyGroups } from '@/utils/currencies'
 import { invoicingApi, STATUS_LABELS, RECURRENCE } from '@/services/invoicing'
 import api, { apiErrorMessage } from '@/services/api'
 import { calculate } from '@/utils/invoiceMath'
@@ -319,6 +360,9 @@ export default {
       clients: [],
       clientOpen: false,
       clientIdx: 0,
+      clientsLoaded: false,
+      newClient: null,
+      savingClient: false,
       catalog: [],
       catalogOpen: false,
       catalogQ: '',
@@ -326,7 +370,7 @@ export default {
       snapshot: '',
       doc: this.emptyDoc(),
       recurrence: RECURRENCE,
-      currencies: ['AUD', 'USD', 'EUR', 'GBP', 'NZD', 'CAD', 'KES', 'ZAR', 'SGD', 'INR', 'JPY']
+      currencyGroups: currencyGroups()
     }
   },
   computed: {
@@ -368,10 +412,32 @@ export default {
       if (this.isQuote) return [{ days: 14, label: '14 days' }, { days: 30, label: '30 days' }, { days: 60, label: '60 days' }]
       return [{ days: 0, label: 'On receipt' }, { days: 7, label: '7 days' }, { days: 14, label: '14 days' }, { days: 30, label: '30 days' }]
     },
+    clientQuery() {
+      return (this.doc.client_name || '').trim().toLowerCase()
+    },
     clientMatches() {
-      const q = (this.doc.client_name || '').trim().toLowerCase()
-      const list = q ? this.clients.filter((c) => `${c.name} ${c.email}`.toLowerCase().includes(q)) : this.clients
-      return list.slice(0, 7)
+      const q = this.clientQuery
+      if (!q) return this.clients.slice(0, 8)
+      const tokens = q.split(/\s+/).filter(Boolean)
+      const digits = q.replace(/\D/g, '')
+      const scored = []
+      for (const c of this.clients) {
+        const name = (c.name || '').toLowerCase()
+        const hay = `${name} ${(c.email || '').toLowerCase()} ${(c.phone || '').toLowerCase()}`
+        const phoneHit = digits.length >= 3 && (c.phone || '').replace(/\D/g, '').includes(digits)
+        if (!phoneHit && !tokens.every((t) => hay.includes(t))) continue
+        let score = 3
+        if (name === q) score = 0
+        else if (name.startsWith(q)) score = 1
+        else if (name.split(/\s+/).some((w) => w.startsWith(tokens[0]))) score = 2
+        scored.push({ c, score })
+      }
+      scored.sort((a, b) => a.score - b.score || a.c.name.localeCompare(b.c.name))
+      return scored.slice(0, 8).map((x) => x.c)
+    },
+    canCreateCustomer() {
+      const q = this.clientQuery
+      return q.length >= 2 && !this.clients.some((c) => c.source === 'customers' && (c.name || '').toLowerCase() === q)
     },
     catalogMatches() {
       const q = this.catalogQ.trim().toLowerCase()
@@ -446,6 +512,7 @@ export default {
         this.settings = settingsRes?.settings || {}
         this.taxRates = rates || []
         this.clients = clients || []
+        this.clientsLoaded = true
         if (this.isNew) {
           const d = this.emptyDoc()
           d.currency = this.settings.currency || 'AUD'
@@ -513,6 +580,51 @@ export default {
       const el = e.target
       el.style.height = 'auto'
       el.style.height = Math.max(38, el.scrollHeight + 2) + 'px'
+    },
+    openNewClient() {
+      const parts = this.doc.client_name.trim().split(/\s+/)
+      this.newClient = {
+        first_name: parts.length > 1 ? parts.slice(0, -1).join(' ') : parts[0] || '',
+        last_name: parts.length > 1 ? parts[parts.length - 1] : '',
+        email: this.doc.client_email || '',
+        phone: this.doc.client_phone || '',
+        street: ''
+      }
+      this.clientOpen = false
+    },
+    async saveNewClient() {
+      const n = this.newClient
+      if (!n.first_name.trim()) return toast.error('Add a first name.')
+      if (!n.email.trim() && !n.phone.trim()) return toast.error('Add an email or a phone number.')
+      if (n.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(n.email.trim())) return toast.error('The email address looks invalid.')
+      this.savingClient = true
+      try {
+        const res = await api.post('/customers', {
+          first_name: n.first_name.trim(),
+          last_name: n.last_name.trim(),
+          email: n.email.trim(),
+          phone: n.phone.trim(),
+          address: { street: n.street.trim() }
+        })
+        const cu = res.data?.customer || res.data?.data || res.data || {}
+        const client = {
+          customer_id: cu.id || null,
+          name: `${n.first_name} ${n.last_name}`.trim(),
+          email: n.email.trim(),
+          phone: n.phone.trim(),
+          address: n.street.trim(),
+          tax_number: '',
+          source: 'customers'
+        }
+        this.clients.unshift(client)
+        this.pickClient(client)
+        this.newClient = null
+        toast.success('Customer saved')
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not save the customer'))
+      } finally {
+        this.savingClient = false
+      }
     },
     closeClients() {
       setTimeout(() => (this.clientOpen = false), 120)
@@ -762,6 +874,49 @@ export default {
   font: inherit;
   color: var(--text);
   cursor: pointer;
+}
+
+.suggest {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.suggest__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggest__text strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggest__empty {
+  padding: 10px 8px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.suggest__new {
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  margin-top: 4px;
+}
+
+.suggest__new .suggest__avatar {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.client-linked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--success);
 }
 
 .suggest__row small {

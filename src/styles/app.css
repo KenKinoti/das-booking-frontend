@@ -398,9 +398,13 @@ a {
    UI primitives for new pages (prefixed ui-)
    ========================================================================== */
 .ui-page {
-  max-width: 1320px;
+  max-width: 1680px;
   margin: 0 auto;
   width: 100%;
+}
+
+.ui-page--wide {
+  max-width: none;
 }
 
 .ui-page--narrow {

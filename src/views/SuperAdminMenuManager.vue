@@ -1,986 +1,346 @@
 <template>
-  <div class="menu-manager">
-    <!-- Header -->
-    <div class="clean-header">
-      <h1>Navigation Menu Manager</h1>
-      <p>Configure which navigation menus and submenus are available for each top navigation module</p>
-      <div class="header-note">
-        <i class="fas fa-info-circle"></i>
-        <span>Only system-wide enabled modules are shown here. Cross-module features like "Finance Messages" allow sharing functionality between modules.</span>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Platform admin</div>
+        <h1>Navigation map</h1>
+        <p>Every menu group and page in the app, the module that unlocks it, and what a given organisation sees.</p>
+      </div>
+      <div class="ui-actions">
+        <router-link to="/module-management" class="ui-btn"><i class="fa-solid fa-puzzle-piece"></i> Entitlements</router-link>
+        <router-link to="/super-admin/plans" class="ui-btn ui-btn--primary"><i class="fa-solid fa-tags"></i> Plans & pricing</router-link>
+      </div>
+    </header>
+
+    <div class="ui-alert info-alert">
+      <i class="fa-solid fa-circle-info"></i>
+      <span>The menu is defined in the app and filtered per organisation: a page is shown only when the organisation's plan includes its module. Pages without a module are always available. Super admins see everything.</span>
+    </div>
+
+    <div class="ui-kpis">
+      <div class="ui-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-layer-group"></i></span>Menu groups</div>
+        <div class="ui-kpi__value">{{ groups.length }}</div>
+        <div class="ui-kpi__meta">{{ platformGroups }} platform-admin only</div>
+      </div>
+      <div class="ui-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-bars-staggered"></i></span>Pages</div>
+        <div class="ui-kpi__value">{{ itemCount }}</div>
+        <div class="ui-kpi__meta">{{ guardedCount }} require a plan module</div>
+      </div>
+      <div class="ui-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-puzzle-piece"></i></span>Modules in use</div>
+        <div class="ui-kpi__value">{{ moduleKeys.length }}</div>
+        <div class="ui-kpi__meta">Entitlement units referenced by the menu</div>
+      </div>
+      <div class="ui-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-info"><i class="fa-solid fa-eye"></i></span>Preview</div>
+        <div class="ui-kpi__value preview-value">{{ previewOrg ? visibleForPreview : itemCount }}</div>
+        <div class="ui-kpi__meta">{{ previewOrg ? `pages visible to ${previewOrg.name}` : 'Pick an organisation to preview' }}</div>
       </div>
     </div>
 
-    <!-- Module Navigation Cards -->
-    <div class="modules-container">
-      <div
-        v-for="(module, moduleKey) in moduleMenus"
-        :key="moduleKey"
-        class="module-nav-card"
-        :class="{ enabled: isModuleEnabled(moduleKey) }"
-      >
-        <!-- Module Header -->
-        <div class="module-header">
-          <div class="module-info">
-            <div class="module-icon" :style="{ color: getModuleColor(moduleKey) }">
-              <i :class="getModuleIcon(moduleKey)"></i>
-            </div>
-            <div class="module-details">
-              <h3>{{ module.name }}</h3>
-              <p>{{ module.description }}</p>
-            </div>
-          </div>
-          <div class="module-status">
-            <span class="status-badge" :class="{ enabled: isModuleEnabled(moduleKey) }">
-              {{ isModuleEnabled(moduleKey) ? 'Active' : 'Inactive' }}
-            </span>
-          </div>
+    <section class="ui-card">
+      <div class="pf-toolbar">
+        <div class="ui-input-group pf-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input v-model="q" class="ui-input" type="search" placeholder="Search pages or routes…" aria-label="Search pages" />
         </div>
-
-        <!-- Menu Configuration (only show if module is enabled) -->
-        <div v-if="isModuleEnabled(moduleKey)" class="menu-config">
-          <h4>Navigation Menus</h4>
-          <div class="menus-grid">
-            <div
-              v-for="menu in module.menus"
-              :key="menu.id"
-              class="menu-item"
-              :class="{ enabled: isMenuEnabled(moduleKey, menu.id) }"
-            >
-              <div class="menu-content">
-                <div class="menu-icon">
-                  <i :class="menu.icon"></i>
-                </div>
-                <div class="menu-info">
-                  <h5>
-                    {{ menu.name }}
-                    <span v-if="menu.crossModule" class="cross-module-badge" :title="`Available from ${menu.sourceModule} module`">
-                      <i class="fas fa-link"></i>
-                    </span>
-                  </h5>
-                  <p>{{ menu.description }}</p>
-                  <div v-if="menu.crossModule" class="cross-module-info">
-                    <small><i class="fas fa-info-circle"></i> Cross-module from {{ getModuleName(menu.sourceModule) }}</small>
-                  </div>
-                </div>
-                <label class="menu-toggle">
-                  <input
-                    type="checkbox"
-                    :checked="isMenuEnabled(moduleKey, menu.id)"
-                    @change="toggleMenu(moduleKey, menu.id, $event.target.checked)"
-                  >
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <!-- Submenus -->
-              <div v-if="menu.submenus && menu.submenus.length > 0 && isMenuEnabled(moduleKey, menu.id)" class="submenus">
-                <h6>Submenus</h6>
-                <div class="submenu-list">
-                  <div
-                    v-for="submenu in menu.submenus"
-                    :key="submenu.id"
-                    class="submenu-item"
-                  >
-                    <div class="submenu-content">
-                      <i :class="submenu.icon" class="submenu-icon"></i>
-                      <span class="submenu-name">{{ submenu.name }}</span>
-                      <label class="submenu-toggle">
-                        <input
-                          type="checkbox"
-                          :checked="isSubmenuEnabled(moduleKey, menu.id, submenu.id)"
-                          @change="toggleSubmenu(moduleKey, menu.id, submenu.id, $event.target.checked)"
-                        >
-                        <span class="toggle-slider-small"></span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Disabled Module Message -->
-        <div v-else class="disabled-message">
-          <i class="fas fa-info-circle"></i>
-          <span>Enable this module in System Settings to configure its menus</span>
+        <div class="pf-toolbar__right">
+          <select v-model="moduleFilter" class="ui-select pf-select" aria-label="Module">
+            <option value="">All modules</option>
+            <option value="__none">No module (always on)</option>
+            <option v-for="k in moduleKeys" :key="k" :value="k">{{ moduleName(k) }}</option>
+          </select>
+          <select v-model="previewId" class="ui-select pf-select" aria-label="Preview as organisation" :disabled="!orgs.length">
+            <option value="">Preview as… (everything)</option>
+            <option v-for="o in orgs" :key="o.id" :value="o.id">{{ o.name }}</option>
+          </select>
         </div>
       </div>
-    </div>
 
-    <!-- Save Button -->
-    <div class="save-section">
-      <button @click="saveConfiguration" class="save-btn" :disabled="isSaving">
-        <i :class="['fas', isSaving ? 'fa-spinner fa-spin' : 'fa-save']"></i>
-        {{ isSaving ? 'Saving...' : 'Save Configuration' }}
-      </button>
-    </div>
+      <div v-if="orgError" class="ui-card__body" style="padding-bottom: 0">
+        <div class="ui-alert ui-alert--warning"><i class="fa-solid fa-triangle-exclamation"></i><span>{{ orgError }} The map below still reflects the app's menu.</span></div>
+      </div>
+
+      <div v-if="!filteredGroups.length" class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+        <h3>No pages match</h3>
+        <p>Try a different search or module.</p>
+      </div>
+
+      <div v-else class="groups">
+        <div v-for="g in filteredGroups" :key="g.id" class="group">
+          <div class="group__head">
+            <span class="group__icon"><i :class="g.icon"></i></span>
+            <h3>{{ g.label }}</h3>
+            <span v-if="g.superAdmin" class="ui-badge ui-badge--converted sm">Super admin</span>
+            <span class="pf-muted pf-small">{{ g.items.length }} page{{ g.items.length === 1 ? '' : 's' }}</span>
+          </div>
+          <ul class="items">
+            <li v-for="i in g.items" :key="i.to" :class="{ 'is-hidden': previewOrg && !visible(g, i) }">
+              <i :class="i.icon" class="item__icon"></i>
+              <span class="item__text">
+                <router-link :to="i.to" class="item__label">{{ i.label }}</router-link>
+                <code class="pf-mono pf-muted">{{ i.to }}</code>
+              </span>
+              <span class="item__right">
+                <span v-if="i.module && i.module !== 'core'" class="mod-chip"><i class="fa-solid fa-puzzle-piece"></i> {{ moduleName(i.module) }}</span>
+                <span v-else class="mod-chip mod-chip--core">{{ g.superAdmin ? 'Platform' : 'Always on' }}</span>
+                <template v-if="previewOrg">
+                  <span v-if="visible(g, i)" class="vis vis--on" title="Visible"><i class="fa-solid fa-eye"></i></span>
+                  <span v-else class="vis vis--off" title="Hidden for this organisation"><i class="fa-solid fa-eye-slash"></i></span>
+                </template>
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script>
-import { useSystemModulesStore } from '../stores/systemModules'
+import '@/components/platform/platform.css'
+import { navGroups } from '@/navigation'
+import { apiErrorMessage } from '@/services/api'
+import { platformAPI, ensurePlatformSession } from '@/services/platform'
 
 export default {
   name: 'SuperAdminMenuManager',
-  data() {
-    return {
-      isSaving: false,
-      enabledMenus: {},
-      enabledSubmenu: {},
-      moduleMenus: {
-        finance: {
-          name: 'Financial Management',
-          description: 'Finance, accounting, and billing features',
-          menus: [
-            {
-              id: 'finance',
-              name: 'Finance & Accounting',
-              description: 'Core financial management',
-              icon: 'fas fa-calculator',
-              submenus: [
-                { id: 'general-ledger', name: 'General Ledger', icon: 'fas fa-book' },
-                { id: 'chart-of-accounts', name: 'Chart of Accounts', icon: 'fas fa-list' },
-                { id: 'journal-entries', name: 'Journal Entries', icon: 'fas fa-edit' }
-              ]
-            },
-            {
-              id: 'invoices',
-              name: 'Billing & Invoicing',
-              description: 'Customer invoices and billing',
-              icon: 'fas fa-file-invoice-dollar',
-              submenus: [
-                { id: 'create-invoice', name: 'Create Invoice', icon: 'fas fa-plus' },
-                { id: 'manage-invoices', name: 'Manage Invoices', icon: 'fas fa-list' },
-                { id: 'recurring-invoices', name: 'Recurring Invoices', icon: 'fas fa-redo' }
-              ]
-            },
-            {
-              id: 'bills',
-              name: 'Bills & Expenses',
-              description: 'Vendor bills and expense tracking',
-              icon: 'fas fa-receipt'
-            },
-            {
-              id: 'banking',
-              name: 'Banking & Transactions',
-              description: 'Bank accounts and transactions',
-              icon: 'fas fa-bank'
-            },
-            {
-              id: 'messages',
-              name: 'Finance Messages',
-              description: 'Financial communication and approvals',
-              icon: 'fas fa-comments',
-              crossModule: true,
-              sourceModule: 'crm'
-            },
-            {
-              id: 'reports',
-              name: 'Financial Reports',
-              description: 'Financial reporting and analytics',
-              icon: 'fas fa-chart-line',
-              crossModule: true,
-              sourceModule: 'reports'
-            }
-          ]
-        },
-        inventory: {
-          name: 'Operations Management',
-          description: 'Inventory, suppliers, and production',
-          menus: [
-            {
-              id: 'inventory',
-              name: 'Inventory Management',
-              description: 'Stock and inventory tracking',
-              icon: 'fas fa-boxes',
-              submenus: [
-                { id: 'products', name: 'Products', icon: 'fas fa-cube' },
-                { id: 'stock-levels', name: 'Stock Levels', icon: 'fas fa-chart-bar' },
-                { id: 'adjustments', name: 'Stock Adjustments', icon: 'fas fa-exchange-alt' }
-              ]
-            },
-            {
-              id: 'suppliers',
-              name: 'Supplier Management',
-              description: 'Vendor and supplier management',
-              icon: 'fas fa-truck'
-            },
-            {
-              id: 'production',
-              name: 'Production & MRP',
-              description: 'Manufacturing and planning',
-              icon: 'fas fa-cogs'
-            }
-          ]
-        },
-        crm: {
-          name: 'Customer Relations',
-          description: 'CRM, bookings, and customer management',
-          menus: [
-            {
-              id: 'crm',
-              name: 'CRM',
-              description: 'Customer relationship management',
-              icon: 'fas fa-users',
-              submenus: [
-                { id: 'contacts', name: 'Contacts', icon: 'fas fa-address-book' },
-                { id: 'leads', name: 'Leads', icon: 'fas fa-user-plus' },
-                { id: 'opportunities', name: 'Opportunities', icon: 'fas fa-handshake' }
-              ]
-            },
-            {
-              id: 'bookings',
-              name: 'Bookings & Appointments',
-              description: 'Appointment scheduling',
-              icon: 'fas fa-calendar-check'
-            },
-            {
-              id: 'customers',
-              name: 'Customer Management',
-              description: 'Customer database and profiles',
-              icon: 'fas fa-user-friends'
-            },
-            {
-              id: 'events',
-              name: 'Events Management',
-              description: 'Event planning and management',
-              icon: 'fas fa-calendar-star'
-            },
-            {
-              id: 'messages',
-              name: 'Messages & Communication',
-              description: 'Internal messaging system',
-              icon: 'fas fa-comments',
-              submenus: [
-                { id: 'customer-messages', name: 'Customer Messages', icon: 'fas fa-comment-dots' },
-                { id: 'team-chat', name: 'Team Chat', icon: 'fas fa-comments' },
-                { id: 'notifications', name: 'Notifications', icon: 'fas fa-bell' }
-              ]
-            },
-            {
-              id: 'video-call',
-              name: 'Video Call',
-              description: 'Video conferencing',
-              icon: 'fas fa-video'
-            },
-            {
-              id: 'invoices',
-              name: 'Customer Invoicing',
-              description: 'Customer billing from CRM',
-              icon: 'fas fa-file-invoice',
-              crossModule: true,
-              sourceModule: 'finance'
-            }
-          ]
-        },
-        services: {
-          name: 'Services & Projects',
-          description: 'Service management and categorization',
-          menus: [
-            {
-              id: 'service-categories',
-              name: 'Service Categories',
-              description: 'Organize services by category',
-              icon: 'fas fa-concierge-bell',
-              submenus: [
-                { id: 'automotive-repair', name: 'Automotive Repair', icon: 'fas fa-tools' },
-                { id: 'automotive-maintenance', name: 'Auto Maintenance', icon: 'fas fa-car' },
-                { id: 'hair-services', name: 'Hair Services', icon: 'fas fa-cut' },
-                { id: 'nail-services', name: 'Nail Services', icon: 'fas fa-hand-sparkles' },
-                { id: 'spa-services', name: 'Spa Services', icon: 'fas fa-spa' }
-              ]
-            },
-            {
-              id: 'projects',
-              name: 'Project Management',
-              description: 'Project tracking and management',
-              icon: 'fas fa-project-diagram'
-            }
-          ]
-        },
-        staff: {
-          name: 'Human Resources',
-          description: 'Staff and HR management',
-          menus: [
-            {
-              id: 'staff',
-              name: 'Staff Management',
-              description: 'Employee management',
-              icon: 'fas fa-users-cog',
-              submenus: [
-                { id: 'employees', name: 'Employees', icon: 'fas fa-user' },
-                { id: 'schedules', name: 'Schedules', icon: 'fas fa-calendar' },
-                { id: 'payroll', name: 'Payroll', icon: 'fas fa-dollar-sign' }
-              ]
-            }
-          ]
-        },
-        sales: {
-          name: 'Sales & E-commerce',
-          description: 'POS and e-commerce features',
-          menus: [
-            {
-              id: 'pos',
-              name: 'Point of Sale',
-              description: 'Retail point of sale system',
-              icon: 'fas fa-cash-register'
-            },
-            {
-              id: 'ecommerce',
-              name: 'E-commerce',
-              description: 'Online store management',
-              icon: 'fas fa-shopping-cart'
-            }
-          ]
-        },
-        reports: {
-          name: 'Analytics & Reports',
-          description: 'Business intelligence and reporting',
-          menus: [
-            {
-              id: 'reports',
-              name: 'Reports & Analytics',
-              description: 'Business reports and analytics',
-              icon: 'fas fa-chart-bar',
-              submenus: [
-                { id: 'financial-reports', name: 'Financial Reports', icon: 'fas fa-chart-line' },
-                { id: 'sales-reports', name: 'Sales Reports', icon: 'fas fa-chart-pie' },
-                { id: 'custom-reports', name: 'Custom Reports', icon: 'fas fa-cog' }
-              ]
-            }
-          ]
-        }
-      }
+  data: () => ({ q: '', moduleFilter: '', previewId: '', orgs: [], modules: [], orgError: '' }),
+  computed: {
+    groups() {
+      return navGroups
+    },
+    platformGroups() {
+      return navGroups.filter((g) => g.superAdmin).length
+    },
+    itemCount() {
+      return navGroups.reduce((s, g) => s + g.items.length, 0)
+    },
+    guardedCount() {
+      return navGroups.reduce((s, g) => s + g.items.filter((i) => i.module && i.module !== 'core').length, 0)
+    },
+    moduleKeys() {
+      const set = new Set()
+      navGroups.forEach((g) => g.items.forEach((i) => i.module && set.add(i.module)))
+      return Array.from(set)
+    },
+    previewOrg() {
+      return this.orgs.find((o) => o.id === this.previewId) || null
+    },
+    visibleForPreview() {
+      return navGroups.reduce((s, g) => s + g.items.filter((i) => this.visible(g, i)).length, 0)
+    },
+    filteredGroups() {
+      const q = this.q.trim().toLowerCase()
+      return navGroups
+        .map((g) => ({
+          ...g,
+          items: g.items.filter((i) => {
+            if (q && !`${i.label} ${i.to} ${g.label}`.toLowerCase().includes(q)) return false
+            if (this.moduleFilter === '__none') return !i.module || i.module === 'core'
+            if (this.moduleFilter && i.module !== this.moduleFilter) return false
+            return true
+          })
+        }))
+        .filter((g) => g.items.length)
     }
+  },
+  created() {
+    if (ensurePlatformSession()) {
+      window.location.reload()
+      return
+    }
+    this.loadOrgs()
   },
   methods: {
-    isModuleEnabled(moduleKey) {
-      // Check if module is enabled system-wide
-      return this.systemModulesStore.isModuleEnabled(moduleKey)
-    },
-
-    isMenuEnabled(moduleKey, menuId) {
-      return this.enabledMenus[moduleKey]?.includes(menuId) || false
-    },
-
-    isSubmenuEnabled(moduleKey, menuId, submenuId) {
-      const key = `${moduleKey}.${menuId}.${submenuId}`
-      return this.enabledSubmenu[key] || false
-    },
-
-    toggleMenu(moduleKey, menuId, enabled) {
-      if (!this.enabledMenus[moduleKey]) {
-        this.enabledMenus[moduleKey] = []
-      }
-
-      if (enabled) {
-        if (!this.enabledMenus[moduleKey].includes(menuId)) {
-          this.enabledMenus[moduleKey].push(menuId)
-        }
-      } else {
-        const index = this.enabledMenus[moduleKey].indexOf(menuId)
-        if (index > -1) {
-          this.enabledMenus[moduleKey].splice(index, 1)
-        }
-
-        // Also disable all submenus of this menu
-        const menu = this.moduleMenus[moduleKey].menus.find(m => m.id === menuId)
-        if (menu && menu.submenus) {
-          menu.submenus.forEach(submenu => {
-            const submenuKey = `${moduleKey}.${menuId}.${submenu.id}`
-            delete this.enabledSubmenu[submenuKey]
-          })
-        }
-      }
-
-      // Update localStorage immediately for real-time effect
-      localStorage.setItem('dasyin_enabled_menus', JSON.stringify(this.enabledMenus))
-      localStorage.setItem('dasyin_enabled_submenus', JSON.stringify(this.enabledSubmenu))
-
-      // Trigger custom event for immediate UI update
-      window.dispatchEvent(new CustomEvent('dasyin-menu-config-updated'))
-    },
-
-    toggleSubmenu(moduleKey, menuId, submenuId, enabled) {
-      const key = `${moduleKey}.${menuId}.${submenuId}`
-      if (enabled) {
-        this.enabledSubmenu[key] = true
-      } else {
-        delete this.enabledSubmenu[key]
-      }
-
-      // Update localStorage immediately for real-time effect
-      localStorage.setItem('dasyin_enabled_submenus', JSON.stringify(this.enabledSubmenu))
-
-      // Trigger custom event for immediate UI update
-      window.dispatchEvent(new CustomEvent('dasyin-menu-config-updated'))
-    },
-
-    getModuleIcon(moduleKey) {
-      const icons = {
-        finance: 'fas fa-calculator',
-        inventory: 'fas fa-boxes',
-        crm: 'fas fa-users',
-        services: 'fas fa-concierge-bell',
-        staff: 'fas fa-users-cog',
-        sales: 'fas fa-cash-register',
-        reports: 'fas fa-chart-bar'
-      }
-      return icons[moduleKey] || 'fas fa-puzzle-piece'
-    },
-
-    getModuleColor(moduleKey) {
-      const colors = {
-        finance: '#059669',
-        inventory: '#f59e0b',
-        crm: '#8b5cf6',
-        services: '#06b6d4',
-        staff: '#84cc16',
-        sales: '#f97316',
-        reports: '#64748b'
-      }
-      return colors[moduleKey] || '#6b7280'
-    },
-
-    getModuleName(moduleKey) {
-      const names = {
-        finance: 'Finance',
-        inventory: 'Operations',
-        crm: 'CRM',
-        services: 'Services',
-        staff: 'HR',
-        sales: 'Sales',
-        reports: 'Reports'
-      }
-      return names[moduleKey] || moduleKey
-    },
-
-    async saveConfiguration() {
-      this.isSaving = true
+    async loadOrgs() {
       try {
-        // Save to localStorage
-        localStorage.setItem('dasyin_enabled_menus', JSON.stringify(this.enabledMenus))
-        localStorage.setItem('dasyin_enabled_submenus', JSON.stringify(this.enabledSubmenu))
-
-        // Trigger custom event to notify other components (same window)
-        window.dispatchEvent(new CustomEvent('dasyin-menu-config-updated'))
-
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000))
-
-        console.log('✅ Navigation configuration saved successfully!')
-        alert('Navigation configuration saved successfully!')
-      } catch (error) {
-        console.error('Error saving configuration:', error)
-        alert('Error saving configuration. Please try again.')
-      } finally {
-        this.isSaving = false
+        const res = await platformAPI.modules()
+        this.orgs = res.organizations || []
+        this.modules = res.modules || []
+      } catch (e) {
+        this.orgError = apiErrorMessage(e, 'Organisation plans could not be loaded, so previews are unavailable.')
       }
     },
-
-    initializeConfiguration() {
-      // Load from localStorage
-      const storedMenus = localStorage.getItem('dasyin_enabled_menus')
-      const storedSubmenus = localStorage.getItem('dasyin_enabled_submenus')
-
-      if (storedMenus) {
-        try {
-          this.enabledMenus = JSON.parse(storedMenus)
-        } catch (e) {
-          console.warn('Failed to parse stored menus')
-        }
-      } else {
-        // Set default enabled menus
-        this.enabledMenus = {
-          finance: ['finance', 'invoices'],
-          inventory: ['inventory'],
-          crm: ['crm', 'bookings', 'customers'],
-          services: ['service-categories'],
-          staff: ['staff'],
-          sales: ['pos'],
-          reports: ['reports']
-        }
-      }
-
-      if (storedSubmenus) {
-        try {
-          this.enabledSubmenu = JSON.parse(storedSubmenus)
-        } catch (e) {
-          console.warn('Failed to parse stored submenus')
-        }
-      } else {
-        // Set default enabled submenus
-        this.enabledSubmenu = {
-          'finance.finance.general-ledger': true,
-          'finance.finance.chart-of-accounts': true,
-          'finance.invoices.create-invoice': true,
-          'finance.invoices.manage-invoices': true,
-          'inventory.inventory.products': true,
-          'inventory.inventory.stock-levels': true,
-          'crm.crm.contacts': true,
-          'crm.crm.leads': true,
-          'services.service-categories.automotive-repair': true,
-          'services.service-categories.hair-services': true,
-          'staff.staff.employees': true,
-          'staff.staff.schedules': true,
-          'reports.reports.financial-reports': true
-        }
-      }
-    }
-  },
-
-  computed: {
-    systemModulesStore() {
-      return useSystemModulesStore()
+    moduleName(k) {
+      if (k === 'core') return 'Core'
+      return this.modules.find((m) => m.key === k)?.name || k.charAt(0).toUpperCase() + k.slice(1)
     },
-
-    enabledModules() {
-      // Get enabled modules from system modules store (not navigation selector)
-      return this.systemModulesStore.getEnabledModules
+    visible(g, i) {
+      const o = this.previewOrg
+      if (!o) return true
+      if (g.superAdmin) return false
+      if (!i.module || i.module === 'core') return true
+      return (o.modules || []).includes(i.module)
     }
-  },
-
-  mounted() {
-    // Initialize system modules store
-    this.systemModulesStore.initializeFromStorage()
-    this.initializeConfiguration()
   }
 }
 </script>
 
 <style scoped>
-.menu-manager {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+.info-alert {
+  margin-bottom: 20px;
+  background: var(--info-soft);
+  color: var(--text-2);
+  border: 1px solid var(--border);
 }
 
-.clean-header {
-  text-align: center;
-  margin-bottom: 3rem;
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.8) 100%);
-  border-radius: 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+.info-alert > i {
+  color: var(--info);
 }
 
-.clean-header h1 {
-  font-size: 2.25rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 0.5rem 0;
-}
+.kpi-info { background: var(--info-soft); color: var(--info); }
 
-.clean-header p {
-  color: #64748b;
-  font-size: 1.1rem;
-  margin: 0 0 1rem 0;
-}
-
-.header-note {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 1rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  color: #1e40af;
-  font-size: 0.875rem;
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-.modules-container {
+.groups {
   display: grid;
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr));
+  gap: 16px;
+  padding: 16px;
 }
 
-.module-nav-card {
-  background: white;
-  border: 2px solid #e2e8f0;
-  border-radius: 16px;
+.group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  background: var(--surface);
 }
 
-.module-nav-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-}
-
-.module-nav-card.enabled {
-  border-color: #10b981;
-}
-
-.module-header {
-  padding: 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.module-info {
+.group__head {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
 }
 
-.module-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.75rem;
-  background: rgba(102, 126, 234, 0.1);
-}
-
-.module-details h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.375rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.module-details p {
+.group__head h3 {
+  font-size: 14px;
+  font-weight: 650;
   margin: 0;
-  color: #64748b;
-  font-size: 0.875rem;
-}
-
-.status-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.status-badge.enabled {
-  background: rgba(16, 185, 129, 0.1);
-  color: #059669;
-}
-
-.menu-config {
-  padding: 2rem;
-}
-
-.menu-config h4 {
-  margin: 0 0 1.5rem 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.menus-grid {
-  display: grid;
-  gap: 1.5rem;
-}
-
-.menu-item {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.menu-item.enabled {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.02);
-}
-
-.menu-content {
-  padding: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.menu-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-}
-
-.menu-info {
   flex: 1;
 }
 
-.menu-info h5 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1e293b;
+.group__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
 }
 
-.menu-info p {
+.items {
+  list-style: none;
   margin: 0;
-  color: #64748b;
-  font-size: 0.8rem;
+  padding: 0;
 }
 
-.cross-module-badge {
-  display: inline-flex;
+.items li {
+  display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: opacity 0.15s;
+}
+
+.items li:last-child {
+  border-bottom: 0;
+}
+
+.items li.is-hidden {
+  opacity: 0.45;
+}
+
+.item__icon {
   width: 18px;
-  height: 18px;
-  background: #3b82f6;
-  color: white;
-  border-radius: 50%;
+  text-align: center;
+  color: var(--text-3);
+}
+
+.item__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.item__label {
+  font-weight: 550;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.item__label:hover {
+  color: var(--accent);
+}
+
+.item__text code {
+  font-size: 11.5px;
+  background: none;
+  padding: 0;
+}
+
+.item__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mod-chip {
+  font-size: 11.5px;
+  font-weight: 550;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.mod-chip i {
   font-size: 10px;
-  margin-left: 8px;
-  vertical-align: middle;
 }
 
-.cross-module-info {
-  margin-top: 4px;
-  color: #3b82f6;
-  font-size: 0.7rem;
-  font-weight: 500;
+.mod-chip--core {
+  background: var(--neutral-soft);
+  color: var(--text-3);
 }
 
-.cross-module-info i {
-  margin-right: 4px;
+.vis {
+  width: 24px;
+  text-align: center;
 }
 
-.menu-toggle,
-.submenu-toggle {
-  position: relative;
-  display: inline-block;
-  width: 48px;
-  height: 24px;
-  cursor: pointer;
+.vis--on {
+  color: var(--success);
 }
 
-.menu-toggle input,
-.submenu-toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+.vis--off {
+  color: var(--text-3);
 }
 
-.toggle-slider,
-.toggle-slider-small {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #e5e7eb;
-  border-radius: 24px;
-  transition: all 0.3s ease;
-}
-
-.toggle-slider-small {
-  width: 36px;
+.ui-badge.sm {
   height: 20px;
+  font-size: 11px;
+  padding: 0 8px;
 }
 
-.toggle-slider:before,
-.toggle-slider-small:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background: white;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+.preview-value {
+  font-variant-numeric: tabular-nums;
 }
 
-.toggle-slider-small:before {
-  height: 14px;
-  width: 14px;
-}
-
-.menu-toggle input:checked + .toggle-slider,
-.submenu-toggle input:checked + .toggle-slider-small {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.menu-toggle input:checked + .toggle-slider:before {
-  transform: translateX(24px);
-}
-
-.submenu-toggle input:checked + .toggle-slider-small:before {
-  transform: translateX(16px);
-}
-
-.submenus {
-  border-top: 1px solid #f1f5f9;
-  background: #f8fafc;
-  padding: 1.5rem;
-}
-
-.submenus h6 {
-  margin: 0 0 1rem 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.submenu-list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.submenu-item {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.submenu-content {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.submenu-icon {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(102, 126, 234, 0.1);
-  border-radius: 8px;
-  color: #667eea;
-  font-size: 0.875rem;
-}
-
-.submenu-name {
-  flex: 1;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-}
-
-.disabled-message {
-  padding: 2rem;
-  text-align: center;
-  color: #64748b;
-  background: #f8fafc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-style: italic;
-}
-
-.save-section {
-  text-align: center;
-  padding: 2rem;
-  margin-top: 2rem;
-}
-
-.save-btn {
-  padding: 1rem 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.save-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-}
-
-.save-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-/* Dark Theme */
-[data-bs-theme="dark"] .clean-header {
-  background: linear-gradient(135deg, rgba(31, 41, 55, 0.9) 0%, rgba(55, 65, 81, 0.8) 100%);
-}
-
-[data-bs-theme="dark"] .clean-header h1 {
-  color: #f9fafb;
-}
-
-[data-bs-theme="dark"] .clean-header p {
-  color: #d1d5db;
-}
-
-[data-bs-theme="dark"] .module-nav-card {
-  background: #1f2937;
-  border-color: #374151;
-}
-
-[data-bs-theme="dark"] .module-nav-card.enabled {
-  border-color: #10b981;
-}
-
-[data-bs-theme="dark"] .module-details h3 {
-  color: #f9fafb;
-}
-
-[data-bs-theme="dark"] .module-details p {
-  color: #d1d5db;
-}
-
-[data-bs-theme="dark"] .menu-config h4 {
-  color: #f9fafb;
-}
-
-[data-bs-theme="dark"] .menu-item {
-  background: #1f2937;
-  border-color: #374151;
-}
-
-[data-bs-theme="dark"] .menu-info h5 {
-  color: #f9fafb;
-}
-
-[data-bs-theme="dark"] .menu-info p {
-  color: #d1d5db;
-}
-
-[data-bs-theme="dark"] .submenus {
-  background: #111827;
-  border-top-color: #374151;
-}
-
-[data-bs-theme="dark"] .submenu-item {
-  background: #1f2937;
-  border-color: #374151;
-}
-
-[data-bs-theme="dark"] .submenu-name {
-  color: #e5e7eb;
-}
-
-[data-bs-theme="dark"] .disabled-message {
-  background: #111827;
-  color: #d1d5db;
+@media (max-width: 720px) {
+  .groups {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
 }
 </style>

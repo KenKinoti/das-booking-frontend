@@ -1,391 +1,240 @@
 import { WS_ORIGIN } from '../config'
 import api from './api'
 
+const unwrap = (res) => (res && res.data && Object.prototype.hasOwnProperty.call(res.data, 'data') ? res.data.data : res.data)
+
+/** REST API for in-app messaging (/api/v1/messaging). Errors are thrown for callers to show. */
 export const messagingService = {
-  // Thread operations
-  async getThreads(page = 1, limit = 50) {
-    try {
-      const response = await api.get(`/messaging/threads?page=${page}&limit=${limit}`)
-      return response.data
-    } catch (error) {
-      console.error('Failed to get threads:', error)
-      throw error
-    }
-  },
+  getThreads: () => api.get('/messaging/threads').then(unwrap),
+  createThread: (payload) => api.post('/messaging/threads', payload).then(unwrap),
+  getMessages: (threadId, page = 1, limit = 50) => api.get(`/messaging/threads/${threadId}/messages`, { params: { page, limit } }).then(unwrap),
+  sendMessage: (threadId, payload) => api.post(`/messaging/threads/${threadId}/messages`, payload).then(unwrap),
+  getSettings: () => api.get('/messaging/settings').then(unwrap),
+  updateSettings: (settings) => api.put('/messaging/settings', settings).then(unwrap),
+  getIntegrations: () => api.get('/messaging/integrations').then(unwrap),
+  updateIntegration: (provider, data) => api.put(`/messaging/integrations/${provider}`, data).then(unwrap),
+  searchMessages: (q, threadId = null) => api.get('/messaging/search', { params: { q, thread_id: threadId || undefined } }).then(unwrap),
+  getUnreadCount: () => api.get('/messaging/unread-count').then((r) => Number(unwrap(r)?.count) || 0),
+  testWhatsAppConnection: () => api.post('/messaging/whatsapp/test-connection').then((r) => r.data)
+}
 
-  async createThread(threadData) {
-    try {
-      const response = await api.post('/messaging/threads', threadData)
-      return response.data
-    } catch (error) {
-      console.error('Failed to create thread:', error)
-      throw error
-    }
-  },
+export function personName(u) {
+  if (!u) return 'Unknown'
+  const n = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+  return n || u.email || 'Unknown'
+}
 
-  // Message operations
-  async getMessages(threadId, page = 1, limit = 50) {
-    try {
-      const response = await api.get(`/messaging/threads/${threadId}/messages?page=${page}&limit=${limit}`)
-      return response.data
-    } catch (error) {
-      console.error('Failed to get messages:', error)
-      throw error
-    }
-  },
+export function initials(name = '') {
+  return (
+    String(name)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0])
+      .join('')
+      .toUpperCase() || '?'
+  )
+}
 
-  async sendMessage(threadId, messageData) {
-    try {
-      const response = await api.post(`/messaging/threads/${threadId}/messages`, messageData)
-      return response.data
-    } catch (error) {
-      console.error('Failed to send message:', error)
-      throw error
-    }
-  },
-
-  // Settings
-  async getSettings() {
-    try {
-      const response = await api.get('/messaging/settings')
-      return response.data
-    } catch (error) {
-      console.error('Failed to get settings:', error)
-      throw error
-    }
-  },
-
-  async updateSettings(settings) {
-    try {
-      const response = await api.put('/messaging/settings', settings)
-      return response.data
-    } catch (error) {
-      console.error('Failed to update settings:', error)
-      throw error
-    }
-  },
-
-  // Integrations
-  async getIntegrations() {
-    try {
-      const response = await api.get('/messaging/integrations')
-      return response.data
-    } catch (error) {
-      console.error('Failed to get integrations:', error)
-      throw error
-    }
-  },
-
-  async updateIntegration(provider, integrationData) {
-    try {
-      const response = await api.put(`/messaging/integrations/${provider}`, integrationData)
-      return response.data
-    } catch (error) {
-      console.error('Failed to update integration:', error)
-      throw error
-    }
-  },
-
-  // Search
-  async searchMessages(query, threadId = null) {
-    try {
-      const params = new URLSearchParams({ q: query })
-      if (threadId) params.append('thread_id', threadId)
-
-      const response = await api.get(`/messaging/search?${params}`)
-      return response.data
-    } catch (error) {
-      console.error('Failed to search messages:', error)
-      throw error
-    }
-  },
-
-  // File upload
-  async uploadFile(threadId, file, onProgress) {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await api.post(`/messaging/threads/${threadId}/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          )
-          if (onProgress) onProgress(percentCompleted)
-        },
-      })
-      return response.data
-    } catch (error) {
-      console.error('Failed to upload file:', error)
-      throw error
-    }
-  },
-
-  // Unread count
-  async getUnreadCount() {
-    try {
-      const response = await api.get('/messaging/unread-count')
-      return response.data
-    } catch (error) {
-      console.error('Failed to get unread count:', error)
-      throw error
-    }
-  },
-
-  // WhatsApp Integration
-  async sendWhatsAppMessage(to, message) {
-    try {
-      const response = await api.post('/messaging/whatsapp/send', { to, message })
-      return response.data
-    } catch (error) {
-      console.error('Failed to send WhatsApp message:', error)
-      throw error
-    }
-  },
-
-  async sendWhatsAppTemplate(to, template, language = 'en_US', components = []) {
-    try {
-      const response = await api.post('/messaging/whatsapp/send-template', {
-        to,
-        template,
-        language,
-        components
-      })
-      return response.data
-    } catch (error) {
-      console.error('Failed to send WhatsApp template:', error)
-      throw error
-    }
-  },
-
-  async testWhatsAppConnection() {
-    try {
-      const response = await api.post('/messaging/whatsapp/test-connection')
-      return response.data
-    } catch (error) {
-      console.error('Failed to test WhatsApp connection:', error)
-      throw error
-    }
+/**
+ * Normalise a thread from the API. The API returns the latest message first in
+ * `messages`, followed by a pseudo-message whose content is the unread count.
+ */
+export function normalizeThread(t, meId) {
+  const msgs = Array.isArray(t.messages) ? t.messages : []
+  let unread = 0
+  let last = null
+  for (const m of msgs) {
+    if (!m.id && !m.sender_id) unread = Number(m.content) || 0
+    else if (!last) last = m
+  }
+  const participants = (t.participants || []).filter((p) => p.is_active !== false)
+  const others = participants.filter((p) => p.user_id !== meId)
+  const otherNames = others.map((p) => personName(p.user))
+  const isGroup = t.type === 'group' || others.length > 1
+  const name = (t.name && t.name.trim()) || (otherNames.length ? otherNames.join(', ') : 'Just you')
+  return {
+    id: t.id,
+    type: t.type,
+    name,
+    isGroup,
+    participants,
+    others,
+    last,
+    unread,
+    updatedAt: (last && last.created_at) || t.last_message_at || t.created_at
   }
 }
 
-// WebSocket service for real-time messaging
+/**
+ * Real-time messaging socket. Authenticates with {type:"auth", token} and
+ * reconnects with backoff while anything is subscribed.
+ */
 export class WebSocketService {
   constructor() {
     this.socket = null
-    this.isConnected = false
+    this.authed = false
     this.listeners = new Map()
-    this.reconnectAttempts = 0
-    this.maxReconnectAttempts = 5
+    this.attempts = 0
+    this.timer = null
+    this.wanted = false
+    this.joined = new Set()
   }
 
-  connect(userId, organizationId) {
-    const wsUrl = `${WS_ORIGIN}/ws/messaging`
+  get isConnected() {
+    return !!this.socket && this.socket.readyState === WebSocket.OPEN && this.authed
+  }
 
-    this.socket = new WebSocket(wsUrl)
-
-    this.socket.onopen = () => {
-      console.log('WebSocket connected')
-      this.isConnected = true
-      this.reconnectAttempts = 0
-
-      // Send authentication message
-      this.send({
-        type: 'auth',
-        token: localStorage.getItem('auth_token')
-      })
+  connect() {
+    this.wanted = true
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) return
+    clearTimeout(this.timer)
+    let token = null
+    try {
+      token = localStorage.getItem('auth_token')
+    } catch {
+      token = null
     }
-
-    this.socket.onmessage = (event) => {
+    if (!token) return
+    let socket
+    try {
+      socket = new WebSocket(`${WS_ORIGIN}/ws/messaging`)
+    } catch {
+      this.scheduleReconnect()
+      return
+    }
+    this.socket = socket
+    socket.onopen = () => {
+      this.attempts = 0
+      socket.send(JSON.stringify({ type: 'auth', token }))
+    }
+    socket.onmessage = (event) => {
+      let msg
       try {
-        const message = JSON.parse(event.data)
-        this.handleMessage(message)
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
+        msg = JSON.parse(event.data)
+      } catch {
+        return
       }
+      if (msg.type === 'auth_success') {
+        this.authed = true
+        this.joined.forEach((id) => this.send({ type: 'join_thread', thread_id: id }))
+        this.emit('status', 'connected')
+      } else if (msg.type === 'auth_error') {
+        this.authed = false
+        this.emit('status', 'unauthorized')
+      }
+      this.emit(msg.type, msg)
     }
-
-    this.socket.onclose = () => {
-      console.log('WebSocket disconnected')
-      this.isConnected = false
-      this.attemptReconnect(userId, organizationId)
+    socket.onclose = () => {
+      this.authed = false
+      if (this.socket === socket) this.socket = null
+      this.emit('status', 'disconnected')
+      if (this.wanted) this.scheduleReconnect()
     }
-
-    this.socket.onerror = (error) => {
-      console.error('WebSocket error:', error)
+    socket.onerror = () => {
+      /* onclose handles reconnects */
     }
   }
 
-  attemptReconnect(userId, organizationId) {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++
-      const delay = Math.pow(2, this.reconnectAttempts) * 1000 // Exponential backoff
-
-      console.log(`Attempting to reconnect in ${delay}ms... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
-
-      setTimeout(() => {
-        this.connect(userId, organizationId)
-      }, delay)
-    } else {
-      console.error('Max reconnect attempts reached')
-    }
+  scheduleReconnect() {
+    clearTimeout(this.timer)
+    const delay = Math.min(30000, 1000 * 2 ** Math.min(this.attempts, 5))
+    this.attempts++
+    this.timer = setTimeout(() => this.connect(), delay)
   }
 
   disconnect() {
-    if (this.socket) {
-      this.socket.close()
-      this.socket = null
-      this.isConnected = false
-    }
+    this.wanted = false
+    clearTimeout(this.timer)
+    if (this.socket) this.socket.close()
+    this.socket = null
+    this.authed = false
   }
 
   send(data) {
-    if (this.isConnected && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(data))
-    } else {
-      console.warn('WebSocket not connected, cannot send message')
-    }
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(data))
   }
 
-  handleMessage(message) {
-    const { type } = message
-
-    if (this.listeners.has(type)) {
-      const callbacks = this.listeners.get(type)
-      callbacks.forEach(callback => callback(message))
-    }
-
-    // Handle specific message types
-    switch (type) {
-      case 'new_message':
-        this.emit('message_received', message.data)
-        break
-      case 'typing_indicator':
-        this.emit('typing_changed', message.data)
-        break
-      case 'user_online':
-        this.emit('user_status_changed', { user_id: message.user_id, status: 'online' })
-        break
-      case 'user_offline':
-        this.emit('user_status_changed', { user_id: message.user_id, status: 'offline' })
-        break
-      default:
-        this.emit(type, message.data)
-    }
+  on(type, cb) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set())
+    this.listeners.get(type).add(cb)
+    return () => this.off(type, cb)
   }
 
-  on(eventType, callback) {
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, [])
-    }
-    this.listeners.get(eventType).push(callback)
+  off(type, cb) {
+    this.listeners.get(type)?.delete(cb)
   }
 
-  off(eventType, callback) {
-    if (this.listeners.has(eventType)) {
-      const callbacks = this.listeners.get(eventType)
-      const index = callbacks.indexOf(callback)
-      if (index > -1) {
-        callbacks.splice(index, 1)
+  emit(type, data) {
+    this.listeners.get(type)?.forEach((cb) => {
+      try {
+        cb(data)
+      } catch {
+        /* a listener error must not break the socket */
       }
-    }
-  }
-
-  emit(eventType, data) {
-    if (this.listeners.has(eventType)) {
-      const callbacks = this.listeners.get(eventType)
-      callbacks.forEach(callback => callback(data))
-    }
-  }
-
-  // Convenience methods
-  joinThread(threadId) {
-    this.send({
-      type: 'join_thread',
-      thread_id: threadId
     })
   }
 
-  leaveThread(threadId) {
-    this.send({
-      type: 'leave_thread',
-      thread_id: threadId
-    })
+  joinThread(id) {
+    this.joined.add(id)
+    if (this.authed) this.send({ type: 'join_thread', thread_id: id })
   }
 
-  startTyping(threadId, userId) {
-    this.send({
-      type: 'typing_start',
-      thread_id: threadId,
-      user_id: userId
-    })
+  leaveThread(id) {
+    this.joined.delete(id)
+    if (this.authed) this.send({ type: 'leave_thread', thread_id: id })
   }
 
-  stopTyping(threadId, userId) {
-    this.send({
-      type: 'typing_stop',
-      thread_id: threadId,
-      user_id: userId
-    })
+  startTyping(id) {
+    if (this.authed) this.send({ type: 'typing_start', thread_id: id })
+  }
+
+  stopTyping(id) {
+    if (this.authed) this.send({ type: 'typing_stop', thread_id: id })
   }
 }
 
-// Create a singleton instance
 export const webSocketService = new WebSocketService()
 
-// Utility functions
-export const formatMessageTime = (timestamp) => {
-  const date = new Date(timestamp)
+export function formatMessageTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
   const now = new Date()
-
-  // Check if it's today
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-
-  // Check if it's yesterday
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (date.toDateString() === yesterday.toDateString()) {
-    return 'Yesterday'
-  }
-
-  // Check if it's this week
-  const weekAgo = new Date()
-  weekAgo.setDate(weekAgo.getDate() - 7)
-  if (date > weekAgo) {
-    return date.toLocaleDateString([], { weekday: 'short' })
-  }
-
-  // Otherwise show date
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const y = new Date()
+  y.setDate(y.getDate() - 1)
+  if (d.toDateString() === y.toDateString()) return 'Yesterday'
+  const week = new Date()
+  week.setDate(week.getDate() - 6)
+  if (d > week) return d.toLocaleDateString([], { weekday: 'short' })
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
 }
 
-export const getMessageStatus = (message, currentUserId) => {
-  if (message.sender_id === currentUserId) {
-    if (message.read_at) return 'read'
-    if (message.delivered_at) return 'delivered'
-    return 'sent'
-  }
-  return null
+export function dayLabel(ts) {
+  const d = new Date(ts)
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) return 'Today'
+  const y = new Date()
+  y.setDate(y.getDate() - 1)
+  if (d.toDateString() === y.toDateString()) return 'Yesterday'
+  return d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' })
 }
 
-export const groupMessagesByDate = (messages) => {
-  const groups = {}
-
-  messages.forEach(message => {
-    const date = new Date(message.created_at).toDateString()
-    if (!groups[date]) {
-      groups[date] = []
+/** Group messages (oldest first) by day, and mark runs from the same sender. */
+export function groupMessagesByDate(messages) {
+  const groups = []
+  let prev = null
+  for (const m of messages) {
+    const key = new Date(m.created_at).toDateString()
+    let g = groups[groups.length - 1]
+    if (!g || g.key !== key) {
+      g = { key, label: dayLabel(m.created_at), messages: [] }
+      groups.push(g)
+      prev = null
     }
-    groups[date].push(message)
-  })
-
-  return Object.entries(groups).map(([date, messages]) => ({
-    date,
-    messages
-  }))
+    const cont = prev && prev.sender_id === m.sender_id && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60 * 1000
+    g.messages.push({ ...m, _continued: !!cont })
+    prev = m
+  }
+  return groups
 }

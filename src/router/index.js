@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useModulesStore } from '../stores/modules'
+import { ensureEntitlements, hasModule } from '../composables/useEntitlements'
+import { moduleForPath } from '../navigation'
 // import { usePermissionsStore } from '../stores/permissions' // unused import
 
 // Lazy load components for better performance
@@ -58,6 +60,10 @@ const MessagingSettings = () => import('../views/MessagingSettings.vue')
 // Video Call Views
 const VideoCall = () => import('../views/VideoCall.vue')
 const Communication = () => import('../views/Communication.vue')
+
+// Plans & billing
+const PlanBilling = () => import('../views/plans/PlanBilling.vue')
+const SuperAdminPlans = () => import('../views/plans/SuperAdminPlans.vue')
 const Documents = () => import('../views/Documents.vue')
 const Scheduling = () => import('../views/Scheduling.vue')
 
@@ -69,6 +75,9 @@ const InvoiceDetail = () => import('../views/invoicing/InvoiceDetail.vue')
 const InvoiceSettings = () => import('../views/invoicing/InvoiceSettings.vue')
 const PublicInvoice = () => import('../views/invoicing/PublicInvoice.vue')
 const NotFound = () => import('../views/NotFound.vue')
+const BusinessHub = () => import('../views/smallbiz/BusinessHub.vue')
+const Meetings = () => import('../views/meetings/Meetings.vue')
+const MeetingRoom = () => import('../views/meetings/MeetingRoom.vue')
 
 const routes = [
   {
@@ -313,6 +322,25 @@ const routes = [
     meta: { requiresAuth: false, public: true, title: 'Invoice' }
   },
   {
+    path: '/business',
+    name: 'BusinessHub',
+    component: BusinessHub,
+    meta: { requiresAuth: true, title: 'Business hub' }
+  },
+  {
+    path: '/meetings',
+    name: 'Meetings',
+    component: Meetings,
+    meta: { requiresAuth: true, title: 'Meetings' }
+  },
+  {
+    path: '/meetings/:id',
+    name: 'MeetingRoom',
+    component: MeetingRoom,
+    props: true,
+    meta: { requiresAuth: true, title: 'Meeting' }
+  },
+  {
     path: '/documents',
     name: 'Documents',
     component: Documents,
@@ -459,6 +487,11 @@ const routes = [
   }
 ]
 
+routes.push(
+  { path: '/plan', name: 'PlanBilling', component: PlanBilling, meta: { requiresAuth: true, title: 'Plan & billing' } },
+  { path: '/super-admin/plans', name: 'SuperAdminPlans', component: SuperAdminPlans, meta: { requiresAuth: true, requiresSuperAdmin: true, title: 'Plans & pricing' } }
+)
+
 routes.push({ path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound, meta: { requiresAuth: false, title: 'Page not found' } })
 
 const router = createRouter({
@@ -491,6 +524,17 @@ router.beforeEach(async (to) => {
       const modulesStore = useModulesStore()
       if (!modulesStore.initialized) await modulesStore.fetchModules()
       if (!modulesStore.hasModule(to.meta.requiresModule)) return '/dashboard'
+    }
+
+    // Subscription plan: modules outside the plan go to the upgrade page
+    if (!authStore.isSuperAdmin) {
+      const mod = moduleForPath(to.path)
+      if (mod) {
+        await ensureEntitlements()
+        if (!hasModule(mod)) return { path: '/plan', query: { module: mod, from: to.fullPath } }
+      } else {
+        ensureEntitlements()
+      }
     }
 
     if (to.name && to.name !== 'Login') {

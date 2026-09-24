@@ -1,2354 +1,1048 @@
 <template>
-  <div class="messaging-container">
-    <!-- Sidebar with threads -->
-    <div class="messaging-sidebar" :class="{ 'mobile-hidden': selectedThread }">
-      <!-- Header -->
-      <div class="sidebar-header">
-        <div class="user-info">
-          <div class="user-avatar">
-            <i class="fas fa-user"></i>
-          </div>
-          <div class="user-details">
-            <h3>Messages</h3>
-            <span class="online-status">Online</span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button @click="showNewChatModal = true" class="btn-new-chat" title="New Chat">
-            <i class="fas fa-plus"></i>
-          </button>
-          <button @click="showSettings = true" class="btn-settings" title="Settings">
-            <i class="fas fa-cog"></i>
-          </button>
-        </div>
+  <div class="mp ui-page ui-page--wide msg-page">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Communication</div>
+        <h1>Messages</h1>
+        <p>Chat with people in your organisation — one-to-one or in groups.</p>
       </div>
-
-      <!-- Search -->
-      <div class="search-section">
-        <div class="search-box">
-          <i class="fas fa-search"></i>
-          <input
-            v-model="searchQuery"
-            @input="searchMessages"
-            placeholder="Search messages..."
-            class="search-input"
-          />
-        </div>
+      <div class="ui-actions">
+        <span class="conn" :class="`conn--${socketStatus}`" :title="socketTitle"><i class="fa-solid fa-circle"></i> {{ socketLabel }}</span>
+        <router-link to="/messaging-settings" class="ui-btn"><i class="fa-solid fa-gear"></i> Settings</router-link>
+        <button class="ui-btn ui-btn--primary" :disabled="!chatSettings.enable_in_app_messaging" @click="showNew = true"><i class="fa-regular fa-pen-to-square"></i> New conversation</button>
       </div>
+    </header>
 
-      <!-- Thread List -->
-      <div class="threads-list">
-        <div v-if="loading" class="loading-threads">
-          <div class="thread-skeleton" v-for="i in 5" :key="i">
-            <div class="skeleton-avatar"></div>
-            <div class="skeleton-content">
-              <div class="skeleton-line"></div>
-              <div class="skeleton-line short"></div>
-            </div>
+    <section class="ui-card chat" :class="{ 'show-thread': !!activeId }">
+      <!-- Thread list -->
+      <aside class="threads">
+        <div class="threads__head">
+          <div class="ui-input-group">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input v-model="q" class="ui-input" type="search" placeholder="Search conversations" aria-label="Search conversations" />
+          </div>
+          <div class="ui-tabs filter-tabs">
+            <button class="ui-tab" :class="{ 'is-active': filter === 'all' }" @click="filter = 'all'">All</button>
+            <button class="ui-tab" :class="{ 'is-active': filter === 'unread' }" @click="filter = 'unread'">Unread <span v-if="totalUnread" class="count">{{ totalUnread }}</span></button>
+            <button class="ui-tab" :class="{ 'is-active': filter === 'groups' }" @click="filter = 'groups'">Groups</button>
           </div>
         </div>
-
-        <div v-else-if="filteredThreads.length === 0" class="empty-threads">
-          <i class="fas fa-comments"></i>
-          <p>No conversations yet</p>
-          <button @click="showNewChatModal = true" class="btn btn-primary">
-            Start a conversation
-          </button>
-        </div>
-
-        <div
-          v-else
-          v-for="thread in filteredThreads"
-          :key="thread.id"
-          class="thread-item"
-          :class="{ active: selectedThread?.id === thread.id }"
-          @click="selectThread(thread)"
-        >
-          <div class="thread-avatar">
-            <img v-if="getThreadAvatar(thread)" :src="getThreadAvatar(thread)" :alt="getThreadName(thread)" />
-            <div v-else class="avatar-placeholder">
-              {{ getThreadInitials(thread) }}
-            </div>
-            <div v-if="getOnlineStatus(thread)" class="online-indicator"></div>
+        <div class="threads__list" role="list">
+          <template v-if="loadingThreads && !threads.length">
+            <div v-for="n in 6" :key="n" class="thread sk"><div class="ui-skeleton" style="width: 40px; height: 40px; border-radius: 12px"></div><div style="flex: 1"><div class="ui-skeleton" style="height: 12px; width: 60%; margin-bottom: 8px"></div><div class="ui-skeleton" style="height: 10px"></div></div></div>
+          </template>
+          <div v-else-if="threadsError" class="list-note">
+            <p class="txt-danger">{{ threadsError }}</p>
+            <button class="ui-btn ui-btn--sm" @click="loadThreads">Try again</button>
           </div>
-
-          <div class="thread-info">
-            <div class="thread-header">
-              <h4 class="thread-name">{{ getThreadName(thread) }}</h4>
-              <span class="thread-time">{{ formatTime(thread.last_message_at || thread.created_at) }}</span>
-            </div>
-            <div class="thread-preview">
-              <p class="last-message">{{ getLastMessage(thread) }}</p>
-              <div class="thread-badges">
-                <span v-if="getUnreadCount(thread) > 0" class="unread-badge">
-                  {{ getUnreadCount(thread) > 99 ? '99+' : getUnreadCount(thread) }}
+          <div v-else-if="!threads.length" class="list-note">
+            <div class="ui-empty__icon"><i class="fa-regular fa-comments"></i></div>
+            <p><strong>No conversations yet</strong></p>
+            <p class="muted">Start one with a teammate.</p>
+            <button class="ui-btn ui-btn--primary ui-btn--sm" @click="showNew = true"><i class="fa-regular fa-pen-to-square"></i> New conversation</button>
+          </div>
+          <div v-else-if="!visibleThreads.length" class="list-note muted">Nothing matches.</div>
+          <button
+            v-for="t in visibleThreads"
+            :key="t.id"
+            role="listitem"
+            class="thread"
+            :class="{ 'is-active': t.id === activeId, 'is-unread': t.unread > 0 }"
+            @click="openThread(t.id)"
+          >
+            <span class="t-avatar" :class="{ group: t.isGroup }">
+              <i v-if="t.isGroup" class="fa-solid fa-user-group"></i>
+              <template v-else>{{ initials(t.name) }}</template>
+            </span>
+            <span class="t-body">
+              <span class="t-top">
+                <span class="t-name">{{ t.name }}</span>
+                <span class="t-time">{{ time(t.updatedAt) }}</span>
+              </span>
+              <span class="t-bottom">
+                <span class="t-preview">
+                  <template v-if="typingIn[t.id]"><em class="typing-text">typing…</em></template>
+                  <template v-else-if="t.last">{{ t.last.sender_id === meId ? 'You: ' : t.isGroup ? firstName(t.last.sender) + ': ' : '' }}{{ t.last.content }}</template>
+                  <template v-else><span class="muted">No messages yet</span></template>
                 </span>
-                <i v-if="thread.is_muted" class="fas fa-volume-mute muted-icon"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Chat Area -->
-    <div class="chat-area" :class="{ 'mobile-visible': selectedThread }">
-      <!-- No chat selected -->
-      <div v-if="!selectedThread" class="no-chat-selected">
-        <div class="welcome-message">
-          <i class="fas fa-comments"></i>
-          <h2>Welcome to Messages</h2>
-          <p>Select a conversation to start messaging or create a new one</p>
-          <button @click="showNewChatModal = true" class="btn btn-primary">
-            <i class="fas fa-plus me-2"></i>
-            New Conversation
+                <span v-if="t.unread" class="t-unread" :aria-label="`${t.unread} unread`">{{ t.unread > 99 ? '99+' : t.unread }}</span>
+              </span>
+            </span>
           </button>
         </div>
-      </div>
+      </aside>
 
-      <!-- Active chat -->
-      <div v-else class="active-chat">
-        <!-- Chat Header -->
-        <div class="chat-header">
-          <button @click="backToThreads" class="btn-back mobile-only">
-            <i class="fas fa-arrow-left"></i>
-          </button>
-
-          <div class="chat-contact">
-            <div class="contact-avatar">
-              <img v-if="getThreadAvatar(selectedThread)" :src="getThreadAvatar(selectedThread)" :alt="getThreadName(selectedThread)" />
-              <div v-else class="avatar-placeholder">
-                {{ getThreadInitials(selectedThread) }}
-              </div>
-              <div v-if="getOnlineStatus(selectedThread)" class="online-indicator"></div>
+      <!-- Conversation -->
+      <div class="convo">
+        <template v-if="active">
+          <div class="convo__head">
+            <button class="ui-btn ui-btn--ghost ui-btn--icon back" aria-label="Back to conversations" @click="closeThread"><i class="fa-solid fa-arrow-left"></i></button>
+            <span class="t-avatar" :class="{ group: active.isGroup }">
+              <i v-if="active.isGroup" class="fa-solid fa-user-group"></i>
+              <template v-else>{{ initials(active.name) }}</template>
+            </span>
+            <div class="convo__title">
+              <h2>{{ active.name }}</h2>
+              <small class="muted">
+                <template v-if="typingIn[active.id]">{{ typingIn[active.id] }} is typing…</template>
+                <template v-else-if="active.isGroup">{{ active.participants.length }} members · {{ memberNames }}</template>
+                <template v-else-if="active.others[0] && active.others[0].user">{{ active.others[0].user.email }}</template>
+              </small>
             </div>
-            <div class="contact-info">
-              <h3 class="contact-name">{{ getThreadName(selectedThread) }}</h3>
-              <p class="contact-status">
-                <span v-if="typingUsers.length > 0" class="typing-indicator">
-                  {{ getTypingText() }}
-                </span>
-                <span v-else>{{ getStatusText(selectedThread) }}</span>
-              </p>
+            <div class="ui-actions">
+              <button class="ui-btn ui-btn--sm" :disabled="calling" title="Start a video call with these people" @click="startCall"><i :class="calling ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-video'"></i><span class="hide-sm"> Video call</span></button>
             </div>
           </div>
 
-          <div class="chat-actions">
-            <button class="btn-action" title="Search">
-              <i class="fas fa-search"></i>
-            </button>
-            <button class="btn-action" title="Call">
-              <i class="fas fa-phone"></i>
-            </button>
-            <button class="btn-action" title="Video Call">
-              <i class="fas fa-video"></i>
-            </button>
-            <button class="btn-action" @click="showThreadOptions = true" title="More">
-              <i class="fas fa-ellipsis-v"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Messages Area -->
-        <div class="messages-area" ref="messagesContainer">
-          <div v-if="messagesLoading" class="messages-loading">
-            <div class="loading-spinner"></div>
-          </div>
-
-          <div v-else class="messages-list">
-            <!-- Load more button -->
-            <button
-              v-if="hasMoreMessages"
-              @click="loadMoreMessages"
-              class="btn-load-more"
-              :disabled="loadingMore"
-            >
-              <i v-if="loadingMore" class="fas fa-spinner fa-spin"></i>
-              <span v-else>Load earlier messages</span>
-            </button>
-
-            <!-- Date groups -->
-            <div v-for="group in groupedMessages" :key="group.date" class="message-group">
-              <div class="date-separator">
-                <span>{{ formatDate(group.date) }}</span>
-              </div>
-
-              <!-- Messages -->
-              <div
-                v-for="message in group.messages"
-                :key="message.id"
-                class="message-wrapper"
-                :class="{ 'own-message': message.sender_id === currentUserId }"
-              >
-                <!-- Message bubble -->
-                <div class="message-bubble" :class="getMessageClasses(message)">
-                  <!-- Reply reference -->
-                  <div v-if="message.reply_to" class="message-reply" @click="scrollToMessage(message.reply_to.id)">
-                    <div class="reply-line"></div>
-                    <div class="reply-content">
-                      <span class="reply-sender">{{ message.reply_to.sender?.first_name || 'Unknown' }}</span>
-                      <p class="reply-text">{{ message.reply_to.content }}</p>
-                    </div>
-                  </div>
-
-                  <!-- Message content -->
-                  <div class="message-content">
-                    <!-- Text message -->
-                    <div v-if="message.message_type === 'text'" class="message-text">
-                      {{ message.content }}
-                    </div>
-
-                    <!-- Image message -->
-                    <div v-else-if="message.message_type === 'image'" class="message-image">
-                      <img :src="getAttachmentUrl(message.attachments[0])" :alt="message.content" @click="showImageViewer(message.attachments[0])" />
-                      <p v-if="message.content" class="image-caption">{{ message.content }}</p>
-                    </div>
-
-                    <!-- File message -->
-                    <div v-else-if="message.message_type === 'file'" class="message-file">
-                      <div class="file-info">
-                        <i class="fas fa-file"></i>
-                        <div class="file-details">
-                          <span class="file-name">{{ message.attachments[0]?.file_name }}</span>
-                          <span class="file-size">{{ formatFileSize(message.attachments[0]?.file_size) }}</span>
-                        </div>
-                      </div>
-                      <button class="btn-download" @click="downloadFile(message.attachments[0])">
-                        <i class="fas fa-download"></i>
-                      </button>
-                    </div>
-
-                    <!-- Audio message -->
-                    <div v-else-if="message.message_type === 'audio'" class="message-audio">
-                      <button class="btn-play-audio" @click="toggleAudio(message)">
-                        <i :class="playingAudio === message.id ? 'fas fa-pause' : 'fas fa-play'"></i>
-                      </button>
-                      <div class="audio-waveform">
-                        <div class="waveform-bar" v-for="i in 20" :key="i"></div>
-                      </div>
-                      <span class="audio-duration">{{ getAudioDuration(message) }}</span>
-                    </div>
-                  </div>
-
-                  <!-- Message reactions -->
-                  <div v-if="message.reactions && message.reactions.length > 0" class="message-reactions">
-                    <span
-                      v-for="reaction in getUniqueReactions(message.reactions)"
-                      :key="reaction.emoji"
-                      class="reaction-bubble"
-                      @click="toggleReaction(message, reaction.emoji)"
-                    >
-                      {{ reaction.emoji }} {{ reaction.count }}
-                    </span>
-                  </div>
-
-                  <!-- Message info -->
-                  <div class="message-info">
-                    <span class="message-time">{{ formatTime(message.created_at) }}</span>
-                    <div v-if="message.sender_id === currentUserId" class="message-status">
-                      <i v-if="message.read_at" class="fas fa-check-double read"></i>
-                      <i v-else-if="message.delivered_at" class="fas fa-check-double"></i>
-                      <i v-else class="fas fa-check"></i>
-                    </div>
+          <div ref="scroller" class="convo__messages" @scroll="onScroll">
+            <div v-if="hasMore" class="load-older">
+              <button class="ui-btn ui-btn--sm ui-btn--ghost" :disabled="loadingOlder" @click="loadOlder"><i :class="loadingOlder ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-clock-rotate-left'"></i> Load earlier messages</button>
+            </div>
+            <div v-if="loadingMessages && !messages.length" class="msg-sk">
+              <div v-for="n in 5" :key="n" class="ui-skeleton" :style="{ height: '34px', width: 30 + ((n * 17) % 40) + '%', marginLeft: n % 2 ? 'auto' : 0 }"></div>
+            </div>
+            <div v-else-if="messagesError" class="list-note">
+              <p class="txt-danger">{{ messagesError }}</p>
+              <button class="ui-btn ui-btn--sm" @click="loadMessages(active.id)">Try again</button>
+            </div>
+            <div v-else-if="!messages.length" class="list-note">
+              <div class="ui-empty__icon"><i class="fa-regular fa-hand"></i></div>
+              <p><strong>Say hello</strong></p>
+              <p class="muted">This is the start of your conversation with {{ active.name }}.</p>
+            </div>
+            <template v-for="g in grouped" :key="g.key">
+              <div class="day"><span>{{ g.label }}</span></div>
+              <div v-for="m in g.messages" :key="m.id || m._tmp" class="msg" :class="{ mine: m.sender_id === meId, cont: m._continued, failed: m._failed, pending: m._pending }">
+                <span v-if="m.sender_id !== meId && !m._continued" class="m-avatar">{{ initials(senderName(m)) }}</span>
+                <div class="m-bubble-wrap">
+                  <div v-if="active.isGroup && m.sender_id !== meId && !m._continued" class="m-sender">{{ senderName(m) }}</div>
+                  <div class="m-bubble"><template v-for="(part, pi) in linkify(m.content)" :key="pi"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></div>
+                  <div class="m-meta">
+                    <template v-if="m._failed"><i class="fa-solid fa-circle-exclamation"></i> Not sent · <a href="#" @click.prevent="retry(m)">Retry</a></template>
+                    <template v-else-if="m._pending">Sending…</template>
+                    <template v-else>{{ clock(m.created_at) }}</template>
                   </div>
                 </div>
-
-                <!-- Message options -->
-                <div class="message-options">
-                  <button @click="replyToMessage(message)" class="btn-option" title="Reply">
-                    <i class="fas fa-reply"></i>
-                  </button>
-                  <button @click="showReactions(message)" class="btn-option" title="React">
-                    <i class="fas fa-smile"></i>
-                  </button>
-                  <button @click="forwardMessage(message)" class="btn-option" title="Forward">
-                    <i class="fas fa-share"></i>
-                  </button>
-                  <button v-if="message.sender_id === currentUserId" @click="deleteMessage(message)" class="btn-option" title="Delete">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Message Input -->
-        <div class="message-input-area">
-          <!-- Reply preview -->
-          <div v-if="replyingTo" class="reply-preview">
-            <div class="reply-content">
-              <span class="reply-sender">Replying to {{ replyingTo.sender?.first_name }}</span>
-              <p class="reply-text">{{ replyingTo.content }}</p>
-            </div>
-            <button @click="cancelReply" class="btn-cancel-reply">
-              <i class="fas fa-times"></i>
-            </button>
+            </template>
           </div>
 
-          <!-- Input area -->
-          <div class="input-container">
-            <button @click="showAttachmentOptions = !showAttachmentOptions" class="btn-attach">
-              <i class="fas fa-plus"></i>
-            </button>
+          <button v-if="showJump" class="jump" @click="scrollToBottom(true)"><i class="fa-solid fa-arrow-down"></i> New messages</button>
 
-            <div class="text-input-wrapper">
-              <textarea
-                ref="messageInput"
-                v-model="messageText"
-                @keydown="handleKeyDown"
-                @input="handleTyping"
-                placeholder="Type a message..."
-                class="message-textarea"
-                rows="1"
-              ></textarea>
-            </div>
+          <div v-if="!chatSettings.enable_in_app_messaging" class="ui-alert ui-alert--warning chat-off"><i class="fa-solid fa-lock"></i><span>Team chat is turned off for your organisation. <router-link to="/messaging-settings">Messaging settings</router-link></span></div>
+          <form v-else class="composer" @submit.prevent="send">
+            <textarea
+              ref="composer"
+              v-model="draft"
+              class="ui-textarea"
+              rows="1"
+              maxlength="4000"
+              :placeholder="`Message ${active.name}`"
+              aria-label="Message"
+              @keydown.enter.exact.prevent="send"
+              @input="onInput"
+            ></textarea>
+            <button type="submit" class="ui-btn ui-btn--primary send" :disabled="!draft.trim()" aria-label="Send message"><i class="fa-solid fa-paper-plane"></i><span class="hide-sm"> Send</span></button>
+          </form>
+          <div v-if="chatSettings.enable_in_app_messaging" class="hint muted">Enter to send · Shift + Enter for a new line</div>
+        </template>
 
-            <button
-              v-if="messageText.trim() || selectedFiles.length > 0"
-              @click="sendMessage"
-              :disabled="sending"
-              class="btn-send"
-            >
-              <i v-if="sending" class="fas fa-spinner fa-spin"></i>
-              <i v-else class="fas fa-paper-plane"></i>
-            </button>
-
-            <button v-else @click="startVoiceRecording" class="btn-voice" :class="{ recording: isRecording }">
-              <i class="fas fa-microphone"></i>
-            </button>
-          </div>
-
-          <!-- Attachment options -->
-          <div v-if="showAttachmentOptions" class="attachment-options">
-            <input ref="fileInput" type="file" multiple @change="handleFileSelect" style="display: none" />
-            <input ref="imageInput" type="file" accept="image/*" multiple @change="handleFileSelect" style="display: none" />
-
-            <button @click="$refs.fileInput.click()" class="attachment-option">
-              <i class="fas fa-file"></i>
-              <span>Document</span>
-            </button>
-            <button @click="$refs.imageInput.click()" class="attachment-option">
-              <i class="fas fa-image"></i>
-              <span>Photo</span>
-            </button>
-            <button class="attachment-option">
-              <i class="fas fa-camera"></i>
-              <span>Camera</span>
-            </button>
-            <button class="attachment-option">
-              <i class="fas fa-map-marker-alt"></i>
-              <span>Location</span>
-            </button>
-          </div>
+        <div v-else class="convo__empty">
+          <div class="ui-empty__icon"><i class="fa-regular fa-comments"></i></div>
+          <h3>Select a conversation</h3>
+          <p class="muted">Pick a conversation on the left, or start a new one.</p>
+          <button class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="showNew = true"><i class="fa-regular fa-pen-to-square"></i> New conversation</button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- New Chat Modal -->
-    <div v-if="showNewChatModal" class="modal-overlay" @click="showNewChatModal = false">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>New Conversation</h3>
-          <button @click="showNewChatModal = false" class="btn-close">×</button>
-        </div>
-
-        <div class="modal-body">
-          <!-- Selected Participants -->
-          <div v-if="selectedParticipants.length > 0" class="selected-participants-section">
-            <div class="section-header">
-              <h4><i class="fas fa-users"></i> Selected Participants</h4>
-              <span class="participant-count">{{ selectedParticipants.length }} selected</span>
-            </div>
-            <div class="selected-participants">
-              <div
-                v-for="participantId in selectedParticipants"
-                :key="participantId"
-                class="selected-participant-chip"
-              >
-                <div class="participant-avatar-sm">
-                  {{ getParticipantById(participantId)?.first_name?.[0] }}{{ getParticipantById(participantId)?.last_name?.[0] }}
-                </div>
-                <span class="participant-name-sm">{{ getParticipantById(participantId)?.first_name }} {{ getParticipantById(participantId)?.last_name }}</span>
-                <button @click="removeParticipant(participantId)" class="btn-remove-participant">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Participant Search -->
-          <div class="participants-search-section">
-            <div class="section-header">
-              <h4><i class="fas fa-search"></i> Find Participants</h4>
-            </div>
-            <div class="participant-search">
-              <div class="search-input-wrapper">
-                <i class="fas fa-search search-icon"></i>
-                <input
-                  v-model="participantSearch"
-                  @input="searchParticipants"
-                  placeholder="Search colleagues, teams, or email addresses..."
-                  class="participant-search-input"
-                />
-                <div class="search-suggestions" v-if="searchSuggestions.length > 0">
-                  <div class="suggestion-category" v-for="category in groupedSearchSuggestions" :key="category.type">
-                    <div class="category-header">
-                      <i :class="category.icon"></i>
-                      <span>{{ category.title }}</span>
-                    </div>
-                    <div
-                      v-for="participant in category.items"
-                      :key="participant.id"
-                      class="suggestion-item"
-                      @click="addParticipant(participant)"
-                    >
-                      <div class="suggestion-avatar">
-                        <div class="avatar-circle" :style="{ background: getAvatarGradient(participant.id) }">
-                          {{ participant.first_name?.[0] }}{{ participant.last_name?.[0] }}
-                        </div>
-                        <div v-if="isOnline(participant.id)" class="status-indicator online"></div>
-                        <div v-else class="status-indicator offline"></div>
-                      </div>
-                      <div class="suggestion-info">
-                        <div class="suggestion-name">{{ participant.first_name }} {{ participant.last_name }}</div>
-                        <div class="suggestion-details">
-                          <span class="role">{{ participant.role }}</span>
-                          <span class="email">{{ participant.email }}</span>
-                        </div>
-                      </div>
-                      <div class="suggestion-actions">
-                        <i v-if="selectedParticipants.includes(participant.id)" class="fas fa-check-circle selected-icon"></i>
-                        <i v-else class="fas fa-plus add-icon"></i>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Quick Suggestions -->
-          <div v-if="!participantSearch && quickSuggestions.length > 0" class="quick-suggestions-section">
-            <div class="section-header">
-              <h4><i class="fas fa-bolt"></i> Quick Add</h4>
-            </div>
-            <div class="quick-suggestions">
-              <div
-                v-for="participant in quickSuggestions"
-                :key="participant.id"
-                class="quick-suggestion-item"
-                @click="addParticipant(participant)"
-              >
-                <div class="suggestion-avatar">
-                  <div class="avatar-circle" :style="{ background: getAvatarGradient(participant.id) }">
-                    {{ participant.first_name?.[0] }}{{ participant.last_name?.[0] }}
-                  </div>
-                  <div v-if="isOnline(participant.id)" class="status-indicator online"></div>
-                  <div v-else class="status-indicator offline"></div>
-                </div>
-                <div class="suggestion-info">
-                  <div class="suggestion-name">{{ participant.first_name }} {{ participant.last_name }}</div>
-                  <div class="suggestion-role">{{ participant.role }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button @click="showNewChatModal = false" class="btn btn-secondary">Cancel</button>
-          <button @click="createNewThread" :disabled="selectedParticipants.length === 0" class="btn btn-primary">
-            Create Chat
-          </button>
-        </div>
-      </div>
-    </div>
+    <NewConversationModal v-if="showNew" :me-id="meId" :threads="threads" :allow-groups="chatSettings.enable_group_chats !== false" @close="showNew = false" @created="onCreated" @open="onOpenExisting" />
   </div>
 </template>
 
 <script>
-import { ref, reactive, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
-import { messagingService, webSocketService, formatMessageTime, groupMessagesByDate } from '../services/messaging'
+import { toast } from '@/composables/useToast'
+import { apiErrorMessage } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
+import { messagingService, webSocketService, normalizeThread, personName, initials, formatMessageTime, groupMessagesByDate } from '@/services/messaging'
+import { confirmDialog } from '@/composables/useConfirm'
+import { meetingsApi } from '@/services/meetings'
+import NewConversationModal from '@/components/communication/NewConversationModal.vue'
+
+const PAGE = 50
 
 export default {
-  name: 'MessagingView',
-  setup() {
-    // Reactive state
-    const loading = ref(true)
-    const messagesLoading = ref(false)
-    const sending = ref(false)
-    const loadingMore = ref(false)
-    const hasMoreMessages = ref(true)
-
-    const threads = ref([])
-    const selectedThread = ref(null)
-    const messages = ref([])
-    const messageText = ref('')
-    const searchQuery = ref('')
-    const selectedFiles = ref([])
-    const replyingTo = ref(null)
-    const typingUsers = ref([])
-    const playingAudio = ref(null)
-
-    // Modals and UI state
-    const showNewChatModal = ref(false)
-    const showSettings = ref(false)
-    const showAttachmentOptions = ref(false)
-    const showThreadOptions = ref(false)
-    const isRecording = ref(false)
-
-    // New chat modal
-    const participantSearch = ref('')
-    const availableUsers = ref([])
-    const selectedParticipants = ref([])
-    const searchSuggestions = ref([])
-    const quickSuggestions = ref([])
-    const allUsers = ref([])
-
-    // Current user (would come from auth store)
-    const currentUserId = ref(1) // Mock user ID
-
-    // Computed
-    const filteredThreads = computed(() => {
-      if (!searchQuery.value) return threads.value
-
-      return threads.value.filter(thread => {
-        const name = getThreadName(thread).toLowerCase()
-        const lastMessage = getLastMessage(thread).toLowerCase()
-        const query = searchQuery.value.toLowerCase()
-
-        return name.includes(query) || lastMessage.includes(query)
-      })
-    })
-
-    const groupedMessages = computed(() => {
-      return groupMessagesByDate(messages.value)
-    })
-
-    // Methods
-    const loadThreads = async () => {
-      loading.value = true
-      try {
-        const response = await messagingService.getThreads()
-        if (response.success) {
-          threads.value = response.data || []
-        }
-      } catch (error) {
-        console.error('Failed to load threads:', error)
-      } finally {
-        loading.value = false
-      }
-    }
-
-    const searchMessages = async () => {
-      // If search query is empty, just use the computed filteredThreads
-      if (!searchQuery.value.trim()) {
-        return
-      }
-
-      try {
-        // Search for messages across all threads
-        const response = await messagingService.searchMessages(searchQuery.value)
-        if (response.success && response.data) {
-          // Update threads with search results or filter existing threads
-          // This would need backend implementation to return relevant threads
-          console.log('Search results:', response.data)
-        }
-      } catch (error) {
-        console.error('Failed to search messages:', error)
-      }
-    }
-
-    const selectThread = async (thread) => {
-      selectedThread.value = thread
-      messagesLoading.value = true
-      messages.value = []
-
-      try {
-        const response = await messagingService.getMessages(thread.id)
-        if (response.success) {
-          messages.value = response.data || []
-          scrollToBottom()
-
-          // Join WebSocket room for this thread
-          webSocketService.joinThread(thread.id)
-        }
-      } catch (error) {
-        console.error('Failed to load messages:', error)
-      } finally {
-        messagesLoading.value = false
-      }
-    }
-
-    const sendMessage = async () => {
-      if (!messageText.value.trim() && selectedFiles.value.length === 0) return
-
-      sending.value = true
-      try {
-        const messageData = {
-          content: messageText.value.trim(),
-          message_type: 'text',
-          reply_to_id: replyingTo.value?.id
-        }
-
-        const response = await messagingService.sendMessage(selectedThread.value.id, messageData)
-        if (response.success) {
-          messageText.value = ''
-          replyingTo.value = null
-          showAttachmentOptions.value = false
-          selectedFiles.value = []
-
-          // Message will be added via WebSocket
-          scrollToBottom()
-        }
-      } catch (error) {
-        console.error('Failed to send message:', error)
-      } finally {
-        sending.value = false
-      }
-    }
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault()
-        sendMessage()
-      }
-    }
-
-    const handleTyping = () => {
-      if (selectedThread.value) {
-        webSocketService.startTyping(selectedThread.value.id, currentUserId.value)
-
-        // Stop typing after 3 seconds
-        clearTimeout(handleTyping.timeout)
-        handleTyping.timeout = setTimeout(() => {
-          webSocketService.stopTyping(selectedThread.value.id, currentUserId.value)
-        }, 3000)
-      }
-    }
-
-    const scrollToBottom = () => {
-      nextTick(() => {
-        const container = document.querySelector('.messages-area')
-        if (container) {
-          container.scrollTop = container.scrollHeight
-        }
-      })
-    }
-
-    const backToThreads = () => {
-      selectedThread.value = null
-      if (selectedThread.value) {
-        webSocketService.leaveThread(selectedThread.value.id)
-      }
-    }
-
-    // Helper methods
-    const getThreadName = (thread) => {
-      if (thread.name) return thread.name
-
-      const otherParticipants = thread.participants?.filter(p => p.user_id !== currentUserId.value) || []
-      if (otherParticipants.length === 1) {
-        const user = otherParticipants[0].user
-        return `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Unknown User'
-      }
-
-      return `Group (${otherParticipants.length + 1})`
-    }
-
-    const getThreadAvatar = (thread) => {
-      // Return avatar URL if available
-      return null
-    }
-
-    const getThreadInitials = (thread) => {
-      const name = getThreadName(thread)
-      const words = name.split(' ')
-      if (words.length >= 2) {
-        return `${words[0][0]}${words[1][0]}`.toUpperCase()
-      }
-      return name.substring(0, 2).toUpperCase()
-    }
-
-    const getLastMessage = (thread) => {
-      const lastMessage = thread.messages?.[0]
-      if (!lastMessage) return 'No messages yet'
-
-      if (lastMessage.message_type === 'text') {
-        return lastMessage.content
-      }
-
-      return `${lastMessage.message_type.charAt(0).toUpperCase() + lastMessage.message_type.slice(1)}`
-    }
-
-    const getUnreadCount = (thread) => {
-      // This would come from the backend
-      return Math.floor(Math.random() * 5) // Mock unread count
-    }
-
-    const getOnlineStatus = (thread) => {
-      // Mock online status
-      return Math.random() > 0.5
-    }
-
-    const formatTime = (timestamp) => {
-      return formatMessageTime(timestamp)
-    }
-
-    const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      const today = new Date()
-
-      if (date.toDateString() === today.toDateString()) {
-        return 'Today'
-      }
-
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-      if (date.toDateString() === yesterday.toDateString()) {
-        return 'Yesterday'
-      }
-
-      return date.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    }
-
-    const searchParticipants = async () => {
-      if (!participantSearch.value.trim()) {
-        searchSuggestions.value = []
-        return
-      }
-
-      try {
-        const query = participantSearch.value.toLowerCase()
-        const filtered = allUsers.value.filter(user =>
-          !selectedParticipants.value.includes(user.id) && (
-            user.first_name.toLowerCase().includes(query) ||
-            user.last_name.toLowerCase().includes(query) ||
-            user.email.toLowerCase().includes(query) ||
-            user.role.toLowerCase().includes(query) ||
-            user.team?.toLowerCase().includes(query)
-          )
-        )
-        searchSuggestions.value = filtered.slice(0, 10)
-      } catch (error) {
-        console.error('Failed to search participants:', error)
-      }
-    }
-
-    const addParticipant = (user) => {
-      if (!selectedParticipants.value.includes(user.id)) {
-        selectedParticipants.value.push(user.id)
-        // Remove from search suggestions
-        searchSuggestions.value = searchSuggestions.value.filter(p => p.id !== user.id)
-        // Clear search if we added from suggestions
-        if (participantSearch.value) {
-          participantSearch.value = ''
-          searchSuggestions.value = []
-        }
-      }
-    }
-
-    const removeParticipant = (userId) => {
-      const index = selectedParticipants.value.indexOf(userId)
-      if (index > -1) {
-        selectedParticipants.value.splice(index, 1)
-      }
-    }
-
-    const getParticipantById = (id) => {
-      return allUsers.value.find(user => user.id === id)
-    }
-
-    const getAvatarGradient = (id) => {
-      const gradients = [
-        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-        'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-        'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-        'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-        'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)'
-      ]
-      return gradients[id % gradients.length]
-    }
-
-    const isOnline = (userId) => {
-      // Mock online status
-      return Math.random() > 0.3
-    }
-
-    const createNewThread = async () => {
-      if (selectedParticipants.value.length === 0) return
-
-      try {
-        const threadData = {
-          participant_ids: selectedParticipants.value,
-          name: selectedParticipants.value.length > 1 ? 'Group Chat' : null
-        }
-
-        const response = await messagingService.createThread(threadData)
-        if (response.success) {
-          // Close modal and reload threads
-          showNewChatModal.value = false
-          selectedParticipants.value = []
-          participantSearch.value = ''
-          searchSuggestions.value = []
-
-          await loadThreads()
-
-          // Select the new thread
-          if (response.data) {
-            selectThread(response.data)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to create thread:', error)
-      }
-    }
-
-    // WebSocket event handlers
-    const handleNewMessage = (message) => {
-      if (selectedThread.value && message.thread_id === selectedThread.value.id) {
-        messages.value.push(message)
-        scrollToBottom()
-      }
-
-      // Update thread last message
-      const threadIndex = threads.value.findIndex(t => t.id === message.thread_id)
-      if (threadIndex !== -1) {
-        threads.value[threadIndex].last_message_at = message.created_at
-        if (!threads.value[threadIndex].messages) {
-          threads.value[threadIndex].messages = []
-        }
-        threads.value[threadIndex].messages[0] = message
-      }
-    }
-
-    const handleTypingIndicator = (data) => {
-      if (selectedThread.value && data.thread_id === selectedThread.value.id) {
-        const userIndex = typingUsers.value.indexOf(data.user_id)
-
-        if (data.is_typing && userIndex === -1) {
-          typingUsers.value.push(data.user_id)
-        } else if (!data.is_typing && userIndex !== -1) {
-          typingUsers.value.splice(userIndex, 1)
-        }
-      }
-    }
-
-    const loadUsers = async () => {
-      try {
-        // Mock users data - replace with actual API call
-        allUsers.value = [
-          { id: 2, first_name: 'John', last_name: 'Smith', role: 'Manager', email: 'john@example.com', team: 'Sales' },
-          { id: 3, first_name: 'Jane', last_name: 'Doe', role: 'Staff', email: 'jane@example.com', team: 'Marketing' },
-          { id: 4, first_name: 'Mike', last_name: 'Johnson', role: 'Support', email: 'mike@example.com', team: 'Support' },
-          { id: 5, first_name: 'Sarah', last_name: 'Wilson', role: 'Admin', email: 'sarah@example.com', team: 'IT' },
-          { id: 6, first_name: 'David', last_name: 'Brown', role: 'Developer', email: 'david@example.com', team: 'Engineering' },
-          { id: 7, first_name: 'Lisa', last_name: 'Garcia', role: 'Designer', email: 'lisa@example.com', team: 'Design' },
-          { id: 8, first_name: 'Tom', last_name: 'Miller', role: 'Analyst', email: 'tom@example.com', team: 'Analytics' },
-          { id: 9, first_name: 'Emma', last_name: 'Davis', role: 'Coordinator', email: 'emma@example.com', team: 'Operations' }
-        ]
-
-        // Set quick suggestions (recently contacted or frequently messaged)
-        quickSuggestions.value = allUsers.value.slice(0, 4)
-      } catch (error) {
-        console.error('Failed to load users:', error)
-      }
-    }
-
-    // Lifecycle
-    onMounted(async () => {
-      await loadThreads()
-      await loadUsers()
-
-      // Initialize WebSocket
-      webSocketService.connect(currentUserId.value, 1) // Mock org ID
-
-      // Set up WebSocket listeners
-      webSocketService.on('message_received', handleNewMessage)
-      webSocketService.on('typing_changed', handleTypingIndicator)
-    })
-
-    onUnmounted(() => {
-      webSocketService.disconnect()
-    })
-
+  name: 'Messages',
+  components: { NewConversationModal },
+  data() {
     return {
-      // State
-      loading,
-      messagesLoading,
-      sending,
-      loadingMore,
-      hasMoreMessages,
-      threads,
-      selectedThread,
-      messages,
-      messageText,
-      searchQuery,
-      selectedFiles,
-      replyingTo,
-      typingUsers,
-      playingAudio,
-      showNewChatModal,
-      showSettings,
-      showAttachmentOptions,
-      showThreadOptions,
-      isRecording,
-      participantSearch,
-      availableUsers,
-      selectedParticipants,
-      searchSuggestions,
-      quickSuggestions,
-      currentUserId,
-
-      // Computed
-      filteredThreads,
-      groupedMessages,
-      groupedSearchSuggestions: computed(() => {
-        if (!searchSuggestions.value.length) return []
-
-        const colleagues = searchSuggestions.value.filter(p => p.role !== 'Admin')
-        const admins = searchSuggestions.value.filter(p => p.role === 'Admin')
-
-        const groups = []
-        if (colleagues.length > 0) {
-          groups.push({
-            type: 'colleagues',
-            title: 'Colleagues',
-            icon: 'fas fa-users',
-            items: colleagues
-          })
+      threads: [],
+      loadingThreads: true,
+      threadsError: '',
+      activeId: null,
+      messages: [],
+      loadingMessages: false,
+      messagesError: '',
+      page: 1,
+      hasMore: false,
+      loadingOlder: false,
+      draft: '',
+      q: '',
+      filter: 'all',
+      showNew: false,
+      socketStatus: 'connecting',
+      typingIn: {},
+      typingTimers: {},
+      typingSent: 0,
+      typingStopTimer: null,
+      showJump: false,
+      offs: [],
+      pollTimer: null,
+      tmpSeq: 0,
+      calling: false,
+      chatSettings: { enable_in_app_messaging: true, enable_group_chats: true, enable_typing_indicator: true }
+    }
+  },
+  computed: {
+    meId() {
+      return useAuthStore().user?.id || ''
+    },
+    active() {
+      return this.threads.find((t) => t.id === this.activeId) || null
+    },
+    totalUnread() {
+      return this.threads.reduce((s, t) => s + (t.unread || 0), 0)
+    },
+    visibleThreads() {
+      const q = this.q.toLowerCase()
+      return this.threads.filter((t) => {
+        if (this.filter === 'unread' && !t.unread) return false
+        if (this.filter === 'groups' && !t.isGroup) return false
+        return !q || t.name.toLowerCase().includes(q) || (t.last && (t.last.content || '').toLowerCase().includes(q))
+      })
+    },
+    grouped() {
+      return groupMessagesByDate(this.messages)
+    },
+    memberNames() {
+      return this.active ? this.active.participants.map((p) => (p.user_id === this.meId ? 'You' : this.firstName(p.user))).join(', ') : ''
+    },
+    socketLabel() {
+      return { connected: 'Live', connecting: 'Connecting', disconnected: 'Offline', unauthorized: 'Offline' }[this.socketStatus] || 'Offline'
+    },
+    socketTitle() {
+      return this.socketStatus === 'connected' ? 'Messages arrive instantly' : 'Real-time connection unavailable — checking for new messages every 15 seconds'
+    }
+  },
+  created() {
+    messagingService
+      .getSettings()
+      .then((st) => st && (this.chatSettings = { ...this.chatSettings, ...st }))
+      .catch(() => {})
+    this.loadThreads().then(() => {
+      const id = Number(this.$route.query.thread)
+      if (id && this.threads.some((t) => t.id === id)) this.openThread(id)
+    })
+    if (this.$route.query.new) this.showNew = true
+  },
+  mounted() {
+    const ws = webSocketService
+    this.offs = [
+      ws.on('status', (s) => (this.socketStatus = s)),
+      ws.on('new_message', (env) => this.onIncoming(env)),
+      ws.on('typing_indicator', (env) => this.onTyping(env))
+    ]
+    this.socketStatus = ws.isConnected ? 'connected' : 'connecting'
+    ws.connect()
+    // Fallback polling keeps things fresh if the socket can't connect.
+    this.pollTimer = setInterval(() => {
+      if (!webSocketService.isConnected && document.visibilityState === 'visible') this.refresh()
+    }, 15000)
+  },
+  beforeUnmount() {
+    this.offs.forEach((off) => off())
+    clearInterval(this.pollTimer)
+    clearTimeout(this.typingStopTimer)
+    Object.values(this.typingTimers).forEach(clearTimeout)
+    if (this.activeId) webSocketService.stopTyping(this.activeId)
+  },
+  methods: {
+    initials,
+    time: formatMessageTime,
+    firstName(u) {
+      return (u && (u.first_name || personName(u))) || 'Someone'
+    },
+    senderName(m) {
+      if (m.sender) return personName(m.sender)
+      const p = this.active && this.active.participants.find((x) => x.user_id === m.sender_id)
+      return p ? personName(p.user) : 'Unknown'
+    },
+    linkify(text = '') {
+      const out = []
+      const re = /\bhttps?:\/\/[^\s<>"]+/gi
+      let last = 0
+      let m
+      while ((m = re.exec(text))) {
+        if (m.index > last) out.push({ text: text.slice(last, m.index) })
+        const url = m[0].replace(/[.,!?)]+$/, '')
+        out.push({ text: url, href: url })
+        last = m.index + url.length
+        re.lastIndex = last
+      }
+      if (last < text.length) out.push({ text: text.slice(last) })
+      return out
+    },
+    clock(ts) {
+      return ts ? new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''
+    },
+    async loadThreads() {
+      this.threadsError = ''
+      try {
+        const list = await messagingService.getThreads()
+        this.threads = (list || []).map((t) => normalizeThread(t, this.meId))
+        this.sortThreads()
+      } catch (e) {
+        this.threadsError = apiErrorMessage(e, 'Could not load conversations')
+      } finally {
+        this.loadingThreads = false
+      }
+    },
+    sortThreads() {
+      this.threads.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
+    },
+    async refresh() {
+      await this.loadThreads()
+      if (this.activeId) this.loadMessages(this.activeId, { silent: true })
+    },
+    openThread(id) {
+      if (this.activeId && this.activeId !== id) webSocketService.stopTyping(this.activeId)
+      this.activeId = id
+      this.draft = ''
+      this.$router.replace({ query: { thread: String(id) } })
+      this.loadMessages(id)
+      const t = this.threads.find((x) => x.id === id)
+      if (t) t.unread = 0
+      this.$nextTick(() => this.$refs.composer && window.innerWidth > 760 && this.$refs.composer.focus())
+    },
+    closeThread() {
+      this.activeId = null
+      this.$router.replace({ query: {} })
+    },
+    async loadMessages(id, { silent = false } = {}) {
+      if (!silent) {
+        this.loadingMessages = true
+        this.messages = []
+        this.page = 1
+      }
+      this.messagesError = ''
+      try {
+        const list = (await messagingService.getMessages(id, 1, PAGE)) || []
+        if (this.activeId !== id) return
+        const fresh = list.slice().reverse()
+        if (silent) {
+          const known = new Set(this.messages.map((m) => m.id))
+          const added = fresh.filter((m) => !known.has(m.id))
+          if (added.length) {
+            this.messages = [...this.messages.filter((m) => m.id), ...added].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+            this.afterNewMessage()
+          }
+        } else {
+          this.messages = fresh
+          this.hasMore = list.length === PAGE
+          this.$nextTick(() => this.scrollToBottom())
         }
-        if (admins.length > 0) {
-          groups.push({
-            type: 'admins',
-            title: 'Administrators',
-            icon: 'fas fa-user-shield',
-            items: admins
-          })
+      } catch (e) {
+        if (!silent) this.messagesError = apiErrorMessage(e, 'Could not load messages')
+      } finally {
+        this.loadingMessages = false
+      }
+    },
+    async loadOlder() {
+      if (!this.activeId) return
+      this.loadingOlder = true
+      const el = this.$refs.scroller
+      const before = el ? el.scrollHeight : 0
+      try {
+        const list = (await messagingService.getMessages(this.activeId, this.page + 1, PAGE)) || []
+        this.page++
+        const known = new Set(this.messages.map((m) => m.id))
+        this.messages = [...list.slice().reverse().filter((m) => !known.has(m.id)), ...this.messages]
+        this.hasMore = list.length === PAGE
+        this.$nextTick(() => el && (el.scrollTop = el.scrollHeight - before))
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not load earlier messages'))
+      } finally {
+        this.loadingOlder = false
+      }
+    },
+    nearBottom() {
+      const el = this.$refs.scroller
+      return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120
+    },
+    scrollToBottom(smooth = false) {
+      const el = this.$refs.scroller
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+      this.showJump = false
+    },
+    onScroll() {
+      if (this.nearBottom()) this.showJump = false
+    },
+    afterNewMessage() {
+      if (this.nearBottom()) this.$nextTick(() => this.scrollToBottom(true))
+      else this.showJump = true
+    },
+    bumpThread(threadId, msg) {
+      const t = this.threads.find((x) => x.id === threadId)
+      if (!t) return false
+      t.last = msg
+      t.updatedAt = msg.created_at
+      this.sortThreads()
+      return true
+    },
+    async send() {
+      const text = this.draft.trim()
+      if (!text || !this.active) return
+      const threadId = this.active.id
+      const tmp = { _tmp: `t${++this.tmpSeq}`, _pending: true, thread_id: threadId, sender_id: this.meId, content: text, created_at: new Date().toISOString() }
+      this.messages.push(tmp)
+      this.draft = ''
+      this.$nextTick(() => {
+        this.autosize()
+        this.scrollToBottom(true)
+      })
+      webSocketService.stopTyping(threadId)
+      this.typingSent = 0
+      await this.deliver(tmp)
+    },
+    async deliver(tmp) {
+      try {
+        const saved = await messagingService.sendMessage(tmp.thread_id, { content: tmp.content, message_type: 'text' })
+        const i = this.messages.findIndex((m) => m._tmp === tmp._tmp)
+        const dup = this.messages.some((m) => m.id === saved.id)
+        if (i >= 0) {
+          if (dup) this.messages.splice(i, 1)
+          else this.messages.splice(i, 1, saved)
         }
-        return groups
-      }),
-
-      // Methods
-      loadThreads,
-      selectThread,
-      sendMessage,
-      handleKeyDown,
-      handleTyping,
-      scrollToBottom,
-      backToThreads,
-      searchMessages,
-      searchParticipants,
-      addParticipant,
-      removeParticipant,
-      getParticipantById,
-      getAvatarGradient,
-      isOnline,
-      createNewThread,
-      getThreadName,
-      getThreadAvatar,
-      getThreadInitials,
-      getLastMessage,
-      getUnreadCount,
-      getOnlineStatus,
-      formatTime,
-      formatDate
+        this.bumpThread(tmp.thread_id, saved)
+      } catch (e) {
+        const m = this.messages.find((x) => x._tmp === tmp._tmp)
+        if (m) {
+          m._pending = false
+          m._failed = true
+        }
+        toast.error(apiErrorMessage(e, 'Message not sent'))
+      }
+    },
+    retry(m) {
+      m._failed = false
+      m._pending = true
+      this.deliver(m)
+    },
+    onIncoming(env) {
+      const msg = env && env.data
+      if (!msg || !msg.id) return
+      const threadId = env.thread_id || msg.thread_id
+      if (threadId === this.activeId) {
+        if (!this.messages.some((m) => m.id === msg.id)) {
+          if (msg.sender_id === this.meId) {
+            // Our own message echoed back; the REST response will replace the temp copy.
+            const pending = this.messages.find((m) => m._pending && m.content === msg.content)
+            if (pending) return
+          }
+          this.messages.push(msg)
+          this.afterNewMessage()
+          // Opening the thread marks messages read on the server.
+          if (msg.sender_id !== this.meId && document.visibilityState === 'visible') messagingService.getMessages(threadId, 1, 1).catch(() => {})
+        }
+        this.clearTyping(threadId)
+      }
+      if (!this.bumpThread(threadId, msg)) {
+        this.loadThreads()
+        return
+      }
+      const t = this.threads.find((x) => x.id === threadId)
+      if (t && threadId !== this.activeId && msg.sender_id !== this.meId) t.unread = (t.unread || 0) + 1
+    },
+    onTyping(env) {
+      const threadId = env.thread_id
+      const uid = env.user_id || (env.data && env.data.user_id)
+      if (!threadId || uid === this.meId || !this.chatSettings.enable_typing_indicator) return
+      const t = this.threads.find((x) => x.id === threadId)
+      if (!t) return
+      if (env.data && env.data.is_typing) {
+        const p = t.participants.find((x) => x.user_id === uid)
+        this.typingIn = { ...this.typingIn, [threadId]: p ? this.firstName(p.user) : 'Someone' }
+        clearTimeout(this.typingTimers[threadId])
+        this.typingTimers[threadId] = setTimeout(() => this.clearTyping(threadId), 6000)
+      } else {
+        this.clearTyping(threadId)
+      }
+    },
+    clearTyping(threadId) {
+      if (!this.typingIn[threadId]) return
+      const next = { ...this.typingIn }
+      delete next[threadId]
+      this.typingIn = next
+    },
+    onInput() {
+      this.autosize()
+      if (!this.activeId || !this.chatSettings.enable_typing_indicator) return
+      const now = Date.now()
+      if (this.draft && now - this.typingSent > 3000) {
+        webSocketService.startTyping(this.activeId)
+        this.typingSent = now
+      }
+      clearTimeout(this.typingStopTimer)
+      const id = this.activeId
+      this.typingStopTimer = setTimeout(() => {
+        webSocketService.stopTyping(id)
+        this.typingSent = 0
+      }, 2500)
+    },
+    autosize() {
+      const el = this.$refs.composer
+      if (!el) return
+      el.style.height = 'auto'
+      el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+    },
+    async onCreated(thread) {
+      this.showNew = false
+      await this.loadThreads()
+      if (thread && thread.id) {
+        if (!this.threads.some((t) => t.id === thread.id)) this.threads.unshift(normalizeThread(thread, this.meId))
+        this.openThread(thread.id)
+      }
+      toast.success('Conversation started')
+    },
+    async startCall() {
+      const t = this.active
+      if (!t) return
+      const okd = await confirmDialog({
+        title: 'Start a video call?',
+        message: `A meeting room opens now and ${t.isGroup ? 'everyone in this group gets' : `${t.name} gets`} a link here in the chat (and a calendar invite if email is set up).`,
+        confirmText: 'Start call'
+      })
+      if (!okd) return
+      this.calling = true
+      try {
+        const participants = t.others.filter((p) => p.user && p.user.email).map((p) => ({ name: personName(p.user), email: p.user.email, user_id: p.user_id }))
+        let tz = 'UTC'
+        try {
+          tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        } catch {
+          /* default */
+        }
+        const created = await meetingsApi.create({ title: `Call: ${t.name}`.slice(0, 120), start_at: new Date().toISOString(), duration_minutes: 30, timezone: tz, location_type: 'video', participants, send_invites: true })
+        const id = (created && (created.meeting?.id || created.id)) || null
+        if (!id) throw new Error('no meeting id')
+        await meetingsApi.start(id).catch(() => {})
+        const link = `${window.location.origin}/meetings/${id}`
+        await messagingService.sendMessage(t.id, { content: `I started a video call. Join here: ${link}`, message_type: 'text' }).catch(() => {})
+        this.$router.push(`/meetings/${id}`)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not start the call'))
+      } finally {
+        this.calling = false
+      }
+    },
+    onOpenExisting(id) {
+      this.showNew = false
+      this.openThread(id)
     }
   }
 }
 </script>
 
 <style scoped>
-.messaging-container {
-  display: flex;
-  height: calc(100vh - 80px);
-  background: var(--bg-primary);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: var(--shadow-md);
-}
-
-/* Sidebar */
-.messaging-sidebar {
-  width: 350px;
-  background: var(--card-bg);
-  border-right: 1px solid var(--border-color);
+.msg-page {
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
 }
 
-.sidebar-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
+.conn {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 0 6px;
 }
 
-.user-info {
+.conn i {
+  font-size: 7px;
+}
+
+.conn--connected {
+  color: var(--success);
+}
+
+.conn--connecting {
+  color: var(--warning);
+}
+
+.chat {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  height: calc(100vh - 220px);
+  min-height: 520px;
+  overflow: hidden;
+}
+
+/* Thread list */
+.threads {
+  border-right: 1px solid var(--border);
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
 }
 
-.user-avatar {
+.threads__head {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-tabs {
+  width: 100%;
+}
+
+.filter-tabs .ui-tab {
+  flex: 1;
+  justify-content: center;
+}
+
+.threads__list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px;
+}
+
+.thread {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  align-items: center;
+}
+
+.thread.sk {
+  cursor: default;
+}
+
+.thread:hover {
+  background: var(--surface-hover);
+}
+
+.thread.is-active {
+  background: var(--accent-soft);
+}
+
+.t-avatar {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-}
-
-.user-details h3 {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.online-status {
-  font-size: 0.8rem;
-  color: #10b981;
-  font-weight: 500;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-new-chat,
-.btn-settings {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-new-chat:hover,
-.btn-settings:hover {
-  background: var(--primary);
-  color: white;
-}
-
-/* Search */
-.search-section {
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.search-box {
-  position: relative;
-}
-
-.search-box i {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-secondary);
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.75rem 0.75rem 0.75rem 2.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.search-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
-}
-
-/* Threads List */
-.threads-list {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.loading-threads {
-  padding: 1rem;
-}
-
-.thread-skeleton {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 0;
-}
-
-.skeleton-avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: var(--skeleton-color);
-  animation: skeleton-loading 1.5s infinite;
-}
-
-.skeleton-content {
-  flex: 1;
-}
-
-.skeleton-line {
-  height: 12px;
-  background: var(--skeleton-color);
-  border-radius: 6px;
-  margin-bottom: 0.5rem;
-  animation: skeleton-loading 1.5s infinite;
-}
-
-.skeleton-line.short {
-  width: 60%;
-}
-
-@keyframes skeleton-loading {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.empty-threads {
-  padding: 2rem;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.empty-threads i {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.thread-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  cursor: pointer;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease;
-}
-
-.thread-item:hover {
-  background: var(--bg-secondary);
-}
-
-.thread-item.active {
-  background: var(--primary-light);
-  border-right: 3px solid var(--primary);
-}
-
-.thread-avatar {
-  position: relative;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
   flex-shrink: 0;
 }
 
-.thread-avatar img,
-.avatar-placeholder {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
+.thread.is-active .t-avatar {
+  background: var(--surface);
 }
 
-.avatar-placeholder {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
+.t-avatar.group {
+  background: var(--info-soft);
+  color: var(--info);
 }
 
-.online-indicator {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 16px;
-  height: 16px;
-  background: #10b981;
-  border-radius: 50%;
-  border: 3px solid var(--card-bg);
-}
-
-.thread-info {
+.t-body {
   flex: 1;
   min-width: 0;
 }
 
-.thread-header {
+.t-top,
+.t-bottom {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   align-items: center;
-  margin-bottom: 0.25rem;
 }
 
-.thread-name {
-  font-size: 1rem;
+.t-name {
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.thread-time {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+.t-time {
+  font-size: 11.5px;
+  color: var(--text-3);
   flex-shrink: 0;
 }
 
-.thread-preview {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.last-message {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin: 0;
-  white-space: nowrap;
+.t-preview {
+  font-size: 13px;
+  color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
+  white-space: nowrap;
 }
 
-.thread-badges {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.thread.is-unread .t-preview {
+  color: var(--text);
+  font-weight: 550;
 }
 
-.unread-badge {
-  background: var(--primary);
-  color: white;
-  border-radius: 10px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.7rem;
+.thread.is-unread .t-time {
+  color: var(--accent);
   font-weight: 600;
+}
+
+.t-unread {
   min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.typing-text {
+  color: var(--accent);
+}
+
+.list-note {
+  padding: 32px 16px;
   text-align: center;
 }
 
-.muted-icon {
-  color: var(--text-secondary);
-  font-size: 0.8rem;
+.list-note p {
+  margin: 0 0 6px;
 }
 
-/* Chat Area */
-.chat-area {
-  flex: 1;
+.list-note .ui-empty__icon {
+  margin: 0 auto 12px;
+}
+
+/* Conversation */
+.convo {
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
-}
-
-.no-chat-selected {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.welcome-message {
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.welcome-message i {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  opacity: 0.3;
-}
-
-.welcome-message h2 {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-  color: var(--text-primary);
-}
-
-.active-chat {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-/* Chat Header */
-.chat-header {
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--card-bg);
-}
-
-.btn-back {
-  display: none;
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.chat-contact {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex: 1;
-}
-
-.contact-avatar {
+  min-height: 0;
   position: relative;
+  background: var(--bg-subtle);
 }
 
-.contact-avatar img,
-.contact-avatar .avatar-placeholder {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-}
-
-.contact-avatar .avatar-placeholder {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+.convo__head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 0.9rem;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
-.contact-name {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.2rem 0;
+.convo__title {
+  flex: 1;
+  min-width: 0;
 }
 
-.contact-status {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+.convo__title h2 {
+  font-size: 15px;
+  font-weight: 650;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.typing-indicator {
-  color: var(--primary);
-  font-style: italic;
+.convo__title small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
 }
 
-.chat-actions {
-  display: flex;
-  gap: 0.5rem;
+.back {
+  display: none;
 }
 
-.btn-action {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-action:hover {
-  background: var(--bg-secondary);
-  color: var(--primary);
-}
-
-/* Messages Area */
-.messages-area {
+.convo__messages {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem;
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0);
-  background-size: 20px 20px;
+  padding: 20px 24px 12px;
 }
 
-.messages-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
-.loading-spinner {
-  width: 30px;
-  height: 30px;
-  border: 3px solid var(--border-color);
-  border-top: 3px solid var(--primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.btn-load-more {
-  display: block;
-  margin: 1rem auto;
-  padding: 0.5rem 1rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-load-more:hover {
-  background: var(--primary-light);
-}
-
-/* Message Groups */
-.message-group {
-  margin-bottom: 1.5rem;
-}
-
-.date-separator {
+.load-older {
   text-align: center;
-  margin: 1.5rem 0;
+  margin-bottom: 12px;
 }
 
-.date-separator span {
-  background: var(--bg-secondary);
-  padding: 0.5rem 1rem;
-  border-radius: 16px;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-/* Messages */
-.message-wrapper {
+.msg-sk {
   display: flex;
-  margin-bottom: 0.5rem;
-  padding: 0 0.5rem;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.day {
+  text-align: center;
+  margin: 18px 0 12px;
   position: relative;
 }
 
-.message-wrapper.own-message {
+.day span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--bg-subtle);
+  padding: 0 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.day::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--border);
+}
+
+.msg {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: flex-end;
+}
+
+.msg.cont {
+  margin-top: 3px;
+  padding-left: 42px;
+}
+
+.msg.mine {
   justify-content: flex-end;
 }
 
-.message-wrapper.own-message .message-bubble {
-  background: var(--primary);
-  color: white;
-  border-bottom-right-radius: 4px;
+.msg.mine.cont {
+  padding-left: 0;
 }
 
-.message-bubble {
-  max-width: 70%;
-  background: white;
-  border-radius: 18px;
-  border-bottom-left-radius: 4px;
-  padding: 0.75rem 1rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  position: relative;
+.m-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--surface);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.message-reply {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  padding: 0.5rem;
-  margin-bottom: 0.5rem;
-  border-left: 4px solid var(--primary);
-  cursor: pointer;
-}
-
-.reply-sender {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--primary);
-}
-
-.reply-text {
-  font-size: 0.85rem;
-  margin: 0.2rem 0 0 0;
-  opacity: 0.8;
-}
-
-.message-content {
-  word-wrap: break-word;
-}
-
-.message-text {
-  line-height: 1.4;
-}
-
-.message-image img {
-  max-width: 200px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.image-caption {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.message-file {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-}
-
-.file-details {
+.m-bubble-wrap {
+  max-width: min(640px, 75%);
   display: flex;
   flex-direction: column;
 }
 
-.file-name {
-  font-weight: 500;
-  font-size: 0.9rem;
+.msg.mine .m-bubble-wrap {
+  align-items: flex-end;
 }
 
-.file-size {
-  font-size: 0.8rem;
+.m-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin: 0 0 3px 4px;
+}
+
+.m-bubble {
+  padding: 9px 14px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  box-shadow: var(--shadow-xs);
+}
+
+.msg:not(.mine) .m-bubble {
+  border-bottom-left-radius: 6px;
+}
+
+.msg.mine .m-bubble {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  border-bottom-right-radius: 6px;
+}
+
+.m-bubble a {
+  color: inherit;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.msg.pending .m-bubble {
   opacity: 0.7;
 }
 
-.message-audio {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.5rem;
+.msg.failed .m-bubble {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--text);
 }
 
-.btn-play-audio {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: var(--primary);
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
+.m-meta {
+  font-size: 11px;
+  color: var(--text-3);
+  margin: 3px 6px 0;
 }
 
-.audio-waveform {
-  display: flex;
-  gap: 2px;
-  flex: 1;
+.msg.failed .m-meta {
+  color: var(--danger);
 }
 
-.waveform-bar {
-  width: 3px;
-  height: 20px;
-  background: var(--primary);
-  border-radius: 2px;
-  opacity: 0.3;
+.msg.cont .m-meta {
+  display: none;
 }
 
-.message-reactions {
-  display: flex;
-  gap: 0.25rem;
-  margin-top: 0.5rem;
+.msg.cont:last-child .m-meta,
+.msg.failed .m-meta,
+.msg.pending .m-meta {
+  display: block;
 }
 
-.reaction-bubble {
-  background: rgba(0, 0, 0, 0.1);
-  padding: 0.2rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.reaction-bubble:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.message-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-  justify-content: flex-end;
-}
-
-.message-time {
-  font-size: 0.7rem;
-  opacity: 0.6;
-}
-
-.message-status i {
-  font-size: 0.8rem;
-  opacity: 0.6;
-}
-
-.message-status i.read {
-  color: var(--primary);
-  opacity: 1;
-}
-
-.message-options {
-  display: flex;
-  gap: 0.25rem;
+.jump {
   position: absolute;
-  top: -12px;
-  right: 1rem;
-  background: white;
-  padding: 0.25rem;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  opacity: 0;
-  transform: scale(0.8);
-  transition: all 0.2s ease;
-}
-
-.message-wrapper:hover .message-options {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.btn-option {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: all 0.2s ease;
-}
-
-.btn-option:hover {
-  background: var(--bg-secondary);
-  color: var(--primary);
-}
-
-/* Message Input */
-.message-input-area {
-  background: var(--card-bg);
-  border-top: 1px solid var(--border-color);
-  position: relative;
-}
-
-.reply-preview {
-  display: flex;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.reply-preview .reply-content {
-  flex: 1;
-}
-
-.reply-preview .reply-sender {
-  font-size: 0.8rem;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--primary);
-}
-
-.reply-preview .reply-text {
-  font-size: 0.85rem;
-  margin: 0.2rem 0 0 0;
-  opacity: 0.8;
-}
-
-.btn-cancel-reply {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 50%;
+  box-shadow: var(--shadow);
   cursor: pointer;
 }
 
-.input-container {
+.composer {
   display: flex;
+  gap: 10px;
   align-items: flex-end;
-  gap: 0.75rem;
-  padding: 1rem;
+  padding: 12px 18px 4px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 
-.btn-attach {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: var(--primary);
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.btn-attach:hover {
-  transform: scale(1.1);
-}
-
-.text-input-wrapper {
+.composer .ui-textarea {
   flex: 1;
-  position: relative;
-}
-
-.message-textarea {
-  width: 100%;
-  min-height: 40px;
-  max-height: 120px;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.9rem;
   resize: none;
-  outline: none;
-  font-family: inherit;
-  line-height: 1.4;
+  min-height: 42px;
+  max-height: 160px;
+  line-height: 1.45;
+  padding-top: 10px;
 }
 
-.message-textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
+.send {
+  height: 42px;
 }
 
-.btn-send,
-.btn-voice {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: var(--primary);
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+.chat-off {
+  margin: 12px 18px;
 }
 
-.btn-voice.recording {
-  background: #ef4444;
-  animation: pulse 1s infinite;
+.hint {
+  font-size: 11.5px;
+  padding: 0 18px 10px;
+  background: var(--surface);
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+.convo__empty {
+  margin: auto;
+  text-align: center;
+  padding: 24px;
 }
 
-.attachment-options {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+.convo__empty .ui-empty__icon {
+  margin: 0 auto 12px;
 }
 
-.attachment-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.convo__empty h3 {
+  font-size: 16px;
+  margin: 0 0 4px;
 }
 
-.attachment-option:hover {
-  background: var(--primary-light);
-}
-
-.attachment-option i {
-  font-size: 1.2rem;
-  color: var(--primary);
-}
-
-.attachment-option span {
-  font-size: 0.8rem;
-}
-
-/* New Chat Modal Enhanced Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease;
-}
-
-.modal-content {
-  background: var(--card-bg);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  animation: slideUp 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.modal-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  color: white;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
-.btn-close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.btn-close:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-.modal-body {
-  padding: 0;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-/* Selected Participants Section */
-.selected-participants-section {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.section-header h4 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.section-header h4 i {
-  color: var(--primary);
-}
-
-.participant-count {
-  background: var(--primary);
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.selected-participants {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.selected-participant-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  padding: 0.5rem 0.75rem;
-  transition: all 0.2s ease;
-  animation: chipSlideIn 0.3s ease;
-}
-
-@keyframes chipSlideIn {
-  from { transform: scale(0.8); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.selected-participant-chip:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.participant-avatar-sm {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 0.8rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.participant-name-sm {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.btn-remove-participant {
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: var(--danger);
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 0.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.btn-remove-participant:hover {
-  background: var(--danger-dark);
-  transform: scale(1.1);
-}
-
-/* Participant Search Section */
-.participants-search-section {
-  padding: 1.5rem;
-}
-
-.participant-search {
-  position: relative;
-}
-
-.search-input-wrapper {
-  position: relative;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-secondary);
-  z-index: 2;
-}
-
-.participant-search-input {
-  width: 100%;
-  padding: 1rem 1rem 1rem 3rem;
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 1rem;
-  outline: none;
-  transition: all 0.3s ease;
-}
-
-.participant-search-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px var(--primary-light);
-  transform: translateY(-2px);
-}
-
-.search-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  margin-top: 0.5rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  z-index: 10;
-  max-height: 300px;
-  overflow-y: auto;
-  animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-  from { transform: translateY(-10px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.suggestion-category {
-  border-bottom: 1px solid var(--border-color);
-}
-
-.suggestion-category:last-child {
-  border-bottom: none;
-}
-
-.category-header {
-  padding: 0.75rem 1rem;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.category-header i {
-  color: var(--primary);
-}
-
-.suggestion-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.suggestion-item:last-child {
-  border-bottom: none;
-}
-
-.suggestion-item:hover {
-  background: var(--primary-light);
-  transform: translateX(4px);
-}
-
-.suggestion-avatar {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.avatar-circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.status-indicator {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--card-bg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-.status-indicator.online {
-  background: #10b981;
-}
-
-.status-indicator.offline {
-  background: #6b7280;
-}
-
-.suggestion-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.suggestion-name {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-}
-
-.suggestion-details {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.85rem;
-}
-
-.suggestion-details .role {
-  color: var(--primary);
-  font-weight: 500;
-  background: var(--primary-light);
-  padding: 0.2rem 0.5rem;
-  border-radius: 8px;
-}
-
-.suggestion-details .email {
-  color: var(--text-secondary);
-}
-
-.suggestion-actions {
-  flex-shrink: 0;
-}
-
-.selected-icon {
-  color: var(--success);
-  font-size: 1.2rem;
-}
-
-.add-icon {
-  color: var(--text-secondary);
-  font-size: 1rem;
-  transition: all 0.2s ease;
-}
-
-.suggestion-item:hover .add-icon {
-  color: var(--primary);
-  transform: scale(1.2);
-}
-
-/* Quick Suggestions Section */
-.quick-suggestions-section {
-  padding: 1.5rem;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-primary);
-}
-
-.quick-suggestions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.quick-suggestion-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.quick-suggestion-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-  border-color: var(--primary);
-}
-
-.quick-suggestion-item .suggestion-info {
-  flex: 1;
-}
-
-.suggestion-role {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin-top: 0.2rem;
-}
-
-.modal-footer {
-  padding: 1.5rem;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  background: var(--bg-secondary);
-}
-
-.modal-footer .btn {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.modal-footer .btn-secondary {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-}
-
-.modal-footer .btn-secondary:hover {
-  background: var(--bg-tertiary);
-}
-
-.modal-footer .btn-primary {
-  background: var(--primary);
-  border: 1px solid var(--primary);
-  color: white;
-}
-
-.modal-footer .btn-primary:hover {
-  background: var(--primary-dark);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.modal-footer .btn-primary:disabled {
-  background: var(--text-secondary);
-  border-color: var(--text-secondary);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-/* Mobile Styles */
-@media (max-width: 768px) {
-  .messaging-container {
-    height: calc(100vh - 60px);
+@media (max-width: 1100px) {
+  .chat {
+    grid-template-columns: 290px minmax(0, 1fr);
   }
+}
 
-  .messaging-sidebar {
-    position: absolute;
-    z-index: 10;
-    height: 100%;
-    transform: translateX(0);
+@media (max-width: 760px) {
+  .chat {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 190px);
+    min-height: 460px;
   }
-
-  .messaging-sidebar.mobile-hidden {
-    transform: translateX(-100%);
+  .convo {
+    display: none;
   }
-
-  .chat-area.mobile-visible {
-    width: 100%;
+  .chat.show-thread .threads {
+    display: none;
   }
-
-  .mobile-only {
-    display: flex !important;
-  }
-
-  .btn-back {
+  .chat.show-thread .convo {
     display: flex;
   }
-
-  .message-bubble {
+  .back {
+    display: inline-flex;
+  }
+  .convo__messages {
+    padding: 14px 12px 8px;
+  }
+  .m-bubble-wrap {
     max-width: 85%;
   }
-
-  .message-options {
-    position: static;
-    margin-top: 0.5rem;
-    opacity: 1;
-    transform: scale(1);
-    justify-content: center;
+  .hint {
+    display: none;
   }
-
-  /* Mobile Modal Styles */
-  .modal-content {
-    width: 95%;
-    max-height: 90vh;
-    margin: 1rem;
+  .composer {
+    padding-bottom: 12px;
   }
-
-  .selected-participants {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .selected-participant-chip {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .quick-suggestions {
-    grid-template-columns: 1fr;
-  }
-
-  .suggestion-details {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-  }
-
-  .modal-footer {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .modal-footer .btn {
-    width: 100%;
-    padding: 1rem;
+  .conn {
+    display: none;
   }
 }
 </style>

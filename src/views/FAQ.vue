@@ -1,1062 +1,515 @@
 <template>
-  <div class="faq-page">
-    <!-- Hero Section -->
-    <div class="faq-hero">
-      <div class="hero-content">
-        <div class="hero-icon">
-          <i class="fas fa-question-circle"></i>
-        </div>
-        <h1 class="hero-title">Frequently Asked Questions</h1>
-        <p class="hero-subtitle">Find answers to common questions and learn how to make the most of DAS Booking</p>
-
-        <!-- Search Bar -->
-        <div class="faq-search">
-          <div class="search-wrapper">
-            <i class="fas fa-search"></i>
-            <input
-              v-model="searchQuery"
-              @input="filterFAQs"
-              type="text"
-              placeholder="Search for help topics..."
-              class="search-input"
-            >
-          </div>
-        </div>
+  <div class="mp ui-page ui-page--wide">
+    <header class="hero ui-card">
+      <div class="ui-eyebrow">Help centre</div>
+      <h1>How can we help?</h1>
+      <p>Answers for every part of DASYIN ERP — invoicing, point of sale, bookings, meetings, projects, HR and more.</p>
+      <div class="ui-input-group hero__search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input ref="search" v-model="q" class="ui-input" type="search" placeholder="Search help, e.g. “recurring invoice” or “pay run”" aria-label="Search help articles" @input="syncQuery" />
       </div>
-    </div>
-
-    <!-- Quick Navigation -->
-    <div class="quick-nav">
-      <div class="nav-container">
-        <h3>Browse by Category</h3>
-        <div class="category-grid">
-          <div
-            v-for="category in categories"
-            :key="category.id"
-            class="category-card"
-            :class="{ active: selectedCategory === category.id }"
-            @click="selectCategory(category.id)"
-          >
-            <div class="category-icon">
-              <i :class="category.icon"></i>
-            </div>
-            <h4>{{ category.name }}</h4>
-            <p>{{ category.description }}</p>
-            <span class="question-count">{{ category.questions.length }} questions</span>
-          </div>
-        </div>
+      <div class="chips" role="tablist" aria-label="Topics">
+        <button class="chip" :class="{ 'is-active': !topic }" @click="setTopic('')">All topics</button>
+        <button v-for="t in topics" :key="t.id" class="chip" :class="{ 'is-active': topic === t.id }" @click="setTopic(t.id)"><i :class="t.icon"></i> {{ t.label }}</button>
       </div>
-    </div>
+    </header>
 
-    <!-- FAQ Content -->
-    <div class="faq-content">
-      <div class="content-container">
-        <!-- Category Title -->
-        <div v-if="selectedCategory" class="category-header">
-          <div class="category-info">
-            <i :class="getCurrentCategory().icon"></i>
-            <h2>{{ getCurrentCategory().name }}</h2>
-          </div>
-          <button @click="selectedCategory = null" class="back-btn">
-            <i class="fas fa-arrow-left"></i>
-            View All Categories
-          </button>
+    <div class="layout">
+      <div class="articles">
+        <p v-if="q" class="muted result-count">{{ results.length }} result{{ results.length === 1 ? '' : 's' }} for “{{ q }}”</p>
+
+        <div v-if="!results.length" class="ui-card ui-empty">
+          <div class="ui-empty__icon"><i class="fa-regular fa-circle-question"></i></div>
+          <h3>No articles match</h3>
+          <p>Try fewer or different words, or ask your team in Messages.</p>
+          <button class="ui-btn" style="margin-top: 12px" @click="clear"><i class="fa-solid fa-xmark"></i> Clear search</button>
         </div>
 
-        <!-- FAQ Items -->
-        <div class="faq-list">
-          <div
-            v-for="(question, index) in filteredQuestions"
-            :key="question.id"
-            class="faq-item"
-            :class="{ open: openItems.includes(question.id) }"
-          >
-            <div class="faq-question" @click="toggleQuestion(question.id)">
-              <div class="question-content">
-                <h3>{{ question.question }}</h3>
-                <div class="question-meta">
-                  <span class="category-tag">{{ getCategoryName(question.category) }}</span>
-                  <span v-if="question.popular" class="popular-tag">
-                    <i class="fas fa-fire"></i> Popular
-                  </span>
-                </div>
-              </div>
-              <div class="question-toggle">
-                <i class="fas fa-chevron-down"></i>
-              </div>
-            </div>
-
-            <div class="faq-answer">
-              <div class="answer-content" v-html="question.answer"></div>
-
-              <!-- Related Links -->
-              <div v-if="question.relatedLinks" class="related-links">
-                <h4>Related Topics:</h4>
-                <div class="link-grid">
-                  <a
-                    v-for="link in question.relatedLinks"
-                    :key="link.title"
-                    :href="link.url"
-                    class="related-link"
-                  >
-                    <i :class="link.icon"></i>
-                    {{ link.title }}
-                  </a>
-                </div>
-              </div>
-
-              <!-- Helpful Actions -->
-              <div class="answer-actions">
-                <button @click="markHelpful(question.id)" class="helpful-btn">
-                  <i class="fas fa-thumbs-up"></i>
-                  Helpful ({{ question.helpful || 0 }})
-                </button>
-                <button @click="markNotHelpful(question.id)" class="not-helpful-btn">
-                  <i class="fas fa-thumbs-down"></i>
-                  Not Helpful
-                </button>
+        <section v-for="group in grouped" :key="group.topic.id" class="ui-card group">
+          <div class="ui-card__head">
+            <h2><span class="group__icon"><i :class="group.topic.icon"></i></span> {{ group.topic.label }}</h2>
+            <router-link v-if="group.topic.to" :to="group.topic.to" class="ui-btn ui-btn--ghost ui-btn--sm">Open {{ group.topic.label.toLowerCase() }} <i class="fa-solid fa-arrow-right"></i></router-link>
+          </div>
+          <div class="qa-list">
+            <div v-for="a in group.items" :id="a.id" :key="a.id" class="qa" :class="{ 'is-open': open[a.id] }">
+              <button class="qa__q" :aria-expanded="!!open[a.id]" :aria-controls="`${a.id}-body`" @click="toggle(a.id)">
+                <span v-html="highlight(a.q)"></span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <div v-show="open[a.id]" :id="`${a.id}-body`" class="qa__a">
+                <p v-for="(para, i) in a.a" :key="i" v-html="highlight(para)"></p>
+                <router-link v-if="a.link" :to="a.link.to" class="ui-btn ui-btn--sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> {{ a.link.label }}</router-link>
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- No Results -->
-        <div v-if="filteredQuestions.length === 0" class="no-results">
-          <i class="fas fa-search"></i>
-          <h3>No results found</h3>
-          <p>Try adjusting your search terms or browse all categories</p>
-          <button @click="clearSearch" class="clear-search-btn">Clear Search</button>
-        </div>
+        </section>
       </div>
-    </div>
 
-    <!-- Contact Support -->
-    <div class="support-section">
-      <div class="support-container">
-        <div class="support-content">
-          <h3>Still need help?</h3>
-          <p>Can't find what you're looking for? Our support team is here to help.</p>
-          <div class="support-actions">
-            <button class="contact-btn primary">
-              <i class="fas fa-envelope"></i>
-              Contact Support
-            </button>
-            <button class="contact-btn secondary">
-              <i class="fas fa-video"></i>
-              Schedule Demo
-            </button>
-            <button class="contact-btn secondary">
-              <i class="fas fa-book"></i>
-              User Guide
-            </button>
-          </div>
+      <aside class="side">
+        <div class="ui-card side__card">
+          <h3>Still stuck?</h3>
+          <p class="muted">Message a teammate or book a quick call — both are built in.</p>
+          <router-link to="/messages" class="ui-btn ui-btn--primary"><i class="fa-regular fa-message"></i> Open messages</router-link>
+          <router-link to="/meetings" class="ui-btn"><i class="fa-solid fa-calendar-plus"></i> Schedule a call</router-link>
         </div>
-      </div>
+        <div class="ui-card side__card">
+          <h3>Popular</h3>
+          <ul class="popular">
+            <li v-for="p in popular" :key="p.id"><a :href="`#${p.id}`" @click.prevent="jump(p.id)">{{ p.q }}</a></li>
+          </ul>
+        </div>
+        <div class="ui-card side__card">
+          <h3>Keyboard shortcuts</h3>
+          <dl class="keys">
+            <div><dt><kbd>Ctrl</kbd> <kbd>K</kbd></dt><dd>Search the app</dd></div>
+            <div><dt><kbd>/</kbd></dt><dd>Search these help articles</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>Close a dialog</dd></div>
+          </dl>
+        </div>
+      </aside>
     </div>
   </div>
 </template>
 
 <script>
+import '@/styles/module-page.css'
+
+const TOPICS = [
+  { id: 'start', label: 'Getting started', icon: 'fa-solid fa-rocket', to: '/dashboard' },
+  { id: 'invoicing', label: 'Invoices & quotes', icon: 'fa-solid fa-file-invoice', to: '/invoices' },
+  { id: 'pos', label: 'Point of sale', icon: 'fa-solid fa-cash-register', to: '/pos' },
+  { id: 'bookings', label: 'Bookings & events', icon: 'fa-solid fa-calendar-days', to: '/bookings' },
+  { id: 'meetings', label: 'Meetings & messages', icon: 'fa-solid fa-video', to: '/meetings' },
+  { id: 'projects', label: 'Projects & Jira', icon: 'fa-solid fa-diagram-project', to: '/projects' },
+  { id: 'operations', label: 'Inventory & manufacturing', icon: 'fa-solid fa-boxes-stacked', to: '/inventory' },
+  { id: 'hr', label: 'HR & payroll', icon: 'fa-solid fa-id-card', to: '/hcm' },
+  { id: 'store', label: 'Online store', icon: 'fa-solid fa-store', to: '/ecommerce' },
+  { id: 'account', label: 'Account, plans & security', icon: 'fa-solid fa-shield-halved', to: '/settings' }
+]
+
+const ARTICLES = [
+  // Getting started
+  { id: 'find-things', topic: 'start', q: 'How do I find my way around?', a: ['The sidebar groups the app by area: Sales & Invoicing, Customers, Bookings & Services, Inventory & Supply, Finance, People & Projects and Communication. Groups only show the modules included in your plan.', 'Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (or click Search at the top of the sidebar) to jump to any page. The <strong>Create</strong> button in the top bar starts a new invoice, booking, customer and more from anywhere.'] },
+  { id: 'dark-mode', topic: 'start', q: 'How do I switch to dark mode?', a: ['Click the moon / sun button in the top bar. Your choice is remembered on this device. Every page supports both light and dark themes.'] },
+  { id: 'currencies', topic: 'start', q: 'Which currencies are supported?', a: ['23 currencies across major, Asia-Pacific, Middle East and African markets — including AUD, USD, EUR, GBP, NZD, SGD, AED, ZAR, NGN and KES. Set your default in Settings → Regional & formats. Invoices, quotes, employees and pay runs can each use their own currency.'], link: { to: '/settings', label: 'Open settings' } },
+  { id: 'dashboard', topic: 'start', q: 'What does the dashboard show?', a: ['Your key numbers for the selected period — sales, outstanding invoices, bookings and more — with comparisons to the previous period. Analytics and Reports (under Overview) go deeper.'] },
+
+  // Invoicing
+  { id: 'create-invoice', topic: 'invoicing', q: 'How do I create and send an invoice?', a: ['Go to Invoices → <strong>New invoice</strong>. Add the client, line items (quantity, price, discount and tax) and choose a due date — totals update as you type. Use <strong>Save draft</strong> to finish later or <strong>Save & send</strong>.', 'When sending you can email the invoice (if email is configured on the server), <strong>Copy link</strong> to share a public page your client can view, or <strong>Mark as sent</strong> if you delivered it another way.'], link: { to: '/invoices/new', label: 'New invoice' } },
+  { id: 'record-payment', topic: 'invoicing', q: 'How do I record a payment?', a: ['Open the invoice and click <strong>Record payment</strong>. Enter the amount (or choose Full balance), date and method. Part payments set the status to Partially paid; when the balance reaches zero it becomes Paid.'] },
+  { id: 'recurring', topic: 'invoicing', q: 'Can invoices repeat automatically?', a: ['Yes. In the invoice editor turn on <strong>Repeat this invoice</strong> and choose how often. Recurring invoices are marked with a repeat icon in the list and can be filtered with the Recurring tab.'] },
+  { id: 'quotes', topic: 'invoicing', q: 'How do quotes work?', a: ['Create a quote under Quotes. Send it like an invoice; when the client accepts, click <strong>Convert to invoice</strong> to create the invoice with the same lines. Quotes past their valid-until date show as Expired.'], link: { to: '/quotes', label: 'Open quotes' } },
+  { id: 'overdue', topic: 'invoicing', q: 'How do I see who owes me money?', a: ['The Invoicing overview and the KPI cards on the Invoices page show Outstanding and Overdue totals. Click a card to filter the list. Overdue rows show how many days late they are.'] },
+  { id: 'invoice-branding', topic: 'invoicing', q: 'How do I add my logo, tax number and bank details?', a: ['Invoice settings lets you set your business name, logo, accent colour, tax label (e.g. ABN, VAT, KRA PIN), numbering prefixes, default due days and payment instructions shown on every invoice.'], link: { to: '/invoices/settings', label: 'Invoice settings' } },
+  { id: 'void', topic: 'invoicing', q: 'How do I cancel an invoice I already sent?', a: ['Open it and choose <strong>Void</strong>. Voided invoices stay in your records (for an audit trail) but no longer count towards amounts owed. Use <strong>Duplicate</strong> to start a corrected copy.'] },
+  { id: 'export-invoices', topic: 'invoicing', q: 'Can I export invoices to a spreadsheet?', a: ['Yes — click <strong>Export</strong> on the Invoices or Quotes page to download a CSV you can open in Excel, Numbers or Google Sheets.'] },
+
+  // POS
+  { id: 'pos-sale', topic: 'pos', q: 'How do I ring up a sale?', a: ['Open Point of sale, tap products (or scan a barcode) to add them to the cart, adjust quantities, then take payment. Products and prices come from Inventory, and stock is reduced automatically.'], link: { to: '/pos', label: 'Open POS' } },
+  { id: 'pos-products', topic: 'pos', q: 'Why are no products showing in POS?', a: ['POS lists active products that have a selling price. Add or edit them in Inventory.'] },
+  { id: 'pos-history', topic: 'pos', q: 'Where can I see past sales and receipts?', a: ['POS transactions lists every sale with its items, payment method and totals, and lets you reprint or view a receipt.'], link: { to: '/pos-transactions', label: 'POS transactions' } },
+
+  // Bookings
+  { id: 'booking-create', topic: 'bookings', q: 'How do I create a booking?', a: ['Go to Bookings and click <strong>New booking</strong>, or switch to the calendar and click a free slot. Choose the customer, service, staff member and time; the duration comes from the service.'], link: { to: '/bookings', label: 'Open bookings' } },
+  { id: 'booking-invoice', topic: 'bookings', q: 'Can I invoice a finished booking?', a: ['Yes. Once the work is done, open the booking and turn it into an invoice — the service and price are copied across.'] },
+  { id: 'services', topic: 'bookings', q: 'How do I set up services and prices?', a: ['Services lists what you offer with duration and price; Service categories keeps them organised. These are used by Bookings, Scheduling and the booking page.'], link: { to: '/services', label: 'Open services' } },
+  { id: 'events', topic: 'bookings', q: 'How do I run an event with registrations?', a: ['Events lets you create an event with date, venue and capacity, publish it, and track registrations from its detail page.'], link: { to: '/events', label: 'Open events' } },
+
+  // Meetings & messages
+  { id: 'meeting-schedule', topic: 'meetings', q: 'How do I schedule a meeting and invite people?', a: ['Open Meetings & calls → <strong>Schedule</strong>. Add a title, time, time zone and participants (teammates or any email address). Everyone receives a calendar invite (.ics) that works with Google, Outlook and Apple Calendar.', 'If email isn’t configured on the server, you’ll get the .ics file and a pre-filled email to send yourself.'], link: { to: '/meetings', label: 'Open meetings' } },
+  { id: 'meeting-transcript', topic: 'meetings', q: 'Can meetings be transcribed?', a: ['Yes. During a call in the meeting room, live captions are captured into a transcript that is saved with the meeting, along with a short summary you can review later.'] },
+  { id: 'messages', topic: 'meetings', q: 'How do I message a teammate?', a: ['Open Messages and click <strong>New conversation</strong>, then pick one or more people from your organisation. Unread conversations are highlighted with a count; messages arrive in real time.'], link: { to: '/messages', label: 'Open messages' } },
+  { id: 'video-no-camera', topic: 'meetings', q: 'My camera or microphone isn’t working in a call', a: ['Allow camera and microphone access when the browser asks (look for the camera icon in the address bar). If you have no camera you can still join with audio only, or with neither and use chat. Close other apps that might be using the camera.'] },
+
+  // Projects
+  { id: 'projects', topic: 'projects', q: 'How do projects work?', a: ['Create a project, add issues (tasks, bugs, stories), assign people and move them across the board as work progresses. Each project shows progress and what’s overdue.'], link: { to: '/projects', label: 'Open projects' } },
+  { id: 'jira', topic: 'projects', q: 'Can I connect Jira?', a: ['Yes. Connect Jira Cloud from the Projects page with your site address, email and an API token. Your Jira projects and issues are brought in and kept in sync, so the team can work in either place.'] },
+
+  // Operations
+  { id: 'inventory', topic: 'operations', q: 'How do I add products and track stock?', a: ['In Inventory add products with SKU, cost and selling price, category and reorder level. Use stock adjustments to receive or write off stock; every change is recorded as a movement. Products at or below their reorder point are flagged.'], link: { to: '/inventory', label: 'Open inventory' } },
+  { id: 'purchase-orders', topic: 'operations', q: 'How do I order from suppliers?', a: ['Suppliers keeps supplier details and purchase orders. Receiving a purchase order adds the stock to inventory.'], link: { to: '/suppliers', label: 'Open suppliers' } },
+  { id: 'bom', topic: 'operations', q: 'What is a bill of materials?', a: ['A bill of materials (BOM) is a recipe: which inventory components, and how many of each, make a finished product. Create one in Production → <strong>New bill of materials</strong>. The material cost per unit is worked out from your component cost prices.'], link: { to: '/production', label: 'Open production' } },
+  { id: 'work-orders', topic: 'operations', q: 'How do work orders change my stock?', a: ['A work order says how many units to build from a BOM. It shows whether you have enough of each component. When you <strong>Complete</strong> it, the components are deducted from stock and the finished units are added — all recorded as inventory movements with the work order number as the reference. Nothing changes in stock while it is Planned or In progress.'] },
+
+  // HR
+  { id: 'employees', topic: 'hr', q: 'How do I add employees?', a: ['In HR & payroll → Employees click <strong>Add employee</strong>. Record their role, department, employment type, start date and pay: an hourly rate, or an annual salary, in any supported currency. You can optionally link them to an app user.'], link: { to: '/hcm', label: 'Open HR & payroll' } },
+  { id: 'leave', topic: 'hr', q: 'How do leave requests work?', a: ['Anyone can record a leave request (annual, sick, personal, parental, unpaid or other). Working days are counted automatically, excluding weekends, and overlapping requests for the same person are blocked. Managers approve or reject from the Leave tab.'] },
+  { id: 'timesheets', topic: 'hr', q: 'How do timesheets feed into pay?', a: ['Log hours per person per day in Timesheets. Managers approve them (one by one or in bulk). Only <strong>approved</strong> hours in the pay period are paid for hourly staff, and once a pay run is marked paid those timesheets are locked so they can’t be paid twice.'] },
+  { id: 'pay-runs', topic: 'hr', q: 'How is a pay run calculated?', a: ['Choose a frequency (weekly, fortnightly or monthly), the period start and currency. Hourly staff: gross = approved hours × hourly rate. Salaried staff: gross = annual salary ÷ 52, 26 or 12. Deductions are a flat percentage you set for the run (for tax, super or pension), and net = gross − deductions. Amounts are rounded to the currency’s smallest unit.', 'Review the preview, create the draft, recalculate if timesheets change, then <strong>Mark as paid</strong>. Export any pay run to CSV for your bank or accountant. DASYIN doesn’t file tax returns or move money for you.'] },
+
+  // Store
+  { id: 'connect-store', topic: 'store', q: 'How do I connect Shopify or WooCommerce?', a: ['Open Online store → <strong>Connect store</strong>. For Shopify use your .myshopify.com address and an Admin API access token with the read_orders scope. For WooCommerce use your site’s https address and a REST API key with Read permission.', 'Keys are encrypted at rest and only the last four characters are shown. We test the connection straight away and tell you what’s wrong if it fails.'], link: { to: '/ecommerce', label: 'Open online store' } },
+  { id: 'import-orders', topic: 'store', q: 'What happens when I import orders?', a: ['Orders are copied from your store into DASYIN (read-only) with customer, items, totals and status. Importing again updates existing orders and adds new ones — there are no duplicates. Nothing in your store is changed; fulfil orders in your store as usual.'] },
+
+  // Account
+  { id: 'change-password', topic: 'account', q: 'How do I change my password?', a: ['Go to My profile → Password. Enter your current password, then the new one twice (at least 8 characters).'], link: { to: '/profile', label: 'My profile' } },
+  { id: 'org-details', topic: 'account', q: 'Where do I change the business name, address or time zone?', a: ['Settings → Business details and Regional & formats. Only admins and managers can change them.'], link: { to: '/settings', label: 'Open settings' } },
+  { id: 'plans', topic: 'account', q: 'What’s included in my plan?', a: ['Plan & billing shows your current plan, trial status, which modules are included and the price in the currency you choose. Modules not in your plan are hidden from the sidebar.'], link: { to: '/plan', label: 'Plan & billing' } },
+  { id: 'add-users', topic: 'account', q: 'How do I give a teammate access?', a: ['Admins can add staff under People & Projects → Staff. They sign in with their email; you can set a password or have one generated.'], link: { to: '/staff', label: 'Open staff' } },
+  { id: 'data-safety', topic: 'account', q: 'Is my data private to my organisation?', a: ['Yes. Every record is scoped to your organisation and only people in it can see it. Passwords are hashed, and third-party API keys (such as store tokens) are encrypted.'] }
+]
+
 export default {
   name: 'FAQ',
   data() {
     return {
-      searchQuery: '',
-      selectedCategory: null,
-      openItems: [],
-
-      categories: [
-        {
-          id: 'getting-started',
-          name: 'Getting Started',
-          description: 'Learn the basics of using DAS Booking',
-          icon: 'fas fa-play-circle',
-          questions: [
-            {
-              id: 1,
-              category: 'getting-started',
-              question: 'How do I create my first booking?',
-              popular: true,
-              answer: `
-                <p>Creating your first booking is simple:</p>
-                <ol>
-                  <li>Navigate to the <strong>Bookings</strong> page from the sidebar</li>
-                  <li>Click the <strong>"Create Booking"</strong> button</li>
-                  <li>Select your customer (or create a new one)</li>
-                  <li>Choose the service and staff member</li>
-                  <li>Pick your preferred date and time</li>
-                  <li>Add any special notes or requirements</li>
-                  <li>Click <strong>"Save Booking"</strong></li>
-                </ol>
-                <p>Your booking will automatically appear in your calendar and send confirmation notifications.</p>
-              `,
-              helpful: 45,
-              relatedLinks: [
-                { title: 'Managing Bookings', url: '#', icon: 'fas fa-calendar' },
-                { title: 'Customer Management', url: '#', icon: 'fas fa-users' }
-              ]
-            },
-            {
-              id: 2,
-              category: 'getting-started',
-              question: 'How do I set up my organization profile?',
-              answer: `
-                <p>Setting up your organization profile helps customers find and book with you:</p>
-                <ol>
-                  <li>Go to <strong>Settings</strong> > <strong>Organization</strong></li>
-                  <li>Add your business name, logo, and contact information</li>
-                  <li>Set your business hours and availability</li>
-                  <li>Configure your booking policies and cancellation rules</li>
-                  <li>Add your services and pricing</li>
-                  <li>Set up staff profiles and permissions</li>
-                </ol>
-                <p>A complete profile builds trust and helps customers make informed booking decisions.</p>
-              `,
-              helpful: 32
-            }
-          ]
-        },
-        {
-          id: 'bookings',
-          name: 'Bookings & Calendar',
-          description: 'Manage appointments and scheduling',
-          icon: 'fas fa-calendar-alt',
-          questions: [
-            {
-              id: 3,
-              category: 'bookings',
-              question: 'How do I handle booking cancellations?',
-              popular: true,
-              answer: `
-                <p>Managing cancellations is straightforward:</p>
-                <ol>
-                  <li>Open the booking from your calendar or bookings list</li>
-                  <li>Click <strong>"Cancel Booking"</strong></li>
-                  <li>Select the cancellation reason</li>
-                  <li>Choose whether to apply cancellation fees (based on your policies)</li>
-                  <li>Send notification to the customer</li>
-                </ol>
-                <p><strong>Tip:</strong> Set up automated cancellation policies in Settings to handle fees and refunds automatically.</p>
-              `,
-              helpful: 38
-            },
-            {
-              id: 4,
-              category: 'bookings',
-              question: 'Can I set recurring appointments?',
-              answer: `
-                <p>Yes! DAS Booking supports recurring appointments:</p>
-                <ol>
-                  <li>Create a new booking as usual</li>
-                  <li>In the booking form, enable <strong>"Recurring Appointment"</strong></li>
-                  <li>Choose your recurrence pattern (daily, weekly, monthly)</li>
-                  <li>Set the end date or number of occurrences</li>
-                  <li>Save the booking series</li>
-                </ol>
-                <p>Each appointment in the series can be modified individually if needed.</p>
-              `,
-              helpful: 29
-            }
-          ]
-        },
-        {
-          id: 'customers',
-          name: 'Customer Management',
-          description: 'Handle customer data and relationships',
-          icon: 'fas fa-users',
-          questions: [
-            {
-              id: 5,
-              category: 'customers',
-              question: 'How do I import existing customer data?',
-              answer: `
-                <p>Import your existing customer database easily:</p>
-                <ol>
-                  <li>Go to <strong>Customers</strong> > <strong>"Import Customers"</strong></li>
-                  <li>Download our CSV template</li>
-                  <li>Fill in your customer data following the template format</li>
-                  <li>Upload your completed CSV file</li>
-                  <li>Review and map the data fields</li>
-                  <li>Click <strong>"Import"</strong> to add customers to your system</li>
-                </ol>
-                <p>Supported formats include CSV, Excel, and direct integrations with popular CRM systems.</p>
-              `,
-              helpful: 41
-            }
-          ]
-        },
-        {
-          id: 'payments',
-          name: 'Payments & Billing',
-          description: 'Process payments and manage invoices',
-          icon: 'fas fa-credit-card',
-          questions: [
-            {
-              id: 6,
-              category: 'payments',
-              question: 'What payment methods are supported?',
-              popular: true,
-              answer: `
-                <p>DAS Booking supports multiple payment options:</p>
-                <ul>
-                  <li><strong>Credit/Debit Cards:</strong> Visa, Mastercard, American Express</li>
-                  <li><strong>Digital Wallets:</strong> Apple Pay, Google Pay, PayPal</li>
-                  <li><strong>Bank Transfers:</strong> Direct debit and wire transfers</li>
-                  <li><strong>Buy Now, Pay Later:</strong> Afterpay, Zip Pay</li>
-                  <li><strong>Cash Payments:</strong> Record in-person cash transactions</li>
-                </ul>
-                <p>All payments are processed securely with bank-level encryption.</p>
-              `,
-              helpful: 52
-            },
-            {
-              id: 7,
-              category: 'payments',
-              question: 'How do I create and send invoices?',
-              answer: `
-                <p>Creating professional invoices is easy with our new invoice wizard:</p>
-                <ol>
-                  <li>Go to <strong>Invoices</strong> and click <strong>"Create Amazing Invoice"</strong></li>
-                  <li>Choose from 6 professional email-optimized templates</li>
-                  <li>Add your business details and logo</li>
-                  <li>Select or add customer information</li>
-                  <li>Add line items with descriptions, quantities, and rates</li>
-                  <li>Preview your invoice and choose delivery method</li>
-                  <li>Send via email, generate a shareable link, or save as draft</li>
-                </ol>
-                <p>Our invoices are designed to look amazing in email and provide a great customer experience.</p>
-              `,
-              helpful: 36
-            }
-          ]
-        },
-        {
-          id: 'staff',
-          name: 'Staff & Permissions',
-          description: 'Manage team members and access control',
-          icon: 'fas fa-user-tie',
-          questions: [
-            {
-              id: 8,
-              category: 'staff',
-              question: 'How do I add new staff members?',
-              answer: `
-                <p>Adding staff members to your organization:</p>
-                <ol>
-                  <li>Navigate to <strong>Staff</strong> from the sidebar</li>
-                  <li>Click <strong>"Add Staff Member"</strong></li>
-                  <li>Enter their personal details and contact information</li>
-                  <li>Set their role and permissions level</li>
-                  <li>Assign services they can provide</li>
-                  <li>Configure their working hours and availability</li>
-                  <li>Send them an invitation email to join</li>
-                </ol>
-                <p>Staff members will receive login credentials and can immediately start managing their bookings.</p>
-              `,
-              helpful: 27
-            }
-          ]
-        },
-        {
-          id: 'reports',
-          name: 'Reports & Analytics',
-          description: 'Track performance and generate insights',
-          icon: 'fas fa-chart-bar',
-          questions: [
-            {
-              id: 9,
-              category: 'reports',
-              question: 'What reports are available?',
-              answer: `
-                <p>DAS Booking provides comprehensive reporting:</p>
-                <ul>
-                  <li><strong>Revenue Reports:</strong> Daily, weekly, monthly income tracking</li>
-                  <li><strong>Booking Analytics:</strong> Appointment trends and patterns</li>
-                  <li><strong>Customer Reports:</strong> Client retention and lifetime value</li>
-                  <li><strong>Staff Performance:</strong> Individual productivity metrics</li>
-                  <li><strong>Service Analysis:</strong> Most popular services and pricing optimization</li>
-                  <li><strong>No-show Reports:</strong> Track and reduce missed appointments</li>
-                </ul>
-                <p>All reports can be exported to PDF, Excel, or CSV formats.</p>
-              `,
-              helpful: 33
-            }
-          ]
-        },
-        {
-          id: 'integrations',
-          name: 'Integrations & API',
-          description: 'Connect with other tools and platforms',
-          icon: 'fas fa-plug',
-          questions: [
-            {
-              id: 10,
-              category: 'integrations',
-              question: 'What third-party integrations are available?',
-              answer: `
-                <p>DAS Booking integrates with popular business tools:</p>
-                <ul>
-                  <li><strong>Accounting:</strong> Xero, QuickBooks, MYOB</li>
-                  <li><strong>Marketing:</strong> Mailchimp, Constant Contact, HubSpot</li>
-                  <li><strong>Communication:</strong> SMS providers, Email services</li>
-                  <li><strong>Calendar:</strong> Google Calendar, Outlook, Apple Calendar</li>
-                  <li><strong>Payment:</strong> Stripe, PayPal, Square</li>
-                  <li><strong>CRM:</strong> Salesforce, Pipedrive</li>
-                </ul>
-                <p>We also provide a REST API for custom integrations.</p>
-              `,
-              helpful: 28
-            }
-          ]
-        }
-      ]
+      q: this.$route.query.q || '',
+      topic: TOPICS.some((t) => t.id === this.$route.query.topic) ? this.$route.query.topic : '',
+      open: {},
+      topics: TOPICS
     }
   },
-
   computed: {
-    allQuestions() {
-      return this.categories.flatMap(cat => cat.questions)
+    terms() {
+      return this.q.toLowerCase().split(/\s+/).filter((w) => w.length > 1)
     },
-
-    filteredQuestions() {
-      let questions = this.selectedCategory
-        ? this.getCurrentCategory().questions
-        : this.allQuestions
-
-      if (this.searchQuery.trim()) {
-        const query = this.searchQuery.toLowerCase()
-        questions = questions.filter(q =>
-          q.question.toLowerCase().includes(query) ||
-          q.answer.toLowerCase().includes(query)
-        )
-      }
-
-      return questions
+    results() {
+      return ARTICLES.filter((a) => {
+        if (this.topic && a.topic !== this.topic) return false
+        if (!this.terms.length) return true
+        const hay = (a.q + ' ' + a.a.join(' ')).replace(/<[^>]+>/g, '').toLowerCase()
+        return this.terms.every((t) => hay.includes(t))
+      })
+    },
+    grouped() {
+      return TOPICS.map((t) => ({ topic: t, items: this.results.filter((a) => a.topic === t.id) })).filter((g) => g.items.length)
+    },
+    popular() {
+      return ['create-invoice', 'pay-runs', 'meeting-schedule', 'work-orders', 'connect-store', 'change-password'].map((id) => ARTICLES.find((a) => a.id === id))
     }
   },
-
+  watch: {
+    terms(t) {
+      // Open matching answers while searching.
+      if (t.length) this.open = Object.fromEntries(this.results.slice(0, 6).map((a) => [a.id, true]))
+    }
+  },
+  mounted() {
+    window.addEventListener('keydown', this.onKey)
+    const hash = (this.$route.hash || '').slice(1)
+    if (hash && ARTICLES.some((a) => a.id === hash)) this.jump(hash)
+  },
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.onKey)
+  },
   methods: {
-    getCurrentCategory() {
-      return this.categories.find(cat => cat.id === this.selectedCategory) || {}
-    },
-
-    getCategoryName(categoryId) {
-      const category = this.categories.find(cat => cat.id === categoryId)
-      return category ? category.name : ''
-    },
-
-    selectCategory(categoryId) {
-      this.selectedCategory = categoryId === this.selectedCategory ? null : categoryId
-      this.openItems = []
-    },
-
-    toggleQuestion(questionId) {
-      const index = this.openItems.indexOf(questionId)
-      if (index > -1) {
-        this.openItems.splice(index, 1)
-      } else {
-        this.openItems.push(questionId)
+    onKey(e) {
+      if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement?.tagName || '')) {
+        e.preventDefault()
+        this.$refs.search && this.$refs.search.focus()
       }
     },
-
-    filterFAQs() {
-      this.selectedCategory = null
-      this.openItems = []
+    toggle(id) {
+      this.open = { ...this.open, [id]: !this.open[id] }
     },
-
-    clearSearch() {
-      this.searchQuery = ''
-      this.selectedCategory = null
-      this.openItems = []
+    setTopic(t) {
+      this.topic = t
+      this.syncQuery()
     },
-
-    markHelpful(questionId) {
-      const question = this.allQuestions.find(q => q.id === questionId)
-      if (question) {
-        question.helpful = (question.helpful || 0) + 1
-        this.$emit('show-notification', 'Thank you for your feedback!', 'success')
-      }
+    clear() {
+      this.q = ''
+      this.topic = ''
+      this.syncQuery()
     },
-
-    markNotHelpful(questionId) {
-      this.$emit('show-notification', 'Thank you for your feedback. We\'ll work to improve this answer.', 'info')
+    syncQuery() {
+      const query = {}
+      if (this.q) query.q = this.q
+      if (this.topic) query.topic = this.topic
+      this.$router.replace({ query })
+    },
+    jump(id) {
+      this.q = ''
+      this.topic = ''
+      this.open = { ...this.open, [id]: true }
+      this.$nextTick(() => {
+        const el = document.getElementById(id)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+    },
+    escape(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    },
+    highlight(html) {
+      if (!this.terms.length) return html
+      const re = new RegExp(`(${this.terms.map(this.escape).join('|')})`, 'gi')
+      // Only highlight text outside tags. Content is static and trusted.
+      return html.replace(/(^|>)([^<]+)/g, (m, open, text) => open + text.replace(re, '<mark>$1</mark>'))
     }
   }
 }
 </script>
 
 <style scoped>
-.faq-page {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-}
-
-/* Hero Section */
-.faq-hero {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 4rem 2rem;
+.hero {
+  padding: 36px 32px 24px;
+  margin-bottom: 24px;
   text-align: center;
-  position: relative;
-  overflow: hidden;
+  background: var(--surface);
 }
 
-.faq-hero::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
-  animation: float 20s ease-in-out infinite;
+.hero h1 {
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  margin: 6px 0 4px;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
-}
-
-.hero-content {
-  position: relative;
-  z-index: 2;
-  max-width: 800px;
+.hero p {
+  color: var(--text-3);
   margin: 0 auto;
+  max-width: 640px;
 }
 
-.hero-icon {
-  font-size: 4rem;
-  margin-bottom: 1.5rem;
-  opacity: 0.9;
+.hero__search {
+  max-width: 640px;
+  margin: 22px auto 18px;
 }
 
-.hero-title {
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  line-height: 1.2;
+.hero__search .ui-input {
+  height: 48px;
+  font-size: 15px;
 }
 
-.hero-subtitle {
-  font-size: 1.25rem;
-  opacity: 0.9;
-  margin-bottom: 3rem;
-  line-height: 1.5;
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
-.faq-search {
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.search-wrapper {
-  position: relative;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 50px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(10px);
-}
-
-.search-wrapper i {
-  position: absolute;
-  left: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #64748b;
-  font-size: 1.1rem;
-}
-
-.search-input {
-  width: 100%;
-  padding: 1rem 1rem 1rem 3.5rem;
-  border: none;
-  background: transparent;
-  border-radius: 50px;
-  font-size: 1rem;
-  color: #1e293b;
-  outline: none;
-}
-
-.search-input::placeholder {
-  color: #64748b;
-}
-
-/* Quick Navigation */
-.quick-nav {
-  padding: 4rem 2rem;
-  background: white;
-}
-
-.nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.quick-nav h3 {
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 3rem;
-}
-
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.category-card {
-  background: white;
-  border: 2px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 2rem;
-  text-align: center;
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
   cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
 }
 
-.category-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  transform: scaleX(0);
-  transition: transform 0.3s ease;
+.chip i {
+  font-size: 12px;
+  color: var(--text-3);
 }
 
-.category-card:hover,
-.category-card.active {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
-  border-color: #667eea;
+.chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
-.category-card:hover::before,
-.category-card.active::before {
-  transform: scaleX(1);
+.chip.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.category-icon {
-  font-size: 2.5rem;
-  color: #667eea;
-  margin-bottom: 1rem;
+.chip.is-active i {
+  color: var(--accent);
 }
 
-.category-card h4 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 0.5rem;
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
 }
 
-.category-card p {
-  color: #64748b;
-  margin-bottom: 1rem;
-  line-height: 1.5;
-}
-
-.question-count {
-  display: inline-block;
-  background: #f1f5f9;
-  color: #475569;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-/* FAQ Content */
-.faq-content {
-  padding: 2rem;
-  background: white;
-}
-
-.content-container {
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.category-header {
+.articles {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 3rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #e2e8f0;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.category-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.category-info i {
-  font-size: 2rem;
-  color: #667eea;
-}
-
-.category-info h2 {
-  font-size: 1.875rem;
-  font-weight: 600;
-  color: #1e293b;
+.result-count {
   margin: 0;
 }
 
-.back-btn {
+.group__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  margin-right: 6px;
+}
+
+.ui-card__head h2 {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.back-btn:hover {
-  background: #e2e8f0;
-  color: #475569;
+.qa {
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 100px;
 }
 
-/* FAQ Items */
-.faq-list {
-  space-y: 1rem;
+.qa:last-child {
+  border-bottom: 0;
 }
 
-.faq-item {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  margin-bottom: 1rem;
-}
-
-.faq-item:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-}
-
-.faq-item.open {
-  border-color: #667eea;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.15);
-}
-
-.faq-question {
+.qa__q {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.faq-question:hover {
-  background: #f8fafc;
-}
-
-.question-content {
-  flex: 1;
-}
-
-.question-content h3 {
-  font-size: 1.125rem;
+  gap: 16px;
+  padding: 16px 20px;
+  background: none;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 14.5px;
   font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 0.5rem 0;
-  line-height: 1.4;
+  color: var(--text);
+  cursor: pointer;
 }
 
-.question-meta {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
+.qa__q:hover {
+  background: var(--surface-hover);
 }
 
-.category-tag {
-  background: #e2e8f0;
-  color: #475569;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
+.qa__q i {
+  color: var(--text-3);
+  transition: transform 0.2s;
+  flex-shrink: 0;
 }
 
-.popular-tag {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.question-toggle {
-  font-size: 1.25rem;
-  color: #64748b;
-  transition: transform 0.3s ease;
-}
-
-.faq-item.open .question-toggle {
+.qa.is-open .qa__q i {
   transform: rotate(180deg);
 }
 
-.faq-answer {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
+.qa__a {
+  padding: 0 20px 18px;
+  color: var(--text-2);
+  line-height: 1.65;
 }
 
-.faq-item.open .faq-answer {
-  max-height: 1000px;
+.qa__a p {
+  margin: 0 0 10px;
 }
 
-.answer-content {
-  padding: 0 1.5rem 1.5rem;
-  color: #475569;
-  line-height: 1.6;
+.qa__a :deep(mark),
+.qa__q :deep(mark) {
+  background: var(--warning-soft);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
 }
 
-.answer-content h4 {
-  color: #1e293b;
-  margin: 1.5rem 0 0.75rem 0;
+.qa__a :deep(kbd),
+.keys kbd {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
-.answer-content ol,
-.answer-content ul {
-  margin: 1rem 0;
-  padding-left: 1.5rem;
-}
-
-.answer-content li {
-  margin-bottom: 0.5rem;
-}
-
-.answer-content strong {
-  color: #1e293b;
-  font-weight: 600;
-}
-
-.related-links {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e2e8f0;
-}
-
-.related-links h4 {
-  font-size: 1rem;
-  color: #1e293b;
-  margin-bottom: 1rem;
-}
-
-.link-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.75rem;
-}
-
-.related-link {
+.side {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #667eea;
-  text-decoration: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 88px;
 }
 
-.related-link:hover {
-  background: #667eea;
-  color: white;
-  transform: translateY(-1px);
-}
-
-.answer-actions {
+.side__card {
+  padding: 20px;
   display: flex;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e2e8f0;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.helpful-btn,
-.not-helpful-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: white;
-  color: #64748b;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
+.side__card h3 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0;
 }
 
-.helpful-btn:hover {
-  background: #10b981;
-  color: white;
-  border-color: #10b981;
+.side__card p {
+  margin: 0 0 4px;
+  font-size: 13.5px;
 }
 
-.not-helpful-btn:hover {
-  background: #ef4444;
-  color: white;
-  border-color: #ef4444;
-}
-
-/* No Results */
-.no-results {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: #64748b;
-}
-
-.no-results i {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.no-results h3 {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-  color: #1e293b;
-}
-
-.clear-search-btn {
-  margin-top: 1rem;
-  padding: 0.75rem 1.5rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s ease;
-}
-
-.clear-search-btn:hover {
-  background: #5a67d8;
-}
-
-/* Support Section */
-.support-section {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  color: white;
-  padding: 4rem 2rem;
-}
-
-.support-container {
-  max-width: 800px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.support-content h3 {
-  font-size: 2rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
-
-.support-content p {
-  font-size: 1.125rem;
-  opacity: 0.9;
-  margin-bottom: 2rem;
-}
-
-.support-actions {
-  display: flex;
+.side__card .ui-btn {
   justify-content: center;
-  gap: 1rem;
-  flex-wrap: wrap;
 }
 
-.contact-btn {
+.popular {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.875rem 1.5rem;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.popular a {
+  color: var(--text-2);
   text-decoration: none;
+  font-size: 13.5px;
 }
 
-.contact-btn.primary {
-  background: white;
-  color: #1e293b;
+.popular a:hover {
+  color: var(--accent);
 }
 
-.contact-btn.primary:hover {
-  background: #f8fafc;
-  transform: translateY(-2px);
+.keys {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
 }
 
-.contact-btn.secondary {
-  background: transparent;
-  color: white;
-  border-color: rgba(255, 255, 255, 0.3);
+.keys div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.contact-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateY(-2px);
+.keys dd {
+  margin: 0;
+  color: var(--text-3);
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .hero-title {
-    font-size: 2rem;
-  }
-
-  .hero-subtitle {
-    font-size: 1rem;
-  }
-
-  .category-grid {
+@media (max-width: 1000px) {
+  .layout {
     grid-template-columns: 1fr;
   }
-
-  .category-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
+  .side {
+    position: static;
   }
+}
 
-  .question-content h3 {
-    font-size: 1rem;
+@media (max-width: 600px) {
+  .hero {
+    padding: 24px 16px 18px;
   }
-
-  .support-actions {
-    flex-direction: column;
-    align-items: center;
+  .hero h1 {
+    font-size: 24px;
   }
-
-  .contact-btn {
-    width: 100%;
-    max-width: 300px;
-    justify-content: center;
+  .chips {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .chip {
+    flex-shrink: 0;
+  }
+  .ui-card__head .ui-btn {
+    display: none;
   }
 }
 </style>

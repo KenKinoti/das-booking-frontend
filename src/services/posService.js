@@ -1,276 +1,104 @@
-import api from './api'
+import api, { listFrom } from './api'
 
-// Mock data for development
-const mockTransactions = [
-  {
-    id: '1',
-    transaction_number: 'TXN-2024-001',
-    customer_id: null,
-    customer_name: 'Walk-in Customer',
-    subtotal: 155.00,
-    tax_amount: 15.50,
-    discount_amount: 0,
-    total_amount: 170.50,
-    payment_method: 'cash',
-    payment_status: 'completed',
-    status: 'completed',
-    created_at: '2024-03-15T14:30:00Z',
-    items: [
-      {
-        id: '1',
-        product_id: '1',
-        product_name: 'Engine Oil 5W-30',
-        quantity: 2,
-        unit_price: 35.00,
-        total_price: 70.00
-      },
-      {
-        id: '2',
-        product_id: '2',
-        product_name: 'Brake Pads Front',
-        quantity: 1,
-        unit_price: 85.00,
-        total_price: 85.00
-      }
-    ]
-  },
-  {
-    id: '2',
-    transaction_number: 'TXN-2024-002',
-    customer_id: '1',
-    customer_name: 'John Smith',
-    subtotal: 450.00,
-    tax_amount: 45.00,
-    discount_amount: 22.50,
-    total_amount: 472.50,
-    payment_method: 'card',
-    payment_status: 'completed',
-    status: 'completed',
-    created_at: '2024-03-15T16:45:00Z',
-    items: [
-      {
-        id: '3',
-        product_id: '3',
-        product_name: 'Tire Set (4x)',
-        quantity: 1,
-        unit_price: 450.00,
-        total_price: 450.00
-      }
-    ]
-  }
-]
-
-const mockDiscounts = [
-  {
-    id: '1',
-    name: 'Customer Loyalty',
-    type: 'percentage',
-    value: 5.0,
-    is_active: true,
-    valid_from: '2024-01-01',
-    valid_until: '2024-12-31'
-  },
-  {
-    id: '2',
-    name: 'Bulk Purchase',
-    type: 'fixed',
-    value: 50.0,
-    minimum_amount: 500.0,
-    is_active: true,
-    valid_from: '2024-01-01',
-    valid_until: '2024-12-31'
-  }
-]
-
-const mockTaxRates = [
-  {
-    id: '1',
-    name: 'GST',
-    rate: 10.0,
-    is_default: true,
-    is_active: true
-  }
-]
-
-const mockCashDrawers = [
-  {
-    id: '1',
-    staff_id: 'staff-1',
-    staff_name: 'John Cashier',
-    opening_amount: 200.00,
-    closing_amount: 1250.75,
-    expected_amount: 1230.50,
-    difference: 20.25,
-    opened_at: '2024-03-15T09:00:00Z',
-    closed_at: '2024-03-15T18:00:00Z',
-    status: 'closed'
-  }
-]
-
+/**
+ * Point of Sale API. All endpoints live under /api/v1/pos and are scoped to the
+ * signed-in user's organisation by the backend.
+ */
 export const posService = {
-  // Transactions
-  async getTransactions(params = {}) {
-    try {
-      const response = await api.get('/pos/transactions', { params })
-      return response
-    } catch (error) {
-      console.warn('Using mock data for transactions:', error.message)
-      return {
-        data: {
-          transactions: mockTransactions.filter(t => {
-            if (params.status) {
-              return t.status === params.status
-            }
-            if (params.payment_method) {
-              return t.payment_method === params.payment_method
-            }
-            if (params.search) {
-              const search = params.search.toLowerCase()
-              return t.transaction_number.toLowerCase().includes(search) ||
-                     t.customer_name.toLowerCase().includes(search)
-            }
-            return true
-          })
-        }
-      }
-    }
+  // Catalogue ---------------------------------------------------------------
+  async products() {
+    const res = await api.get('/inventory/products', { params: { is_active: true } })
+    return listFrom(res, 'products', 'items')
+  },
+  async customers(search = '') {
+    const res = await api.get('/customers', { params: { search: search || undefined, limit: 50 } })
+    return listFrom(res, 'customers')
+  },
+  async organization() {
+    const res = await api.get('/organization')
+    return res.data?.data || res.data?.organization || res.data || null
   },
 
+  // Transactions --------------------------------------------------------------
+  async createTransaction(payload) {
+    const res = await api.post('/pos/transactions', payload)
+    return res.data.transaction
+  },
+  /** Returns { transactions, total, page, limit, summary } */
+  async listTransactions(params = {}) {
+    const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined))
+    const res = await api.get('/pos/transactions', { params: clean })
+    return {
+      transactions: listFrom(res, 'transactions'),
+      total: res.data?.total || 0,
+      page: res.data?.page || 1,
+      limit: res.data?.limit || clean.limit || 25,
+      summary: res.data?.summary || null
+    }
+  },
   async getTransaction(id) {
-    return api.get(`/pos/transactions/${id}`)
+    const res = await api.get(`/pos/transactions/${id}`)
+    return res.data.transaction
   },
-
-  async createTransaction(transactionData) {
-    return api.post('/pos/transactions', transactionData)
-  },
-
   async voidTransaction(id, reason) {
-    return api.post(`/pos/transactions/${id}/void`, { reason })
+    const res = await api.post(`/pos/transactions/${id}/void`, { reason })
+    return res.data.transaction
   },
 
-  // Cash Drawer
-  async getCashDrawers(params = {}) {
-    try {
-      const response = await api.get('/pos/cash-drawer', { params })
-      return response
-    } catch (error) {
-      console.warn('Using mock data for cash drawers:', error.message)
-      return {
-        data: {
-          cash_drawers: mockCashDrawers.filter(cd => {
-            if (params.status) {
-              return cd.status === params.status
-            }
-            if (params.staff_id) {
-              return cd.staff_id === params.staff_id
-            }
-            return true
-          })
-        }
-      }
-    }
+  // Cash drawer ---------------------------------------------------------------
+  async drawers(params = {}) {
+    const res = await api.get('/pos/cash-drawer', { params })
+    return listFrom(res, 'cash_drawers')
+  },
+  async openDrawer({ opening_amount, terminal_id = 'main', notes = '' }) {
+    const res = await api.post('/pos/cash-drawer/open', { opening_amount, terminal_id, notes })
+    return res.data.cash_drawer
+  },
+  async closeDrawer(id, { closing_amount, notes = '' }) {
+    const res = await api.post(`/pos/cash-drawer/${id}/close`, { closing_amount, notes })
+    return res.data.cash_drawer
   },
 
-  async openCashDrawer(drawerData) {
-    return api.post('/pos/cash-drawer/open', drawerData)
+  // Discounts & tax -----------------------------------------------------------
+  async discounts() {
+    const res = await api.get('/pos/discounts', { params: { is_active: true } })
+    return listFrom(res, 'discounts')
+  },
+  async taxRates() {
+    const res = await api.get('/pos/tax-rates')
+    return listFrom(res, 'tax_rates')
+  },
+  async createTaxRate(payload) {
+    const res = await api.post('/pos/tax-rates', payload)
+    return res.data.tax_rate
   },
 
-  async closeCashDrawer(id, closingData) {
-    return api.post(`/pos/cash-drawer/${id}/close`, closingData)
-  },
-
-  // Discounts
-  async getDiscounts() {
-    try {
-      const response = await api.get('/pos/discounts')
-      return response
-    } catch (error) {
-      console.warn('Using mock data for discounts:', error.message)
-      return {
-        data: {
-          discounts: mockDiscounts.filter(d => d.is_active)
-        }
-      }
-    }
-  },
-
-  async createDiscount(discountData) {
-    return api.post('/pos/discounts', discountData)
-  },
-
-  // Tax Rates
-  async getTaxRates() {
-    try {
-      const response = await api.get('/pos/tax-rates')
-      return response
-    } catch (error) {
-      console.warn('Using mock data for tax rates:', error.message)
-      return {
-        data: {
-          tax_rates: mockTaxRates.filter(tr => tr.is_active)
-        }
-      }
-    }
-  },
-
-  async createTaxRate(taxRateData) {
-    return api.post('/pos/tax-rates', taxRateData)
-  },
-
-  // Reports
-  async getPOSReport(params = {}) {
-    try {
-      const response = await api.get('/pos/report', { params })
-      return response
-    } catch (error) {
-      console.warn('Using mock data for POS report:', error.message)
-      const totalSales = mockTransactions.reduce((sum, t) => sum + t.total_amount, 0)
-      const todaysTransactions = mockTransactions.filter(t => {
-        const today = new Date().toISOString().split('T')[0]
-        return t.created_at.startsWith(today)
-      })
-
-      return {
-        data: {
-          report: {
-            total_sales: totalSales,
-            total_transactions: mockTransactions.length,
-            cash_sales: mockTransactions.filter(t => t.payment_method === 'cash').reduce((sum, t) => sum + t.total_amount, 0),
-            card_sales: mockTransactions.filter(t => t.payment_method === 'card').reduce((sum, t) => sum + t.total_amount, 0),
-            todays_sales: todaysTransactions.reduce((sum, t) => sum + t.total_amount, 0),
-            todays_transactions: todaysTransactions.length,
-            recent_transactions: mockTransactions.slice(0, 10),
-            top_products: [
-              { product_name: 'Engine Oil 5W-30', quantity_sold: 15, total_revenue: 525.00 },
-              { product_name: 'Brake Pads Front', quantity_sold: 8, total_revenue: 680.00 },
-              { product_name: 'Tire Set (4x)', quantity_sold: 3, total_revenue: 1350.00 }
-            ]
-          }
-        }
-      }
-    }
-  },
-
-  // Returns & Exchanges
-  async processReturn(returnData) {
-    try {
-      const response = await api.post('/pos/returns', returnData)
-      return response
-    } catch (error) {
-      console.warn('Using mock data for return processing:', error.message)
-      return {
-        data: {
-          return_transaction: {
-            id: `RTN-${Date.now()}`,
-            original_transaction_id: returnData.original_transaction_id,
-            return_amount: returnData.refund_amount,
-            refund_method: returnData.refund_method,
-            return_reason: returnData.return_reason,
-            processed_at: new Date().toISOString(),
-            status: 'completed'
-          }
-        }
-      }
-    }
+  async report(params = {}) {
+    const res = await api.get('/pos/report', { params })
+    return res.data.report
   }
 }
+
+export const PAYMENT_LABELS = {
+  cash: 'Cash',
+  card: 'Card',
+  eftpos: 'EFTPOS',
+  bank_transfer: 'Bank transfer',
+  voucher: 'Gift voucher',
+  other: 'Other',
+  split: 'Split'
+}
+
+export function paymentSummary(t) {
+  const methods = [...new Set((t?.payments || []).map((p) => p.method))]
+  if (!methods.length) return '—'
+  if ((t.payments || []).length > 1) return 'Split · ' + methods.map((m) => PAYMENT_LABELS[m] || m).join(' + ')
+  return PAYMENT_LABELS[methods[0]] || methods[0]
+}
+
+export function personName(p) {
+  if (!p) return ''
+  return `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || ''
+}
+
+export default posService

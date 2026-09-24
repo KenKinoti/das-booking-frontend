@@ -1,1142 +1,686 @@
 <template>
-  <div class="finance-page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-left">
-          <h1 class="page-title">
-            <i class="bi bi-receipt"></i>
-            Bills & Expenses
-          </h1>
-          <p class="page-subtitle">Track and manage your bills and expenses</p>
-        </div>
-        <div class="header-actions">
-          <button class="btn btn-primary" @click="showCreateBillModal = true">
-            <i class="bi bi-plus-lg"></i>
-            New Bill
-          </button>
-        </div>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Finance</div>
+        <h1>Bills</h1>
+        <p>Track what you owe suppliers, pay on time and keep your books up to date.</p>
       </div>
+      <div class="ui-actions">
+        <button class="ui-btn" :disabled="!bills.length" @click="exportCsv"><i class="fa-solid fa-download"></i> Export</button>
+        <button class="ui-btn ui-btn--primary" @click="newBill()"><i class="fa-solid fa-plus"></i> New bill</button>
+      </div>
+    </header>
+
+    <div class="ui-kpis">
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': view === 'bills' && status === 'unpaid' }" @click="setStatus('unpaid')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-hourglass-half"></i></span>Outstanding</div>
+        <div class="ui-kpi__value"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.payables_outstanding) }}</template></div>
+        <div class="ui-kpi__meta">{{ s ? `${s.open_bills} bill${s.open_bills === 1 ? '' : 's'} awaiting payment` : '…' }}</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': view === 'bills' && status === 'overdue' }" @click="setStatus('overdue')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon k-danger"><i class="fa-solid fa-triangle-exclamation"></i></span>Overdue</div>
+        <div class="ui-kpi__value" :class="{ 'txt-danger': s && s.payables_overdue > 0 }"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.payables_overdue) }}</template></div>
+        <div class="ui-kpi__meta">{{ s ? `${s.overdue_count} past due` : '…' }}</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': view === 'bills' && status === 'due_soon' }" @click="setStatus('due_soon')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon k-warning"><i class="fa-regular fa-calendar"></i></span>Due in 7 days</div>
+        <div class="ui-kpi__value"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.due_soon) }}</template></div>
+        <div class="ui-kpi__meta">{{ s ? `${s.due_soon_count} bill${s.due_soon_count === 1 ? '' : 's'} coming up` : '…' }}</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': view === 'bills' && status === 'paid' }" @click="setStatus('paid')">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon k-success"><i class="fa-solid fa-circle-check"></i></span>Paid this month</div>
+        <div class="ui-kpi__value"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.paid_this_month) }}</template></div>
+        <div class="ui-kpi__meta">Payments to suppliers</div>
+      </button>
     </div>
 
-    <!-- Stats Overview -->
-    <div class="stats-overview">
-      <div class="row g-3">
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card">
-            <div class="stat-icon paid">
-              <i class="bi bi-check-circle"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.paid.count }}</div>
-              <div class="stat-label">Paid Bills</div>
-              <div class="stat-amount">{{ formatCurrency(stats.paid.amount) }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card">
-            <div class="stat-icon pending">
-              <i class="bi bi-clock"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.pending.count }}</div>
-              <div class="stat-label">Pending Bills</div>
-              <div class="stat-amount">{{ formatCurrency(stats.pending.amount) }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card">
-            <div class="stat-icon overdue">
-              <i class="bi bi-exclamation-triangle"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.overdue.count }}</div>
-              <div class="stat-label">Overdue Bills</div>
-              <div class="stat-amount">{{ formatCurrency(stats.overdue.amount) }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <div class="stat-card">
-            <div class="stat-icon draft">
-              <i class="bi bi-file-earmark"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ stats.draft.count }}</div>
-              <div class="stat-label">Draft Bills</div>
-              <div class="stat-amount">{{ formatCurrency(stats.draft.amount) }}</div>
-            </div>
-          </div>
-        </div>
+    <section class="ui-card">
+      <div class="card-tabs" role="tablist" aria-label="Bills sections">
+        <button class="card-tab" :class="{ 'is-active': view === 'bills' }" role="tab" :aria-selected="view === 'bills'" @click="setView('bills')">
+          <i class="fa-solid fa-file-invoice"></i> Bills
+        </button>
+        <button class="card-tab" :class="{ 'is-active': view === 'vendors' }" role="tab" :aria-selected="view === 'vendors'" @click="setView('vendors')">
+          <i class="fa-solid fa-truck-field"></i> Vendors <span class="count">{{ activeVendors.length }}</span>
+        </button>
       </div>
-    </div>
 
-    <!-- Main Content -->
-    <div class="main-content">
-      <div class="content-card">
-        <div class="card-header">
-          <div class="header-left">
-            <h2 class="card-title">
-              <i class="bi bi-list-ul"></i>
-              Bills & Expenses
-            </h2>
-          </div>
-          <div class="header-actions">
-            <div class="search-box">
-              <i class="bi bi-search search-icon"></i>
-              <input
-                type="text"
-                class="search-input"
-                placeholder="Search bills..."
-                v-model="searchQuery"
-                @input="filterBills"
-              >
-            </div>
-          </div>
-        </div>
+      <VendorsTab
+        v-if="view === 'vendors'"
+        :vendors="vendors"
+        :accounts="accounts"
+        :loading="vendorsLoading"
+        :currency="currency"
+        @changed="loadVendors(); loadSummary()"
+        @reload="(all) => loadVendors(all)"
+        @new-bill="(v) => newBill(v)"
+        @show-bills="showVendorBills"
+      />
 
-        <!-- Filter Buttons -->
-        <div class="filter-section">
-          <div class="filter-buttons">
-            <button
-              v-for="status in statusFilters"
-              :key="status.key"
-              class="filter-btn"
-              :class="{ active: activeStatusFilter === status.key }"
-              @click="setStatusFilter(status.key)"
-            >
-              <i :class="status.icon"></i>
-              {{ status.label }}
+      <template v-else>
+        <div class="toolbar">
+          <div class="ui-tabs" role="tablist" aria-label="Bill status">
+            <button v-for="t in tabs" :key="t.value" class="ui-tab" :class="{ 'is-active': status === t.value }" role="tab" :aria-selected="status === t.value" @click="setStatus(t.value, true)">
+              {{ t.label }} <span v-if="counts[t.value]" class="count">{{ counts[t.value] }}</span>
             </button>
           </div>
+          <div class="toolbar__right">
+            <div class="ui-input-group search">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input v-model="q" class="ui-input" type="search" placeholder="Search bills…" aria-label="Search bills" />
+            </div>
+            <select v-model="vendorId" class="ui-select vendor" aria-label="Filter by vendor">
+              <option value="">All vendors</option>
+              <option v-for="v in vendors" :key="v.id" :value="v.id">{{ v.name }}</option>
+            </select>
+          </div>
         </div>
 
-        <div class="table-container">
-          <div class="table-wrapper">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th @click="sortBy('bill_number')" class="sortable">
-                    Bill #
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('vendor')" class="sortable">
-                    Vendor
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('category')" class="sortable">
-                    Category
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('bill_date')" class="sortable">
-                    Bill Date
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('due_date')" class="sortable">
-                    Due Date
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th @click="sortBy('amount')" class="sortable">
-                    Amount
-                    <i class="bi bi-arrow-up-down sort-icon"></i>
-                  </th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="bill in filteredBills" :key="bill.id">
-                  <td class="bill-number">{{ bill.bill_number }}</td>
-                  <td class="vendor-name">{{ bill.vendor }}</td>
-                  <td>
-                    <span class="category-badge" :style="{ backgroundColor: bill.category_color + '20', color: bill.category_color }">
-                      {{ bill.category }}
-                    </span>
-                  </td>
-                  <td>{{ formatDate(bill.bill_date) }}</td>
-                  <td>{{ formatDate(bill.due_date) }}</td>
-                  <td class="amount">{{ formatCurrency(bill.amount) }}</td>
-                  <td>
-                    <span class="status-badge" :class="bill.status.toLowerCase()">
-                      {{ bill.status }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="action-buttons">
-                      <button class="btn-action view" title="View">
-                        <i class="bi bi-eye"></i>
-                      </button>
-                      <button class="btn-action edit" title="Edit">
-                        <i class="bi bi-pencil"></i>
-                      </button>
-                      <button class="btn-action pay" title="Pay" v-if="bill.status !== 'Paid'">
-                        <i class="bi bi-credit-card"></i>
-                      </button>
-                      <button class="btn-action delete" title="Delete">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <div v-if="error" class="ui-card__body">
+          <div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="loadBills">Try again</a></span></div>
         </div>
-      </div>
-    </div>
 
-    <!-- Create Bill Modal -->
-    <div class="modal fade" :class="{ show: showCreateBillModal }" tabindex="-1" style="display: block;" v-if="showCreateBillModal">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              <i class="bi bi-plus-circle"></i>
-              Create New Bill
-            </h5>
-            <button type="button" class="btn-close" @click="showCreateBillModal = false"></button>
-          </div>
-          <div class="modal-body">
-            <form @submit.prevent="createBill">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label">Vendor</label>
-                  <select class="form-control" v-model="newBill.vendor" required>
-                    <option value="">Select Vendor</option>
-                    <option value="Office Supplies Inc">Office Supplies Inc</option>
-                    <option value="Tech Solutions Corp">Tech Solutions Corp</option>
-                    <option value="Utilities Company">Utilities Company</option>
-                    <option value="Marketing Agency">Marketing Agency</option>
-                    <option value="Legal Services LLC">Legal Services LLC</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Bill Number</label>
-                  <input type="text" class="form-control" v-model="newBill.bill_number" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Category</label>
-                  <select class="form-control" v-model="newBill.category" required>
-                    <option value="">Select Category</option>
-                    <option value="Office Supplies">Office Supplies</option>
-                    <option value="Software">Software</option>
-                    <option value="Utilities">Utilities</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Legal">Legal</option>
-                    <option value="Travel">Travel</option>
-                    <option value="Equipment">Equipment</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Amount</label>
-                  <input type="number" step="0.01" class="form-control" v-model="newBill.amount" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Bill Date</label>
-                  <input type="date" class="form-control" v-model="newBill.bill_date" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Due Date</label>
-                  <input type="date" class="form-control" v-model="newBill.due_date" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Status</label>
-                  <select class="form-control" v-model="newBill.status" required>
-                    <option value="Draft">Draft</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Paid">Paid</option>
-                    <option value="Overdue">Overdue</option>
-                  </select>
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Description</label>
-                  <textarea class="form-control" rows="3" v-model="newBill.description" placeholder="Bill description..."></textarea>
-                </div>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showCreateBillModal = false">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="createBill">
-              <i class="bi bi-plus-lg"></i>
-              Create Bill
-            </button>
+        <div v-else-if="loading && !bills.length" class="ui-card__body">
+          <div v-for="n in 6" :key="n" class="sk-row">
+            <div class="ui-skeleton" style="width: 90px"></div>
+            <div class="ui-skeleton" style="flex: 1"></div>
+            <div class="ui-skeleton" style="width: 80px"></div>
+            <div class="ui-skeleton" style="width: 100px"></div>
           </div>
         </div>
-      </div>
-    </div>
-    <div class="modal-backdrop fade show" v-if="showCreateBillModal"></div>
+
+        <div v-else-if="!rows.length" class="ui-empty">
+          <div class="ui-empty__icon"><i class="fa-solid fa-file-invoice"></i></div>
+          <h3>{{ filtered ? 'No bills match your filters' : 'No bills yet' }}</h3>
+          <p>{{ filtered ? 'Try a different search, vendor or status.' : 'Enter supplier bills to track what you owe and when it’s due.' }}</p>
+          <button v-if="filtered" class="ui-btn" style="margin-top: 12px" @click="clearFilters">Clear filters</button>
+          <button v-else class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="newBill()"><i class="fa-solid fa-plus"></i> New bill</button>
+        </div>
+
+        <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
+          <table class="ui-table">
+            <thead>
+              <tr>
+                <th>Bill</th>
+                <th>Vendor</th>
+                <th class="hide-md">Bill date</th>
+                <th>Due</th>
+                <th>Status</th>
+                <th class="num">Total</th>
+                <th class="num hide-sm">Amount due</th>
+                <th style="width: 120px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in rows" :key="b.id" class="is-clickable" @click="openDetail(b)">
+                <td>
+                  <strong class="mono">{{ b.bill_number }}</strong>
+                  <small v-if="b.reference" class="sub">{{ b.reference }}</small>
+                </td>
+                <td>
+                  <div class="v-cell">
+                    <span class="avatar">{{ initials(b.vendor_name) }}</span>
+                    <span class="v-name">{{ b.vendor_name || '—' }}</span>
+                  </div>
+                </td>
+                <td class="hide-md muted">{{ date(b.bill_date) }}</td>
+                <td class="nowrap">
+                  <span :class="{ 'txt-danger': b.display_status === 'overdue' }">{{ date(b.due_date) }}</span>
+                  <small v-if="b.display_status === 'overdue'" class="due-note">{{ b.days_overdue }}d late</small>
+                  <small v-else-if="b.amount_due > 0 && b.status !== 'draft' && isSoon(b)" class="soon-note">{{ rel(b.due_date) }}</small>
+                </td>
+                <td><span class="ui-badge" :class="`ui-badge--${badge(b)}`">{{ statusLabel(b) }}</span></td>
+                <td class="num"><strong>{{ money(b.total) }}</strong></td>
+                <td class="num hide-sm" :class="{ muted: b.amount_due <= 0 }">{{ money(b.amount_due) }}</td>
+                <td class="row-actions" @click.stop>
+                  <button v-if="b.status === 'draft'" class="ui-btn ui-btn--sm" @click="approve(b)"><i class="fa-solid fa-check"></i> Approve</button>
+                  <button v-else-if="b.amount_due > 0" class="ui-btn ui-btn--sm ui-btn--success" @click="pay(b)"><i class="fa-solid fa-money-bill-wave"></i> Pay</button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Edit ${b.bill_number}`" title="Edit" @click="editBill(b)"><i class="fa-solid fa-pen"></i></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <footer v-if="rows.length > 1" class="list-foot">
+            <span>{{ rows.length }} bills</span>
+            <span>Total <strong>{{ money(sum(rows, 'total')) }}</strong></span>
+            <span>Due <strong>{{ money(sum(rows, 'amount_due')) }}</strong></span>
+          </footer>
+        </div>
+      </template>
+    </section>
+
+    <BillModal
+      v-if="editing"
+      :bill="editing.bill"
+      :vendor-id="editing.vendorId || ''"
+      :vendors="activeVendorsFor(editing.bill)"
+      :accounts="accounts"
+      :currency="currency"
+      @close="editing = null"
+      @saved="onSaved"
+      @vendor-created="loadVendors()"
+    />
+    <BillDetailModal
+      v-if="detail"
+      :bill="detail"
+      :accounts="accounts"
+      :currency="currency"
+      @close="detail = null"
+      @edit="editBill"
+      @pay="pay"
+      @approve="approve"
+      @delete="remove"
+      @changed="onDetailChanged"
+    />
+    <PaymentModal v-if="paying" :bill="paying" :banks="banks" :currency="currency" @close="paying = null" @saved="onPaid" />
   </div>
 </template>
 
 <script>
-import { globalTheme } from '../composables/useTheme'
+import BillModal from '@/components/finance/BillModal.vue'
+import BillDetailModal from '@/components/finance/BillDetailModal.vue'
+import PaymentModal from '@/components/finance/PaymentModal.vue'
+import VendorsTab from '@/components/finance/VendorsTab.vue'
+import { financeApi, BILL_STATUS_LABELS, BILL_BADGE, toCents } from '@/services/finance'
+import { apiErrorMessage } from '@/services/api'
+import { formatMoney, formatDate, relativeDays, isoDate, addDays, downloadBlob } from '@/utils/format'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+
+const STATUSES = ['all', 'draft', 'unpaid', 'due_soon', 'overdue', 'paid']
 
 export default {
   name: 'Bills',
-  setup() {
-    const { isDark } = globalTheme
-    return { isDarkMode: isDark }
-  },
+  components: { BillModal, BillDetailModal, PaymentModal, VendorsTab },
   data() {
+    const qs = this.$route.query
     return {
-      searchQuery: '',
-      activeStatusFilter: 'all',
-      showCreateBillModal: false,
-      sortField: 'bill_date',
-      sortDirection: 'desc',
-
-      categoryColors: {
-        'Office Supplies': '#3b82f6',
-        'Software': '#8b5cf6',
-        'Utilities': '#f59e0b',
-        'Marketing': '#ef4444',
-        'Legal': '#059669',
-        'Travel': '#06b6d4',
-        'Equipment': '#6b7280'
-      },
-
-      statusFilters: [
-        { key: 'all', label: 'All Bills', icon: 'bi bi-list' },
-        { key: 'draft', label: 'Draft', icon: 'bi bi-file-earmark' },
-        { key: 'pending', label: 'Pending', icon: 'bi bi-clock' },
-        { key: 'paid', label: 'Paid', icon: 'bi bi-check-circle' },
-        { key: 'overdue', label: 'Overdue', icon: 'bi bi-exclamation-triangle' }
-      ],
-
-      newBill: {
-        vendor: '',
-        bill_number: '',
-        category: '',
-        bill_date: '',
-        due_date: '',
-        amount: '',
-        status: 'Draft',
-        description: ''
-      },
-
-      bills: [
-        {
-          id: 1,
-          bill_number: 'BILL-2024-001',
-          vendor: 'Office Supplies Inc',
-          category: 'Office Supplies',
-          category_color: '#3b82f6',
-          bill_date: '2024-01-15',
-          due_date: '2024-02-15',
-          amount: 1250.00,
-          status: 'Paid',
-          description: 'Monthly office supplies and stationery'
-        },
-        {
-          id: 2,
-          bill_number: 'BILL-2024-002',
-          vendor: 'Tech Solutions Corp',
-          category: 'Software',
-          category_color: '#8b5cf6',
-          bill_date: '2024-01-20',
-          due_date: '2024-02-20',
-          amount: 2500.00,
-          status: 'Pending',
-          description: 'Software licenses and subscriptions'
-        },
-        {
-          id: 3,
-          bill_number: 'BILL-2024-003',
-          vendor: 'Utilities Company',
-          category: 'Utilities',
-          category_color: '#f59e0b',
-          bill_date: '2024-01-10',
-          due_date: '2024-02-10',
-          amount: 850.00,
-          status: 'Overdue',
-          description: 'Electricity and water bills'
-        },
-        {
-          id: 4,
-          bill_number: 'BILL-2024-004',
-          vendor: 'Marketing Agency',
-          category: 'Marketing',
-          category_color: '#ef4444',
-          bill_date: '2024-01-25',
-          due_date: '2024-02-25',
-          amount: 5000.00,
-          status: 'Draft',
-          description: 'Digital marketing campaign'
-        },
-        {
-          id: 5,
-          bill_number: 'BILL-2024-005',
-          vendor: 'Legal Services LLC',
-          category: 'Legal',
-          category_color: '#059669',
-          bill_date: '2024-01-30',
-          due_date: '2024-03-01',
-          amount: 3200.00,
-          status: 'Pending',
-          description: 'Legal consultation and contract review'
-        },
-        {
-          id: 6,
-          bill_number: 'BILL-2024-006',
-          vendor: 'Equipment Rentals',
-          category: 'Equipment',
-          category_color: '#6b7280',
-          bill_date: '2024-02-01',
-          due_date: '2024-03-03',
-          amount: 1800.00,
-          status: 'Paid',
-          description: 'Office equipment rental'
-        }
-      ],
-
-      filteredBills: []
+      view: qs.view === 'vendors' ? 'vendors' : 'bills',
+      status: STATUSES.includes(qs.status) ? qs.status : 'all',
+      q: '',
+      vendorId: qs.vendor || '',
+      bills: [],
+      loading: false,
+      error: '',
+      s: null,
+      vendors: [],
+      vendorsLoading: false,
+      accounts: [],
+      banks: [],
+      editing: null,
+      detail: null,
+      paying: null
     }
   },
-
   computed: {
-    stats() {
-      const paid = this.bills.filter(b => b.status === 'Paid')
-      const pending = this.bills.filter(b => b.status === 'Pending')
-      const overdue = this.bills.filter(b => b.status === 'Overdue')
-      const draft = this.bills.filter(b => b.status === 'Draft')
-
-      return {
-        paid: {
-          count: paid.length,
-          amount: paid.reduce((sum, b) => sum + b.amount, 0)
-        },
-        pending: {
-          count: pending.length,
-          amount: pending.reduce((sum, b) => sum + b.amount, 0)
-        },
-        overdue: {
-          count: overdue.length,
-          amount: overdue.reduce((sum, b) => sum + b.amount, 0)
-        },
-        draft: {
-          count: draft.length,
-          amount: draft.reduce((sum, b) => sum + b.amount, 0)
+    currency() {
+      return 'AUD'
+    },
+    tabs() {
+      return [
+        { value: 'all', label: 'All' },
+        { value: 'draft', label: 'Draft' },
+        { value: 'unpaid', label: 'Awaiting payment' },
+        { value: 'overdue', label: 'Overdue' },
+        { value: 'paid', label: 'Paid' }
+      ]
+    },
+    activeVendors() {
+      return this.vendors.filter((v) => v.is_active)
+    },
+    counts() {
+      const c = { all: this.bills.length, draft: 0, unpaid: 0, overdue: 0, paid: 0 }
+      for (const b of this.bills) {
+        if (b.status === 'draft') c.draft++
+        else if (b.status === 'paid') c.paid++
+        else {
+          c.unpaid++
+          if (b.display_status === 'overdue') c.overdue++
         }
       }
+      return c
+    },
+    filtered() {
+      return !!(this.q || this.vendorId || this.status !== 'all')
+    },
+    rows() {
+      const q = this.q.trim().toLowerCase()
+      const today = isoDate()
+      const soon = addDays(today, 7)
+      return this.bills.filter((b) => {
+        if (this.vendorId && b.vendor_id !== this.vendorId) return false
+        switch (this.status) {
+          case 'draft':
+            if (b.status !== 'draft') return false
+            break
+          case 'unpaid':
+            if (!['unpaid', 'partial'].includes(b.status)) return false
+            break
+          case 'overdue':
+            if (b.display_status !== 'overdue') return false
+            break
+          case 'due_soon': {
+            const d = isoDate(b.due_date)
+            if (!['unpaid', 'partial'].includes(b.status) || d < today || d > soon) return false
+            break
+          }
+          case 'paid':
+            if (b.status !== 'paid') return false
+            break
+        }
+        if (q && !`${b.bill_number} ${b.vendor_name} ${b.reference} ${b.notes}`.toLowerCase().includes(q)) return false
+        return true
+      })
     }
   },
-
+  created() {
+    this.loadBills()
+    this.loadSummary()
+    this.loadVendors()
+    this.loadRefs()
+  },
   methods: {
-    filterBills() {
-      let filtered = [...this.bills]
-
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase()
-        filtered = filtered.filter(bill =>
-          bill.bill_number.toLowerCase().includes(query) ||
-          bill.vendor.toLowerCase().includes(query) ||
-          bill.category.toLowerCase().includes(query) ||
-          bill.description.toLowerCase().includes(query)
-        )
-      }
-
-      if (this.activeStatusFilter !== 'all') {
-        filtered = filtered.filter(bill =>
-          bill.status.toLowerCase() === this.activeStatusFilter
-        )
-      }
-
-      this.filteredBills = this.sortBills(filtered)
+    money(v) {
+      return formatMoney(v, this.currency)
     },
-
-    setStatusFilter(status) {
-      this.activeStatusFilter = status
-      this.filterBills()
+    date: formatDate,
+    rel: relativeDays,
+    sum(list, key) {
+      return list.reduce((s, b) => s + toCents(b[key]), 0) / 100
     },
-
-    sortBy(field) {
-      if (this.sortField === field) {
-        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc'
-      } else {
-        this.sortField = field
-        this.sortDirection = 'asc'
+    initials(name = '') {
+      return (name || '?')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0])
+        .join('')
+        .toUpperCase()
+    },
+    badge(b) {
+      return BILL_BADGE[b.display_status] || 'draft'
+    },
+    statusLabel(b) {
+      return BILL_STATUS_LABELS[b.display_status] || b.display_status
+    },
+    isSoon(b) {
+      const d = isoDate(b.due_date)
+      return d >= isoDate() && d <= addDays(isoDate(), 7)
+    },
+    activeVendorsFor(bill) {
+      // include the bill's own vendor even if archived
+      return this.vendors.filter((v) => v.is_active || (bill && v.id === bill.vendor_id))
+    },
+    syncQuery() {
+      const query = {}
+      if (this.view === 'vendors') query.view = 'vendors'
+      if (this.status !== 'all') query.status = this.status
+      if (this.vendorId) query.vendor = this.vendorId
+      this.$router.replace({ query })
+    },
+    setView(v) {
+      this.view = v
+      this.syncQuery()
+    },
+    setStatus(s, fromTab = false) {
+      this.view = 'bills'
+      this.status = !fromTab && this.status === s ? 'all' : s
+      this.syncQuery()
+    },
+    clearFilters() {
+      this.q = ''
+      this.vendorId = ''
+      this.status = 'all'
+      this.syncQuery()
+    },
+    showVendorBills(v) {
+      this.vendorId = v.id
+      this.status = 'all'
+      this.view = 'bills'
+      this.syncQuery()
+    },
+    async loadBills() {
+      this.loading = true
+      this.error = ''
+      try {
+        this.bills = (await financeApi.bills()) || []
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load bills')
+      } finally {
+        this.loading = false
       }
-      this.filterBills()
     },
-
-    sortBills(bills) {
-      return bills.sort((a, b) => {
-        let aValue = a[this.sortField]
-        let bValue = b[this.sortField]
-
-        if (this.sortField === 'amount') {
-          aValue = parseFloat(aValue)
-          bValue = parseFloat(bValue)
-        }
-
-        if (this.sortDirection === 'asc') {
-          return aValue > bValue ? 1 : -1
-        } else {
-          return aValue < bValue ? 1 : -1
-        }
+    async loadSummary() {
+      try {
+        this.s = await financeApi.summary()
+      } catch {
+        this.s = null
+      }
+    },
+    async loadVendors(includeInactive = true) {
+      this.vendorsLoading = true
+      try {
+        this.vendors = (await financeApi.vendors({ include_inactive: includeInactive ? 'true' : undefined })) || []
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not load vendors'))
+      } finally {
+        this.vendorsLoading = false
+      }
+    },
+    async loadRefs() {
+      try {
+        const [accounts, banks] = await Promise.all([financeApi.accounts(), financeApi.bankAccounts()])
+        this.accounts = accounts || []
+        this.banks = banks || []
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not load accounts'))
+      }
+    },
+    refresh() {
+      this.loadBills()
+      this.loadSummary()
+      this.loadVendors()
+    },
+    newBill(vendor) {
+      this.detail = null
+      this.editing = { bill: null, vendorId: vendor ? vendor.id : this.vendorId || '' }
+    },
+    async openDetail(b) {
+      this.detail = b
+      try {
+        this.detail = await financeApi.bill(b.id)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not load the bill'))
+      }
+    },
+    async editBill(b) {
+      try {
+        const full = b.payments ? b : await financeApi.bill(b.id)
+        this.detail = null
+        this.editing = { bill: full }
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not load the bill'))
+      }
+    },
+    onSaved(bill) {
+      this.editing = null
+      this.refresh()
+      if (bill && bill.id) this.detail = bill
+    },
+    pay(b) {
+      if (!this.banks.length) this.loadRefs()
+      this.detail = null
+      this.paying = b
+    },
+    onPaid(bill) {
+      this.paying = null
+      this.refresh()
+      this.loadRefs()
+      this.detail = bill
+    },
+    onDetailChanged(bill) {
+      this.detail = bill
+      this.refresh()
+      this.loadRefs()
+    },
+    async approve(b) {
+      try {
+        const updated = await financeApi.approveBill(b.id)
+        toast.success(`${b.bill_number} approved`)
+        if (this.detail) this.detail = updated
+        this.refresh()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not approve the bill'))
+      }
+    },
+    async remove(b) {
+      const ok = await confirmDialog({
+        title: `Delete ${b.bill_number}?`,
+        message: b.paid_amount > 0 ? 'This bill has payments. Remove the payments first, then delete the bill.' : `The bill from ${b.vendor_name} for ${this.money(b.total)} will be deleted and its journal reversed.`,
+        confirmText: 'Delete bill',
+        danger: true
       })
-    },
-
-    createBill() {
-      const newId = Math.max(...this.bills.map(b => b.id)) + 1
-      const bill = {
-        id: newId,
-        ...this.newBill,
-        amount: parseFloat(this.newBill.amount),
-        category_color: this.categoryColors[this.newBill.category] || '#6b7280'
-      }
-
-      this.bills.unshift(bill)
-      this.filterBills()
-      this.showCreateBillModal = false
-      this.resetNewBill()
-    },
-
-    resetNewBill() {
-      this.newBill = {
-        vendor: '',
-        bill_number: '',
-        category: '',
-        bill_date: '',
-        due_date: '',
-        amount: '',
-        status: 'Draft',
-        description: ''
+      if (!ok) return
+      try {
+        await financeApi.deleteBill(b.id)
+        toast.success(`${b.bill_number} deleted`)
+        this.detail = null
+        this.refresh()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete the bill'))
       }
     },
-
-    formatCurrency(amount) {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-      }).format(amount)
-    },
-
-    formatDate(dateString) {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
+    exportCsv() {
+      const head = ['Bill', 'Reference', 'Vendor', 'Bill date', 'Due date', 'Status', 'Subtotal', 'Tax', 'Total', 'Paid', 'Amount due']
+      const lines = this.rows.map((b) => [
+        b.bill_number,
+        b.reference,
+        b.vendor_name,
+        isoDate(b.bill_date),
+        isoDate(b.due_date),
+        this.statusLabel(b),
+        b.subtotal.toFixed(2),
+        b.tax_amount.toFixed(2),
+        b.total.toFixed(2),
+        b.paid_amount.toFixed(2),
+        b.amount_due.toFixed(2)
+      ])
+      const csv = [head, ...lines].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+      downloadBlob(new Blob([csv], { type: 'text/csv' }), `bills-${isoDate()}.csv`)
     }
-  },
-
-  mounted() {
-    this.filteredBills = [...this.bills]
-    this.filterBills()
   }
 }
 </script>
 
 <style scoped>
-/* CSS Variables for Dark Theme */
-.finance-page {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-card: #ffffff;
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --border-color: #e2e8f0;
-  --border-light: #f1f5f9;
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="dark"] .finance-page {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border-color: #475569;
-  --border-light: #64748b;
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
-}
-
-.finance-page {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  transition: all 0.3s ease;
-}
-
-/* Page Header */
-.page-header {
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-color);
-  padding: 1.5rem 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: var(--shadow);
-}
-
-.header-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.page-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.page-subtitle {
-  color: var(--text-secondary);
-  margin: 0.25rem 0 0 0;
-  font-size: 0.9rem;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* Stats Overview */
-.stats-overview {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  box-shadow: var(--shadow);
-  transition: all 0.3s ease;
-  height: 100%;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  color: white;
-  flex-shrink: 0;
-}
-
-.stat-icon.paid { background: linear-gradient(135deg, #059669, #047857); }
-.stat-icon.pending { background: linear-gradient(135deg, #f59e0b, #d97706); }
-.stat-icon.overdue { background: linear-gradient(135deg, #dc2626, #b91c1c); }
-.stat-icon.draft { background: linear-gradient(135deg, #6b7280, #4b5563); }
-
-.stat-content {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.stat-label {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin: 0.25rem 0;
-}
-
-.stat-amount {
-  color: var(--text-primary);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-/* Main Content */
-.main-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1rem 2rem;
-}
-
-.content-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-
-.card-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-light);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--bg-secondary);
-}
-
-.card-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-/* Search Box */
-.search-box {
-  position: relative;
-  width: 300px;
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.search-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-/* Filter Section */
-.filter-section {
-  padding: 1rem 1.5rem;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-light);
-}
-
-.filter-buttons {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.filter-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  font-size: 0.875rem;
+.kpi-btn {
+  text-align: left;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.kpi-btn:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+.kpi-btn.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.sk {
+  display: inline-block;
+  width: 120px;
+  height: 26px;
+}
+.k-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.k-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.k-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.txt-danger {
+  color: var(--danger);
+}
+.card-tabs {
   display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.filter-btn:hover {
-  background: var(--bg-card);
-  border-color: #3b82f6;
-}
-
-.filter-btn.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: white;
-}
-
-/* Table */
-.table-container {
+  gap: 4px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
   overflow-x: auto;
 }
-
-.table-wrapper {
-  min-width: 900px;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.data-table th {
-  padding: 1rem;
-  text-align: left;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
+.card-tab {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
   font-weight: 600;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-  border-bottom: 1px solid var(--border-light);
+  color: var(--text-3);
+  padding: 14px 12px 12px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-tab:hover {
+  color: var(--text);
+}
+.card-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.card-tab .count {
+  font-size: 11px;
+  background: var(--neutral-soft);
+  color: var(--text-3);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.toolbar__right {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.search {
+  width: 240px;
+}
+.vendor {
+  width: 190px;
+}
+.sk-row {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
   white-space: nowrap;
 }
-
-.data-table th.sortable {
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.2s ease;
+.sub {
+  display: block;
+  font-size: 12px;
+  color: var(--text-3);
 }
-
-.data-table th.sortable:hover {
-  color: var(--text-primary);
+.v-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
 }
-
-.sort-icon {
-  margin-left: 0.25rem;
-  opacity: 0.5;
-  font-size: 0.75rem;
+.v-name {
+  font-weight: 550;
 }
-
-.data-table td {
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-light);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  vertical-align: middle;
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
 }
-
-.data-table tbody tr {
-  transition: background-color 0.2s ease;
+.muted {
+  color: var(--text-3);
 }
-
-.data-table tbody tr:hover {
-  background: var(--bg-secondary);
+.nowrap {
+  white-space: nowrap;
 }
-
-.bill-number {
-  font-weight: 600;
-  color: #3b82f6;
+.due-note {
+  display: block;
+  font-size: 11.5px;
+  color: var(--danger);
 }
-
-.vendor-name {
-  font-weight: 500;
+.soon-note {
+  display: block;
+  font-size: 11.5px;
+  color: var(--warning);
 }
-
-.amount {
-  font-weight: 600;
+.row-actions {
   text-align: right;
+  white-space: nowrap;
 }
-
-.category-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
+.row-actions .ui-btn + .ui-btn {
+  margin-left: 4px;
 }
-
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.status-badge.paid {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-badge.pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge.overdue {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.status-badge.draft {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-[data-theme="dark"] .status-badge.paid {
-  background: #166534;
-  color: #dcfce7;
-}
-
-[data-theme="dark"] .status-badge.pending {
-  background: #92400e;
-  color: #fef3c7;
-}
-
-[data-theme="dark"] .status-badge.overdue {
-  background: #991b1b;
-  color: #fee2e2;
-}
-
-[data-theme="dark"] .status-badge.draft {
-  background: #475569;
-  color: #f1f5f9;
-}
-
-/* Action Buttons */
-.action-buttons {
+.list-foot {
   display: flex;
-  gap: 0.25rem;
+  justify-content: flex-end;
+  gap: 24px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
+  font-size: 13px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
-
-.btn-action {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
+.list-foot strong {
+  color: var(--text);
+  margin-left: 4px;
 }
-
-.btn-action.view {
-  background: #eff6ff;
-  color: #2563eb;
+.is-loading {
+  opacity: 0.6;
 }
-
-.btn-action.view:hover {
-  background: #dbeafe;
-}
-
-.btn-action.edit {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.btn-action.edit:hover {
-  background: #fde68a;
-}
-
-.btn-action.pay {
-  background: #ecfdf5;
-  color: #059669;
-}
-
-.btn-action.pay:hover {
-  background: #d1fae5;
-}
-
-.btn-action.delete {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.btn-action.delete:hover {
-  background: #fecaca;
-}
-
-/* Modal Styles */
-.modal {
-  background: rgba(0, 0, 0, 0.5);
-}
-
-.modal-content {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg);
-}
-
-.modal-header {
-  border-bottom: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-}
-
-.modal-title {
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-close {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  opacity: 1;
-}
-
-.modal-footer {
-  border-top: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-}
-
-.form-label {
-  color: var(--text-secondary);
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-}
-
-.form-control {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  transition: all 0.2s ease;
-}
-
-.form-control:focus {
-  background: var(--bg-primary);
-  border-color: #3b82f6;
-  color: var(--text-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .header-content {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
+@media (max-width: 1100px) {
+  .hide-md {
+    display: none;
   }
-
-  .header-actions {
+}
+@media (max-width: 700px) {
+  .hide-sm {
+    display: none;
+  }
+  .search,
+  .vendor,
+  .toolbar__right {
     width: 100%;
+  }
+  .list-foot {
     justify-content: space-between;
-  }
-
-  .search-box {
-    width: 250px;
+    gap: 8px;
   }
 }
-
-@media (max-width: 768px) {
-  .page-header {
-    padding: 1rem 0;
+@media (max-width: 700px) {
+  .ui-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
-
-  .stats-overview {
-    padding: 1rem;
+  .ui-kpi {
+    padding: 14px;
   }
-
-  .stat-card {
-    padding: 1rem;
+  .ui-kpi__value {
+    font-size: 19px;
   }
-
-  .stat-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 1.125rem;
+  .ui-kpi__meta {
+    font-size: 11.5px;
   }
-
-  .stat-value {
-    font-size: 1.5rem;
+  .card-tab {
+    padding: 12px 8px 10px;
+    font-size: 13.5px;
   }
-
-  .main-content {
-    padding: 0 1rem 1rem;
-  }
-
-  .card-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
-  }
-
-  .header-actions {
-    width: 100%;
-  }
-
-  .search-box {
-    width: 100%;
-  }
-
-  .filter-buttons {
-    justify-content: center;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 0.75rem 0.5rem;
-  }
-
-  .action-buttons {
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .btn-action {
-    width: 28px;
-    height: 28px;
-    font-size: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .stats-overview {
-    padding: 0.75rem;
-  }
-
-  .stat-card {
-    padding: 0.75rem;
-    flex-direction: column;
-    text-align: center;
-    gap: 0.75rem;
-  }
-
-  .filter-section {
-    padding: 0.75rem;
-  }
-
-  .filter-btn {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.8rem;
-  }
-
-  .table-wrapper {
-    min-width: 700px;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.8rem;
+  .card-tab i {
+    display: none;
   }
 }
 </style>

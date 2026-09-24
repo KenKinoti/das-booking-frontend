@@ -1,133 +1,58 @@
 import { defineStore } from 'pinia'
-import { listFrom } from '../services/api'
 import { usersService } from '../services/users'
+import { apiErrorMessage } from '../services/api'
 
+/** Organisation users (staff). Thin cache over usersService. */
 export const useUsersStore = defineStore('users', {
   state: () => ({
     users: [],
-    currentUser: null,
+    summary: {},
     isLoading: false,
     error: null,
-    pagination: {
-      page: 1,
-      limit: 20,
-      total: 0,
-      totalPages: 0
-    }
+    pagination: { page: 1, limit: 500, total: 0, totalPages: 0 }
   }),
 
   getters: {
-    usersByRole: (state) => {
-      return state.users.reduce((acc, user) => {
-        acc[user.role] = acc[user.role] || []
-        acc[user.role].push(user)
+    activeUsers: (state) => state.users.filter((u) => u.is_active),
+    staff: (state) => state.users,
+    usersByRole: (state) =>
+      state.users.reduce((acc, u) => {
+        ;(acc[u.role] = acc[u.role] || []).push(u)
         return acc
       }, {})
-    },
-
-    activeUsers: (state) => {
-      return state.users.filter(user => user.is_active)
-    },
-
-    // Staff getter for Staff.vue component
-    staff: (state) => {
-      return state.users
-    }
   },
 
   actions: {
     async fetchUsers(params = {}) {
-      console.log('🔄 fetchUsers called with params:', params)
       this.isLoading = true
       this.error = null
-      
       try {
-        console.log('📡 Calling usersService.getAll...')
-        const response = await usersService.getAll(params)
-        console.log('✅ Response received:', response)
-        
-        this.users = listFrom(response, 'users', 'staff')
-        this.pagination = response.data?.pagination || response.data?.data?.pagination || this.pagination
-        
-        console.log('👥 Users set:', this.users.length, 'users')
-      } catch (error) {
-        console.error('❌ fetchUsers error:', error)
-        this.error = error.response?.data?.message || 'Failed to fetch users'
-        throw error
+        const { users, pagination, summary } = await usersService.list({ limit: 500, sort: 'name', ...params })
+        this.users = users
+        this.summary = summary
+        this.pagination = { page: pagination.page || 1, limit: pagination.limit || 500, total: pagination.total || users.length, totalPages: pagination.total_pages || 1 }
+        return users
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load users')
+        throw e
       } finally {
         this.isLoading = false
       }
     },
-
-    async fetchUser(id) {
-      this.isLoading = true
-      this.error = null
-      
-      try {
-        const response = await usersService.getById(id)
-        this.currentUser = response.data
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Failed to fetch user'
-        throw error
-      } finally {
-        this.isLoading = false
-      }
+    async createUser(data) {
+      const res = await usersService.create(data)
+      if (res.user) this.users.unshift(res.user)
+      return res
     },
-
-    async createUser(userData) {
-      this.isLoading = true
-      this.error = null
-      
-      try {
-        const response = await usersService.create(userData)
-        this.users.unshift(response.data)
-        return response
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Failed to create user'
-        throw error
-      } finally {
-        this.isLoading = false
-      }
+    async updateUser(id, data) {
+      const user = await usersService.update(id, data)
+      const i = this.users.findIndex((u) => u.id === id)
+      if (i !== -1 && user) this.users[i] = user
+      return user
     },
-
-    async updateUser(id, userData) {
-      this.isLoading = true
-      this.error = null
-      
-      try {
-        const response = await usersService.update(id, userData)
-        const index = this.users.findIndex(u => u.id === id)
-        if (index !== -1) {
-          this.users[index] = response.data
-        }
-        if (this.currentUser?.id === id) {
-          this.currentUser = response.data
-        }
-        return response
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Failed to update user'
-        throw error
-      } finally {
-        this.isLoading = false
-      }
-    },
-
     async deleteUser(id) {
-      this.isLoading = true
-      this.error = null
-      
-      try {
-        await usersService.delete(id)
-        this.users = this.users.filter(u => u.id !== id)
-        if (this.currentUser?.id === id) {
-          this.currentUser = null
-        }
-      } catch (error) {
-        this.error = error.response?.data?.message || 'Failed to delete user'
-        throw error
-      } finally {
-        this.isLoading = false
-      }
+      await usersService.remove(id)
+      this.users = this.users.filter((u) => u.id !== id)
     }
   }
 })

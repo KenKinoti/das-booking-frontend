@@ -1,128 +1,293 @@
 <template>
-  <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Adjust Stock - {{ product?.name }}</h5>
-          <button type="button" class="btn-close" @click="$emit('close')"></button>
-        </div>
-        <div class="modal-body">
-          <div class="alert alert-info">
-            <strong>Current Stock:</strong> {{ product?.current_stock }} {{ product?.unit_of_measure }}
+  <div class="ui-modal-backdrop" @mousedown.self="close">
+    <form class="ui-modal" style="max-width: 540px" novalidate @submit.prevent="save">
+      <div class="ui-modal__head">
+        <h2>Adjust stock</h2>
+        <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Close" @click="close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="ui-modal__body">
+        <div class="product">
+          <div class="min0">
+            <strong>{{ product.name }}</strong>
+            <small>{{ product.sku }}</small>
           </div>
-
-          <form @submit.prevent="adjustStock">
-            <div class="mb-3">
-              <label class="form-label">Adjustment Type</label>
-              <select class="form-select" v-model="form.movement_type" required>
-                <option value="">Select Type</option>
-                <option value="in">Stock In (Add)</option>
-                <option value="out">Stock Out (Remove)</option>
-                <option value="adjustment">Set Exact Amount</option>
-              </select>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label">
-                {{ form.movement_type === 'adjustment' ? 'New Stock Level' : 'Quantity' }}
-              </label>
-              <input type="number" class="form-control" v-model.number="form.quantity" min="0" required>
-            </div>
-
-            <div class="mb-3" v-if="form.movement_type === 'in'">
-              <label class="form-label">Unit Cost</label>
-              <input type="number" class="form-control" v-model.number="form.unit_cost" step="0.01">
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label">Reference</label>
-              <input type="text" class="form-control" v-model="form.reference" placeholder="e.g., Purchase Order #123">
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label">Notes</label>
-              <textarea class="form-control" v-model="form.notes" rows="3" placeholder="Reason for adjustment..."></textarea>
-            </div>
-
-            <div v-if="form.movement_type && form.quantity" class="alert alert-warning">
-              <strong>New Stock Level:</strong> {{ calculateNewStock() }} {{ product?.unit_of_measure }}
-            </div>
-          </form>
+          <div class="on-hand">
+            <span>On hand</span>
+            <strong>{{ product.current_stock }}</strong>
+          </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" @click="$emit('close')">Cancel</button>
-          <button type="button" class="btn btn-primary" @click="adjustStock" :disabled="loading || !canAdjust">
-            <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-            Adjust Stock
+
+        <div v-if="error" class="ui-alert ui-alert--danger" style="margin: 14px 0 0"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
+
+        <div class="modes" role="radiogroup" aria-label="Adjustment type">
+          <button v-for="m in modes" :key="m.value" type="button" class="mode" :class="{ 'is-active': mode === m.value }" role="radio" :aria-checked="mode === m.value" @click="setMode(m.value)">
+            <i :class="m.icon"></i>
+            <span>{{ m.label }}</span>
           </button>
         </div>
+
+        <div class="grid">
+          <div class="ui-field">
+            <label for="adj_qty">{{ mode === 'adjustment' ? 'New stock level' : 'Quantity' }}</label>
+            <input id="adj_qty" ref="qty" v-model.number="quantity" type="number" min="0" step="1" class="ui-input qty" :class="{ 'is-invalid': qtyError }" />
+            <div v-if="qtyError" class="field-err">{{ qtyError }}</div>
+          </div>
+          <div class="preview" :class="{ neg: newLevel < 0 }">
+            <span>Result</span>
+            <div>
+              <span class="from">{{ product.current_stock }}</span>
+              <i class="fa-solid fa-arrow-right"></i>
+              <strong>{{ validQty ? newLevel : '—' }}</strong>
+              <small v-if="validQty && delta !== 0" :class="delta > 0 ? 'up' : 'down'">{{ delta > 0 ? '+' : '' }}{{ delta }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="ui-field">
+          <label for="adj_reason">Reason</label>
+          <select id="adj_reason" v-model="reason" class="ui-select">
+            <option v-for="r in reasons" :key="r" :value="r">{{ r }}</option>
+          </select>
+        </div>
+        <div class="ui-field" style="margin-top: 12px">
+          <label for="adj_notes">Note (optional)</label>
+          <input id="adj_notes" v-model="notes" class="ui-input" maxlength="500" placeholder="Anything worth remembering" />
+        </div>
       </div>
-    </div>
+      <div class="ui-modal__foot">
+        <button type="button" class="ui-btn" @click="close">Cancel</button>
+        <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving || !!qtyError || !validQty || delta === 0">
+          <i :class="saving ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-check'"></i> Save adjustment
+        </button>
+      </div>
+    </form>
   </div>
 </template>
 
 <script>
 import { inventoryService } from '@/services/inventoryService'
+import { apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+
+const REASONS = {
+  in: ['Stock received', 'Customer return', 'Found in stocktake', 'Correction', 'Other'],
+  out: ['Damaged', 'Expired', 'Lost or stolen', 'Used internally', 'Returned to supplier', 'Correction', 'Other'],
+  adjustment: ['Stocktake count', 'Correction', 'Other']
+}
 
 export default {
   name: 'StockAdjustmentModal',
   props: {
-    product: Object
+    product: { type: Object, required: true },
+    initialMode: { type: String, default: 'in' }
   },
-  emits: ['close', 'adjusted'],
+  emits: ['close', 'saved'],
   data() {
+    const mode = ['in', 'out', 'adjustment'].includes(this.initialMode) ? this.initialMode : 'in'
     return {
-      loading: false,
-      form: {
-        product_id: '',
-        movement_type: '',
-        quantity: 0,
-        unit_cost: 0,
-        reference: '',
-        notes: ''
-      }
+      mode,
+      quantity: mode === 'adjustment' ? this.product.current_stock : 1,
+      reason: REASONS[mode][0],
+      notes: '',
+      saving: false,
+      error: '',
+      modes: [
+        { value: 'in', label: 'Add', icon: 'fa-solid fa-plus' },
+        { value: 'out', label: 'Remove', icon: 'fa-solid fa-minus' },
+        { value: 'adjustment', label: 'Set count', icon: 'fa-solid fa-equals' }
+      ]
     }
   },
   computed: {
-    canAdjust() {
-      return this.form.movement_type && this.form.quantity > 0
+    reasons() {
+      return REASONS[this.mode]
+    },
+    validQty() {
+      const q = Number(this.quantity)
+      return this.quantity !== '' && this.quantity != null && Number.isInteger(q) && q >= 0
+    },
+    newLevel() {
+      const cur = Number(this.product.current_stock) || 0
+      const q = Number(this.quantity) || 0
+      if (this.mode === 'in') return cur + q
+      if (this.mode === 'out') return cur - q
+      return q
+    },
+    delta() {
+      return this.newLevel - (Number(this.product.current_stock) || 0)
+    },
+    qtyError() {
+      if (this.quantity === '' || this.quantity == null) return ''
+      if (!this.validQty) return 'Enter a whole number of 0 or more.'
+      if (this.mode !== 'adjustment' && Number(this.quantity) === 0) return 'Enter at least 1.'
+      if (this.newLevel < 0) return `Only ${this.product.current_stock} in stock.`
+      return ''
     }
   },
-  created() {
-    if (this.product) {
-      this.form.product_id = this.product.id
-      this.form.unit_cost = this.product.cost_price
-    }
+  mounted() {
+    this.$refs.qty?.focus()
+    this.$refs.qty?.select()
+    document.addEventListener('keydown', this.onKey)
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKey)
   },
   methods: {
-    calculateNewStock() {
-      if (!this.product || !this.form.quantity) return 0
-
-      switch (this.form.movement_type) {
-        case 'in':
-          return this.product.current_stock + this.form.quantity
-        case 'out':
-          return Math.max(0, this.product.current_stock - this.form.quantity)
-        case 'adjustment':
-          return this.form.quantity
-        default:
-          return this.product.current_stock
-      }
+    onKey(e) {
+      if (e.key === 'Escape') this.close()
     },
-
-    async adjustStock() {
-      if (!this.canAdjust) return
-
-      this.loading = true
+    close() {
+      if (!this.saving) this.$emit('close')
+    },
+    setMode(m) {
+      this.mode = m
+      this.reason = REASONS[m][0]
+      this.quantity = m === 'adjustment' ? this.product.current_stock : 1
+      this.$nextTick(() => this.$refs.qty?.select())
+    },
+    async save() {
+      if (this.qtyError || !this.validQty || this.delta === 0) return
+      this.saving = true
+      this.error = ''
       try {
-        await inventoryService.adjustInventory(this.form)
-        this.$emit('adjusted')
-      } catch (error) {
-        console.error('Error adjusting stock:', error)
+        const res = await inventoryService.adjustInventory({
+          product_id: this.product.id,
+          movement_type: this.mode,
+          quantity: Number(this.quantity),
+          reason: this.reason,
+          notes: this.notes.trim()
+        })
+        toast.success(`${this.product.name}: stock ${res.data?.previous_quantity} → ${res.data?.new_quantity}`)
+        this.$emit('saved', res.data?.product)
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not adjust stock')
       } finally {
-        this.loading = false
+        this.saving = false
       }
     }
   }
 }
 </script>
+
+<style scoped>
+.product {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.min0 {
+  min-width: 0;
+}
+.product strong {
+  display: block;
+  color: var(--text);
+}
+.product small {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.on-hand {
+  text-align: right;
+  flex-shrink: 0;
+}
+.on-hand span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.on-hand strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+.mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.mode:hover {
+  background: var(--surface-hover);
+}
+.mode.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.qty {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.preview {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.preview > span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.preview > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.preview .from {
+  color: var(--text-3);
+}
+.preview i {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.preview strong {
+  font-size: 20px;
+  color: var(--text);
+}
+.preview .up {
+  color: var(--success);
+  font-weight: 600;
+}
+.preview .down {
+  color: var(--danger);
+  font-weight: 600;
+}
+.preview.neg strong {
+  color: var(--danger);
+}
+.is-invalid {
+  border-color: var(--danger) !important;
+}
+.field-err {
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: 4px;
+}
+</style>

@@ -104,7 +104,7 @@
           <div class="ui-field">
             <label for="cur">Default currency</label>
             <select id="cur" v-model="s.currency" class="ui-select">
-              <option v-for="c in currencies" :key="c" :value="c">{{ c }}</option>
+              <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region"><option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option></optgroup>
             </select>
           </div>
           <div class="ui-field">
@@ -190,6 +190,7 @@
 </template>
 
 <script>
+import { currencyGroups } from '@/utils/currencies'
 import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
@@ -206,7 +207,7 @@ export default {
       emailEnabled: false,
       saving: false,
       error: null,
-      currencies: ['AUD', 'USD', 'EUR', 'GBP', 'NZD', 'CAD', 'KES', 'ZAR', 'SGD', 'INR', 'JPY'],
+      currencyGroups: currencyGroups(),
       swatches: ['#5b4cf0', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#db2777', '#111827'],
       placeholders: ['client', 'number', 'type', 'type_lower', 'total', 'due_date', 'business', 'link']
     }

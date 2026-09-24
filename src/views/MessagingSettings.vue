@@ -1,1136 +1,299 @@
 <template>
-  <div class="page-container">
-    <div class="page-header">
-      <div class="page-header-content">
-        <div class="page-title-section">
-          <h1 class="page-title">
-            <i class="fas fa-comments-cog"></i>
-            Messaging Settings
-          </h1>
-          <p class="page-subtitle">Configure messaging features and integrations</p>
-        </div>
+  <div class="mp ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Communication</div>
+        <h1>Messaging settings</h1>
+        <p>Control team chat for your organisation and connect WhatsApp Business.</p>
       </div>
-    </div>
-
-    <div class="settings-container">
-      <!-- Navigation Tabs -->
-      <div class="settings-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          @click="activeTab = tab.key"
-          class="tab-button"
-          :class="{ active: activeTab === tab.key }"
-        >
-          <i :class="tab.icon"></i>
-          {{ tab.label }}
-        </button>
+      <div class="ui-actions">
+        <router-link to="/messages" class="ui-btn"><i class="fa-regular fa-message"></i> Open messages</router-link>
       </div>
+    </header>
 
-      <!-- Tab Content -->
-      <div class="tab-content">
-        <!-- General Settings -->
-        <div v-if="activeTab === 'general'" class="settings-section">
-          <div class="section-header">
-            <h2>General Settings</h2>
-            <p>Configure basic messaging features for your organization</p>
+    <div v-if="loadError" class="ui-alert ui-alert--danger" style="margin-bottom: 16px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ loadError }} <a href="#" @click.prevent="load">Try again</a></span></div>
+
+    <div class="grid">
+      <section class="ui-card">
+        <div class="ui-card__head">
+          <div>
+            <h2>Team chat</h2>
+            <p class="sub">Applies to everyone in your organisation.</p>
           </div>
-
-          <div class="settings-grid">
-            <div class="setting-card">
-              <div class="setting-header">
-                <h3>Core Features</h3>
-              </div>
-              <div class="setting-options">
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Enable In-App Messaging</label>
-                    <span class="setting-description">Allow users to send messages within the application</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.enable_in_app_messaging" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Enable Group Chats</label>
-                    <span class="setting-description">Allow users to create and participate in group conversations</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.enable_group_chats" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Enable File Sharing</label>
-                    <span class="setting-description">Allow users to share files and documents in messages</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.enable_file_sharing" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="setting-card">
-              <div class="setting-header">
-                <h3>File Sharing Limits</h3>
-              </div>
-              <div class="setting-options">
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Maximum File Size (MB)</label>
-                    <span class="setting-description">Maximum size for file uploads</span>
-                  </div>
-                  <div class="setting-control">
-                    <input
-                      v-model.number="maxFileSizeMB"
-                      type="number"
-                      min="1"
-                      max="100"
-                      class="number-input"
-                    />
-                  </div>
-                </div>
-
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Allowed File Types</label>
-                    <span class="setting-description">Select which file types can be shared</span>
-                  </div>
-                  <div class="setting-control">
-                    <div class="file-types-grid">
-                      <label v-for="type in availableFileTypes" :key="type.ext" class="file-type-checkbox">
-                        <input
-                          v-model="allowedFileTypes"
-                          :value="type.ext"
-                          type="checkbox"
-                        />
-                        <span class="checkmark"></span>
-                        <div class="file-type-info">
-                          <i :class="type.icon"></i>
-                          <span>{{ type.label }}</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="setting-card">
-              <div class="setting-header">
-                <h3>Privacy & Features</h3>
-              </div>
-              <div class="setting-options">
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Read Receipts</label>
-                    <span class="setting-description">Show when messages have been read</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.enable_read_receipts" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Typing Indicators</label>
-                    <span class="setting-description">Show when someone is typing a message</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.enable_typing_indicator" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Message Reactions</label>
-                    <span class="setting-description">Allow users to react to messages with emojis</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.enable_message_reactions" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Voice Messages</label>
-                    <span class="setting-description">Allow users to send voice recordings</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.enable_voice_messages" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="setting-card">
-              <div class="setting-header">
-                <h3>Data Retention</h3>
-              </div>
-              <div class="setting-options">
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Message Retention (Days)</label>
-                    <span class="setting-description">How long to keep messages before automatic deletion</span>
-                  </div>
-                  <div class="setting-control">
-                    <select v-model.number="settings.message_retention_days" class="select-input">
-                      <option value="30">30 days</option>
-                      <option value="90">90 days</option>
-                      <option value="180">6 months</option>
-                      <option value="365">1 year</option>
-                      <option value="730">2 years</option>
-                      <option value="0">Never delete</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <span v-if="savingKey" class="muted small"><i class="fa-solid fa-circle-notch spin"></i> Saving…</span>
         </div>
+        <div class="ui-card__body toggles">
+          <template v-if="!settings">
+            <div v-for="n in 3" :key="n" class="ui-skeleton" style="height: 48px; margin-bottom: 10px"></div>
+          </template>
+          <template v-else>
+            <label v-for="t in toggles" :key="t.key" class="toggle">
+              <span>
+                <strong>{{ t.label }}</strong>
+                <small>{{ t.hint }}</small>
+              </span>
+              <span class="ui-switch"><input type="checkbox" :checked="settings[t.key]" :disabled="savingKey === t.key" :aria-label="t.label" @change="saveToggle(t.key, $event.target.checked)" /></span>
+            </label>
+          </template>
+        </div>
+      </section>
 
-        <!-- Integrations -->
-        <div v-if="activeTab === 'integrations'" class="settings-section">
-          <div class="section-header">
-            <h2>External Integrations</h2>
-            <p>Connect with external messaging platforms</p>
+      <section class="ui-card">
+        <div class="ui-card__head">
+          <div>
+            <h2><i class="fa-brands fa-whatsapp wa"></i> WhatsApp Business</h2>
+            <p class="sub">Send WhatsApp messages from DASYIN using the Meta Cloud API.</p>
+          </div>
+          <span class="ui-badge" :class="waConfigured ? 'ui-badge--success' : 'ui-badge--draft'">{{ waConfigured ? 'Configured' : 'Not set up' }}</span>
+        </div>
+        <form class="ui-card__body" novalidate autocomplete="off" @submit.prevent="saveWhatsApp">
+          <div v-if="waError" class="ui-alert ui-alert--danger" style="margin-bottom: 14px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ waError }}</span></div>
+          <div v-if="waOk" class="ui-alert ui-alert--success" style="margin-bottom: 14px"><i class="fa-solid fa-circle-check"></i><span>{{ waOk }}</span></div>
+          <div class="form-grid">
+            <label class="ui-field span-2">
+              <span class="ui-label">Phone number ID</span>
+              <input v-model.trim="wa.phone" class="ui-input mono" inputmode="numeric" placeholder="e.g. 106540352242922" :disabled="!settings" />
+              <span class="ui-hint">From Meta for Developers → WhatsApp → API setup. This is the ID, not the phone number itself.</span>
+            </label>
+            <label class="ui-field span-2">
+              <span class="ui-label">Permanent access token</span>
+              <input v-model.trim="wa.token" type="password" class="ui-input mono" autocomplete="new-password" :placeholder="waHasToken ? 'Saved — leave blank to keep' : 'EAAG…'" :disabled="!settings" />
+            </label>
+          </div>
+          <div class="wa-actions">
+            <button type="button" class="ui-btn" :disabled="!waConfigured || testing" @click="testWhatsApp"><i :class="testing ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-stethoscope'"></i> Test connection</button>
+            <button v-if="waConfigured" type="button" class="ui-btn ui-btn--ghost txt-danger" :disabled="waSaving" @click="removeWhatsApp"><i class="fa-regular fa-trash-can"></i> Remove</button>
+            <button type="submit" class="ui-btn ui-btn--primary" :disabled="waSaving || !settings || (!wa.phone && !wa.token)"><i :class="waSaving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> Save</button>
           </div>
 
-          <div class="integrations-grid">
-            <!-- WhatsApp Integration -->
-            <div class="integration-card">
-              <div class="integration-header">
-                <div class="integration-info">
-                  <div class="integration-icon whatsapp">
-                    <i class="fab fa-whatsapp"></i>
-                  </div>
-                  <div class="integration-details">
-                    <h3>WhatsApp Business</h3>
-                    <p>Send and receive messages via WhatsApp Business API</p>
-                  </div>
-                </div>
-                <div class="integration-status">
-                  <label class="toggle-switch">
-                    <input
-                      v-model="integrations.whatsapp.is_enabled"
-                      @change="toggleIntegration('whatsapp')"
-                      type="checkbox"
-                    />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div v-if="integrations.whatsapp.is_enabled" class="integration-config">
-                <div class="config-form">
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label>Phone Number</label>
-                      <input
-                        v-model="integrations.whatsapp.phone_number"
-                        type="tel"
-                        placeholder="+1234567890"
-                        class="form-input"
-                      />
-                    </div>
-                    <div class="form-group">
-                      <label>API Key</label>
-                      <input
-                        v-model="integrations.whatsapp.api_key"
-                        type="password"
-                        placeholder="Enter your WhatsApp API key"
-                        class="form-input"
-                      />
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label>Webhook URL</label>
-                    <div class="webhook-input">
-                      <input
-                        :value="integrations.whatsapp.webhook_url || generateWebhookURL('whatsapp')"
-                        readonly
-                        class="form-input"
-                      />
-                      <button @click="copyWebhookURL('whatsapp')" class="btn-copy">
-                        <i class="fas fa-copy"></i>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="integration-actions">
-                    <button @click="testIntegration('whatsapp')" class="btn btn-outline">
-                      Test Connection
-                    </button>
-                    <button @click="saveIntegration('whatsapp')" class="btn btn-primary">
-                      Save Configuration
-                    </button>
-                  </div>
-                </div>
-
-                <div v-if="integrations.whatsapp.is_verified" class="integration-status-badge success">
-                  <i class="fas fa-check-circle"></i>
-                  Connected
-                </div>
-                <div v-else class="integration-status-badge warning">
-                  <i class="fas fa-exclamation-triangle"></i>
-                  Not Verified
-                </div>
-              </div>
+          <div v-if="waConfigured" class="send-test">
+            <h3>Send a test message</h3>
+            <div class="send-row">
+              <input v-model.trim="testTo" class="ui-input" inputmode="tel" placeholder="Recipient in international format, e.g. 61400000000" aria-label="Recipient number" />
+              <button type="button" class="ui-btn" :disabled="!testTo || sending" @click="sendTest"><i :class="sending ? 'fa-solid fa-circle-notch spin' : 'fa-regular fa-paper-plane'"></i> Send</button>
             </div>
-
-            <!-- Telegram Integration -->
-            <div class="integration-card">
-              <div class="integration-header">
-                <div class="integration-info">
-                  <div class="integration-icon telegram">
-                    <i class="fab fa-telegram"></i>
-                  </div>
-                  <div class="integration-details">
-                    <h3>Telegram Bot</h3>
-                    <p>Interact with customers through Telegram bot</p>
-                  </div>
-                </div>
-                <div class="integration-status">
-                  <label class="toggle-switch">
-                    <input
-                      v-model="integrations.telegram.is_enabled"
-                      @change="toggleIntegration('telegram')"
-                      type="checkbox"
-                    />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div v-if="integrations.telegram.is_enabled" class="integration-config">
-                <div class="config-form">
-                  <div class="form-group">
-                    <label>Bot Token</label>
-                    <input
-                      v-model="integrations.telegram.api_key"
-                      type="password"
-                      placeholder="Enter your Telegram bot token"
-                      class="form-input"
-                    />
-                  </div>
-                  <div class="integration-actions">
-                    <button @click="testIntegration('telegram')" class="btn btn-outline">
-                      Test Bot
-                    </button>
-                    <button @click="saveIntegration('telegram')" class="btn btn-primary">
-                      Save Configuration
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Slack Integration -->
-            <div class="integration-card">
-              <div class="integration-header">
-                <div class="integration-info">
-                  <div class="integration-icon slack">
-                    <i class="fab fa-slack"></i>
-                  </div>
-                  <div class="integration-details">
-                    <h3>Slack</h3>
-                    <p>Send notifications and messages to Slack channels</p>
-                  </div>
-                </div>
-                <div class="integration-status">
-                  <label class="toggle-switch">
-                    <input
-                      v-model="integrations.slack.is_enabled"
-                      @change="toggleIntegration('slack')"
-                      type="checkbox"
-                    />
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div v-if="integrations.slack.is_enabled" class="integration-config">
-                <div class="config-form">
-                  <div class="form-group">
-                    <label>Slack Webhook URL</label>
-                    <input
-                      v-model="integrations.slack.webhook_url"
-                      type="url"
-                      placeholder="https://hooks.slack.com/..."
-                      class="form-input"
-                    />
-                  </div>
-                  <div class="integration-actions">
-                    <button @click="testIntegration('slack')" class="btn btn-outline">
-                      Test Connection
-                    </button>
-                    <button @click="saveIntegration('slack')" class="btn btn-primary">
-                      Save Configuration
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <span class="ui-hint">WhatsApp only delivers free-form messages to people who messaged your business in the last 24 hours.</span>
           </div>
-        </div>
-
-        <!-- Moderation -->
-        <div v-if="activeTab === 'moderation'" class="settings-section">
-          <div class="section-header">
-            <h2>Content Moderation</h2>
-            <p>Configure automated content filtering and moderation</p>
-          </div>
-
-          <div class="settings-grid">
-            <div class="setting-card">
-              <div class="setting-header">
-                <h3>Auto-Moderation</h3>
-              </div>
-              <div class="setting-options">
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Enable Content Moderation</label>
-                    <span class="setting-description">Automatically filter inappropriate content</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.moderation_enabled" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="setting-item">
-                  <div class="setting-info">
-                    <label>Profanity Filter</label>
-                    <span class="setting-description">Block messages containing profanity</span>
-                  </div>
-                  <div class="setting-control">
-                    <label class="toggle-switch">
-                      <input v-model="settings.profanity_filter_enabled" type="checkbox" />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="setting-card">
-              <div class="setting-header">
-                <h3>Blocked Words</h3>
-                <button @click="showAddWordModal = true" class="btn btn-sm btn-primary">
-                  Add Word
-                </button>
-              </div>
-              <div class="blocked-words-list">
-                <div v-for="word in blockedWords" :key="word" class="blocked-word-item">
-                  <span>{{ word }}</span>
-                  <button @click="removeBlockedWord(word)" class="btn-remove">
-                    <i class="fas fa-times"></i>
-                  </button>
-                </div>
-                <div v-if="blockedWords.length === 0" class="empty-state">
-                  No blocked words configured
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Save Button -->
-      <div class="settings-footer">
-        <button @click="saveSettings" :disabled="saving" class="btn btn-primary btn-lg">
-          <i v-if="saving" class="fas fa-spinner fa-spin"></i>
-          <i v-else class="fas fa-save"></i>
-          Save Settings
-        </button>
-      </div>
-    </div>
-
-    <!-- Add Blocked Word Modal -->
-    <div v-if="showAddWordModal" class="modal-overlay" @click="showAddWordModal = false">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Add Blocked Word</h3>
-          <button @click="showAddWordModal = false" class="btn-close">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>Word or Phrase</label>
-            <input
-              v-model="newBlockedWord"
-              @keyup.enter="addBlockedWord"
-              type="text"
-              placeholder="Enter word to block"
-              class="form-input"
-              autofocus
-            />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button @click="showAddWordModal = false" class="btn btn-secondary">Cancel</button>
-          <button @click="addBlockedWord" class="btn btn-primary">Add Word</button>
-        </div>
-      </div>
+        </form>
+      </section>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, reactive, onMounted, computed } from 'vue'
-import { messagingService } from '../services/messaging'
+import '@/styles/module-page.css'
+import api, { apiErrorMessage } from '@/services/api'
+import { messagingService } from '@/services/messaging'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
 
 export default {
   name: 'MessagingSettings',
-  setup() {
-    const activeTab = ref('general')
-    const saving = ref(false)
-    const showAddWordModal = ref(false)
-    const newBlockedWord = ref('')
-
-    const tabs = [
-      { key: 'general', label: 'General', icon: 'fas fa-cogs' },
-      { key: 'integrations', label: 'Integrations', icon: 'fas fa-plug' },
-      { key: 'moderation', label: 'Moderation', icon: 'fas fa-shield-alt' }
-    ]
-
-    const settings = reactive({
-      enable_in_app_messaging: true,
-      enable_group_chats: true,
-      enable_file_sharing: true,
-      max_file_size: 10485760,
-      allowed_file_types: '[]',
-      message_retention_days: 365,
-      enable_message_reactions: true,
-      enable_typing_indicator: true,
-      enable_read_receipts: true,
-      enable_voice_messages: true,
-      enable_video_messages: true,
-      moderation_enabled: false,
-      profanity_filter_enabled: false
-    })
-
-    const integrations = reactive({
-      whatsapp: {
-        is_enabled: false,
-        is_verified: false,
-        phone_number: '',
-        api_key: '',
-        webhook_url: ''
-      },
-      telegram: {
-        is_enabled: false,
-        is_verified: false,
-        api_key: ''
-      },
-      slack: {
-        is_enabled: false,
-        is_verified: false,
-        webhook_url: ''
-      }
-    })
-
-    const allowedFileTypes = ref([])
-    const blockedWords = ref([])
-
-    const availableFileTypes = [
-      { ext: 'jpg', label: 'Images (JPG)', icon: 'fas fa-image' },
-      { ext: 'png', label: 'Images (PNG)', icon: 'fas fa-image' },
-      { ext: 'gif', label: 'Images (GIF)', icon: 'fas fa-image' },
-      { ext: 'pdf', label: 'PDF Documents', icon: 'fas fa-file-pdf' },
-      { ext: 'doc', label: 'Word Documents', icon: 'fas fa-file-word' },
-      { ext: 'docx', label: 'Word Documents', icon: 'fas fa-file-word' },
-      { ext: 'txt', label: 'Text Files', icon: 'fas fa-file-alt' },
-      { ext: 'zip', label: 'Archives', icon: 'fas fa-file-archive' }
-    ]
-
-    const maxFileSizeMB = computed({
-      get: () => Math.round(settings.max_file_size / 1024 / 1024),
-      set: (value) => settings.max_file_size = value * 1024 * 1024
-    })
-
-    const loadSettings = async () => {
-      try {
-        const response = await messagingService.getSettings()
-        if (response.success) {
-          Object.assign(settings, response.data)
-          allowedFileTypes.value = JSON.parse(settings.allowed_file_types || '[]')
-        }
-      } catch (error) {
-        console.error('Failed to load settings:', error)
-      }
-    }
-
-    const loadIntegrations = async () => {
-      try {
-        const response = await messagingService.getIntegrations()
-        if (response.success) {
-          response.data.forEach(integration => {
-            if (integrations[integration.provider]) {
-              Object.assign(integrations[integration.provider], integration)
-            }
-          })
-        }
-      } catch (error) {
-        console.error('Failed to load integrations:', error)
-      }
-    }
-
-    const saveSettings = async () => {
-      saving.value = true
-      try {
-        // Update file types
-        settings.allowed_file_types = JSON.stringify(allowedFileTypes.value)
-
-        const response = await messagingService.updateSettings(settings)
-        if (response.success) {
-          // Show success notification
-          console.log('Settings saved successfully')
-        }
-      } catch (error) {
-        console.error('Failed to save settings:', error)
-      } finally {
-        saving.value = false
-      }
-    }
-
-    const toggleIntegration = async (provider) => {
-      if (!integrations[provider].is_enabled) {
-        // Reset configuration when disabling
-        integrations[provider].api_key = ''
-        integrations[provider].is_verified = false
-        if (provider === 'whatsapp') {
-          integrations[provider].phone_number = ''
-        }
-        if (provider === 'slack') {
-          integrations[provider].webhook_url = ''
-        }
-      }
-    }
-
-    const saveIntegration = async (provider) => {
-      try {
-        const response = await messagingService.updateIntegration(provider, integrations[provider])
-        if (response.success) {
-          console.log(`${provider} integration saved successfully`)
-        }
-      } catch (error) {
-        console.error(`Failed to save ${provider} integration:`, error)
-      }
-    }
-
-    const testIntegration = async (provider) => {
-      try {
-        // This would test the integration
-        console.log(`Testing ${provider} integration...`)
-        // Mock successful test
-        integrations[provider].is_verified = true
-      } catch (error) {
-        console.error(`Failed to test ${provider} integration:`, error)
-      }
-    }
-
-    const generateWebhookURL = (provider) => {
-      const baseURL = window.location.origin
-      return `${baseURL}/api/v1/webhooks/${provider}`
-    }
-
-    const copyWebhookURL = (provider) => {
-      const url = generateWebhookURL(provider)
-      navigator.clipboard.writeText(url).then(() => {
-        console.log('Webhook URL copied to clipboard')
-      })
-    }
-
-    const addBlockedWord = () => {
-      if (newBlockedWord.value.trim()) {
-        blockedWords.value.push(newBlockedWord.value.trim())
-        newBlockedWord.value = ''
-        showAddWordModal.value = false
-      }
-    }
-
-    const removeBlockedWord = (word) => {
-      const index = blockedWords.value.indexOf(word)
-      if (index > -1) {
-        blockedWords.value.splice(index, 1)
-      }
-    }
-
-    onMounted(async () => {
-      await Promise.all([
-        loadSettings(),
-        loadIntegrations()
-      ])
-    })
-
+  data() {
     return {
-      activeTab,
-      saving,
-      showAddWordModal,
-      newBlockedWord,
-      tabs,
-      settings,
-      integrations,
-      allowedFileTypes,
-      blockedWords,
-      availableFileTypes,
-      maxFileSizeMB,
-      saveSettings,
-      toggleIntegration,
-      saveIntegration,
-      testIntegration,
-      generateWebhookURL,
-      copyWebhookURL,
-      addBlockedWord,
-      removeBlockedWord
+      settings: null,
+      loadError: '',
+      savingKey: '',
+      wa: { phone: '', token: '' },
+      waError: '',
+      waOk: '',
+      waSaving: false,
+      testing: false,
+      testTo: '',
+      sending: false,
+      toggles: [
+        { key: 'enable_in_app_messaging', label: 'Team chat', hint: 'Let people send messages in Messages. When off, conversations are read-only.' },
+        { key: 'enable_group_chats', label: 'Group conversations', hint: 'Allow conversations with more than two people.' },
+        { key: 'enable_typing_indicator', label: 'Typing indicators', hint: 'Show when someone is typing a reply.' }
+      ]
+    }
+  },
+  computed: {
+    waHasToken() {
+      return !!(this.settings && this.settings.whatsapp_api_key)
+    },
+    waConfigured() {
+      return this.waHasToken && !!(this.settings && this.settings.whatsapp_phone_number)
+    }
+  },
+  created() {
+    this.load()
+  },
+  methods: {
+    async load() {
+      this.loadError = ''
+      try {
+        this.settings = await messagingService.getSettings()
+        this.wa = { phone: this.settings.whatsapp_phone_number || '', token: '' }
+      } catch (e) {
+        this.loadError = apiErrorMessage(e, 'Could not load messaging settings')
+      }
+    },
+    async saveToggle(key, value) {
+      const before = this.settings[key]
+      this.settings[key] = value
+      this.savingKey = key
+      try {
+        this.settings = await messagingService.updateSettings({ [key]: value })
+        toast.success('Saved')
+      } catch (e) {
+        this.settings[key] = before
+        toast.error(apiErrorMessage(e, 'Could not save'))
+      } finally {
+        this.savingKey = ''
+      }
+    },
+    async saveWhatsApp() {
+      this.waError = ''
+      this.waOk = ''
+      if (this.wa.phone && !/^\d{6,20}$/.test(this.wa.phone)) {
+        this.waError = 'The phone number ID is a long number (digits only).'
+        return
+      }
+      if (!this.wa.token && !this.waHasToken) {
+        this.waError = 'Enter the access token.'
+        return
+      }
+      const body = { whatsapp_phone_number: this.wa.phone }
+      if (this.wa.token) body.whatsapp_api_key = this.wa.token
+      this.waSaving = true
+      try {
+        this.settings = await messagingService.updateSettings(body)
+        this.wa.token = ''
+        toast.success('WhatsApp settings saved')
+      } catch (e) {
+        this.waError = apiErrorMessage(e, 'Could not save WhatsApp settings')
+      } finally {
+        this.waSaving = false
+      }
+    },
+    async removeWhatsApp() {
+      const okd = await confirmDialog({ title: 'Remove WhatsApp?', message: 'The saved phone number ID and access token are deleted.', confirmText: 'Remove', danger: true })
+      if (!okd) return
+      this.waSaving = true
+      try {
+        this.settings = await messagingService.updateSettings({ whatsapp_phone_number: '', whatsapp_api_key: '' })
+        this.wa = { phone: '', token: '' }
+        this.waOk = ''
+        toast.success('WhatsApp removed')
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not remove WhatsApp'))
+      } finally {
+        this.waSaving = false
+      }
+    },
+    async testWhatsApp() {
+      this.testing = true
+      this.waError = ''
+      this.waOk = ''
+      try {
+        const res = await messagingService.testWhatsAppConnection()
+        this.waOk = res.message || 'Connection successful'
+      } catch (e) {
+        this.waError = apiErrorMessage(e, 'Connection test failed')
+      } finally {
+        this.testing = false
+      }
+    },
+    async sendTest() {
+      const to = this.testTo.replace(/[^\d]/g, '')
+      if (to.length < 8) {
+        toast.error('Enter the full number with country code')
+        return
+      }
+      this.sending = true
+      try {
+        await api.post('/messaging/whatsapp/send', { to, message: 'Test message from DASYIN ERP' })
+        toast.success('Test message sent')
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not send the test message'))
+      } finally {
+        this.sending = false
+      }
     }
   }
 }
 </script>
 
 <style scoped>
-.settings-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.settings-tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
-  border-bottom: 2px solid var(--border-color);
-}
-
-.tab-button {
-  padding: 1rem 1.5rem;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 8px 8px 0 0;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.tab-button:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-.tab-button.active {
-  background: var(--primary);
-  color: white;
-  border-bottom: 2px solid var(--primary);
-}
-
-.section-header {
-  margin-bottom: 2rem;
-}
-
-.section-header h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
-}
-
-.section-header p {
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.settings-grid {
+.grid {
   display: grid;
-  gap: 2rem;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
 }
 
-.setting-card {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-color);
+.sub {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: 13px;
 }
 
-.setting-header {
+.wa {
+  color: var(--success);
+  margin-right: 4px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.toggles {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.toggle {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
 }
 
-.setting-header h3 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+.toggle:last-child {
+  border-bottom: 0;
 }
 
-.setting-options {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.setting-info {
-  flex: 1;
-}
-
-.setting-info label {
-  font-weight: 500;
-  color: var(--text-primary);
+.toggle small {
   display: block;
-  margin-bottom: 0.25rem;
+  color: var(--text-3);
+  font-size: 13px;
+  margin-top: 2px;
 }
 
-.setting-description {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-.setting-control {
-  flex-shrink: 0;
-}
-
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 24px;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: 0.3s;
-  border-radius: 24px;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
-  border-radius: 50%;
-}
-
-input:checked + .toggle-slider {
-  background-color: var(--primary);
-}
-
-input:checked + .toggle-slider:before {
-  transform: translateX(26px);
-}
-
-.number-input,
-.select-input,
-.form-input {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  min-width: 120px;
-}
-
-.file-types-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.file-type-checkbox {
+.wa-actions {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.file-type-checkbox:hover {
-  border-color: var(--primary);
-  background: var(--primary-light);
-}
-
-.file-type-checkbox input {
-  margin: 0;
-}
-
-.file-type-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.file-type-info i {
-  color: var(--primary);
-}
-
-/* Integrations */
-.integrations-grid {
-  display: grid;
-  gap: 2rem;
-}
-
-.integration-card {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-color);
-}
-
-.integration-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.integration-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.integration-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  color: white;
-}
-
-.integration-icon.whatsapp {
-  background: #25d366;
-}
-
-.integration-icon.telegram {
-  background: #0088cc;
-}
-
-.integration-icon.slack {
-  background: #4a154b;
-}
-
-.integration-details h3 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.25rem 0;
-}
-
-.integration-details p {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.integration-config {
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-group label {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 0.9rem;
-}
-
-.webhook-input {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.webhook-input .form-input {
-  flex: 1;
-}
-
-.btn-copy {
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.btn-copy:hover {
-  color: var(--primary);
-  border-color: var(--primary);
-}
-
-.integration-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.integration-status-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-top: 1rem;
-  width: fit-content;
-}
-
-.integration-status-badge.success {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.2);
-}
-
-.integration-status-badge.warning {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-}
-
-/* Moderation */
-.blocked-words-list {
-  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  min-height: 100px;
-  padding: 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-secondary);
+  margin-top: 18px;
 }
 
-.blocked-word-item {
+.send-test {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.send-test h3 {
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0 0 10px;
+}
+
+.send-row {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--primary-light);
-  border-radius: 20px;
-  font-size: 0.85rem;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
-.btn-remove {
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: var(--primary);
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
-}
-
-.empty-state {
-  color: var(--text-secondary);
-  font-style: italic;
-  align-self: center;
-  margin: auto;
-}
-
-.settings-footer {
-  display: flex;
-  justify-content: center;
-  padding: 2rem 0;
-  margin-top: 2rem;
-  border-top: 1px solid var(--border-color);
-}
-
-@media (max-width: 768px) {
-  .settings-grid {
+@media (max-width: 1000px) {
+  .grid {
     grid-template-columns: 1fr;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
-  .file-types-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .integration-actions {
-    flex-direction: column;
   }
 }
 </style>

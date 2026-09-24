@@ -1,483 +1,358 @@
 <template>
-  <div class="module-management-page">
-    <!-- Action Buttons Section -->
-    <div class="page-actions d-flex justify-content-end mb-4">
-      <button class="btn btn-primary" @click="saveAllChanges" :disabled="!hasChanges">
-        <i class="bi bi-check-circle me-2"></i>Save All Changes
-      </button>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Platform admin</div>
+        <h1>Modules & entitlements</h1>
+        <p>Which modules each organisation can use, as enforced by its subscription plan.</p>
+      </div>
+      <div class="ui-actions">
+        <button class="ui-btn" :disabled="loading" @click="load"><i :class="loading ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-rotate'"></i> Refresh</button>
+        <router-link to="/super-admin/plans" class="ui-btn ui-btn--primary"><i class="fa-solid fa-tags"></i> Plans & pricing</router-link>
+      </div>
+    </header>
+
+    <div class="ui-alert info-alert">
+      <i class="fa-solid fa-circle-info"></i>
+      <span>Access to a module comes from the organisation's plan (tier, industry bundle and add-ons) and is enforced by the API. To change what an organisation can use, change its plan on <router-link to="/super-admin/plans">Plans & pricing</router-link>.</span>
     </div>
 
-    <!-- Stats Overview -->
-    <div class="row mb-4">
-      <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body text-center">
-            <div class="text-primary mb-2">
-              <i class="bi bi-building fs-1"></i>
-            </div>
-            <h4 class="card-title">{{ organizations.length }}</h4>
-            <p class="card-text text-muted">Total Organizations</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body text-center">
-            <div class="text-success mb-2">
-              <i class="bi bi-box-seam fs-1"></i>
-            </div>
-            <h4 class="card-title">{{ inventoryEnabledCount }}</h4>
-            <p class="card-text text-muted">Inventory Enabled</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body text-center">
-            <div class="text-info mb-2">
-              <i class="bi bi-cash-stack fs-1"></i>
-            </div>
-            <h4 class="card-title">{{ posEnabledCount }}</h4>
-            <p class="card-text text-muted">POS Enabled</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body text-center">
-            <div class="text-warning mb-2">
-              <i class="bi bi-people fs-1"></i>
-            </div>
-            <h4 class="card-title">{{ crmEnabledCount }}</h4>
-            <p class="card-text text-muted">CRM Enabled</p>
-          </div>
-        </div>
-      </div>
+    <div v-if="error" class="ui-alert ui-alert--danger" style="margin-bottom: 20px">
+      <i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span>
     </div>
 
-    <!-- Organizations Table -->
-    <div class="card">
-      <div class="card-header">
-        <h5 class="card-title mb-0">Organization Module Configuration</h5>
-      </div>
-      <div class="card-body p-0">
-        <!-- Loading State -->
-        <div v-if="loading" class="text-center py-5">
-          <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-        </div>
-
-        <!-- Table -->
-        <div v-else class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Organization</th>
-                <th>Business Type</th>
-                <th class="text-center">Inventory</th>
-                <th class="text-center">Suppliers</th>
-                <th class="text-center">Purchase Orders</th>
-                <th class="text-center">POS System</th>
-                <th class="text-center">CRM</th>
-                <th class="text-center">Reports</th>
-                <th class="text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="org in organizations" :key="org.id">
-                <td>
-                  <div>
-                    <div class="fw-bold">{{ org.name }}</div>
-                    <small class="text-muted">{{ org.email }}</small>
-                  </div>
-                </td>
-                <td>
-                  <span class="badge bg-light text-dark">{{ org.business_type }}</span>
-                </td>
-
-                <!-- Inventory Module -->
-                <td class="text-center">
-                  <div class="form-check form-switch d-flex justify-content-center">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :id="'inventory-' + org.id"
-                      v-model="org.modules.inventory_enabled"
-                      @change="markAsChanged(org.id)"
-                    >
-                  </div>
-                </td>
-
-                <!-- Suppliers Module -->
-                <td class="text-center">
-                  <div class="form-check form-switch d-flex justify-content-center">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :id="'supplier-' + org.id"
-                      v-model="org.modules.supplier_enabled"
-                      @change="markAsChanged(org.id)"
-                    >
-                  </div>
-                </td>
-
-                <!-- Purchase Orders Module -->
-                <td class="text-center">
-                  <div class="form-check form-switch d-flex justify-content-center">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :id="'po-' + org.id"
-                      v-model="org.modules.purchase_order_enabled"
-                      @change="markAsChanged(org.id)"
-                    >
-                  </div>
-                </td>
-
-                <!-- POS Module -->
-                <td class="text-center">
-                  <div class="form-check form-switch d-flex justify-content-center">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :id="'pos-' + org.id"
-                      v-model="org.modules.pos_enabled"
-                      @change="markAsChanged(org.id)"
-                    >
-                  </div>
-                </td>
-
-                <!-- CRM Module -->
-                <td class="text-center">
-                  <div class="form-check form-switch d-flex justify-content-center">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :id="'crm-' + org.id"
-                      v-model="org.modules.crm_enabled"
-                      @change="markAsChanged(org.id)"
-                    >
-                  </div>
-                </td>
-
-                <!-- Reports Module -->
-                <td class="text-center">
-                  <div class="form-check form-switch d-flex justify-content-center">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :id="'reports-' + org.id"
-                      v-model="org.modules.reports_enabled"
-                      @change="markAsChanged(org.id)"
-                    >
-                  </div>
-                </td>
-
-                <!-- Actions -->
-                <td class="text-center">
-                  <div class="btn-group btn-group-sm">
-                    <button
-                      class="btn btn-outline-primary"
-                      @click="saveOrganizationModules(org)"
-                      :disabled="!changedOrganizations.has(org.id)"
-                      title="Save Changes"
-                    >
-                      <i class="bi bi-check"></i>
-                    </button>
-                    <button
-                      class="btn btn-outline-secondary"
-                      @click="resetOrganizationModules(org)"
-                      :disabled="!changedOrganizations.has(org.id)"
-                      title="Reset Changes"
-                    >
-                      <i class="bi bi-arrow-clockwise"></i>
-                    </button>
-                    <button
-                      class="btn btn-outline-success"
-                      @click="enableAllModules(org)"
-                      title="Enable All"
-                    >
-                      <i class="bi bi-check-all"></i>
-                    </button>
-                    <button
-                      class="btn btn-outline-danger"
-                      @click="disableAllModules(org)"
-                      title="Disable All"
-                    >
-                      <i class="bi bi-x-square"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Empty State -->
-        <div v-if="!loading && organizations.length === 0" class="text-center py-5">
-          <i class="bi bi-building text-muted" style="font-size: 4rem;"></i>
-          <h5 class="mt-3 text-muted">No organizations found</h5>
-          <p class="text-muted">Create an organization first to configure modules.</p>
+    <section class="ui-card" style="margin-bottom: 20px">
+      <div class="ui-card__head">
+        <div>
+          <h2>Module adoption</h2>
+          <span class="pf-card-sub">Organisations with access to each module</span>
         </div>
       </div>
-    </div>
-
-    <!-- Bulk Actions -->
-    <div class="card mt-4">
-      <div class="card-header">
-        <h5 class="card-title mb-0">Bulk Module Actions</h5>
-      </div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-4">
-            <div class="d-grid">
-              <button class="btn btn-success" @click="enableModuleForAll('inventory')">
-                <i class="bi bi-box-seam me-2"></i>Enable Inventory for All
-              </button>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="d-grid">
-              <button class="btn btn-info" @click="enableModuleForAll('pos')">
-                <i class="bi bi-cash-stack me-2"></i>Enable POS for All
-              </button>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="d-grid">
-              <button class="btn btn-warning" @click="enableModuleForAll('crm')">
-                <i class="bi bi-people me-2"></i>Enable CRM for All
-              </button>
-            </div>
-          </div>
+      <div class="ui-card__body">
+        <div v-if="!data" class="adoption">
+          <div v-for="n in 8" :key="n" class="ui-skeleton" style="height: 74px"></div>
         </div>
-
-        <hr>
-
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="d-grid">
-              <button class="btn btn-success" @click="enableAllModulesForAll">
-                <i class="bi bi-check-all me-2"></i>Enable All Modules for All Organizations
-              </button>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="d-grid">
-              <button class="btn btn-outline-danger" @click="disableAllModulesForAll">
-                <i class="bi bi-x-square me-2"></i>Disable All Modules for All Organizations
-              </button>
-            </div>
-          </div>
+        <div v-else class="adoption">
+          <button v-for="m in data.modules" :key="m.key" class="mod" :class="{ 'is-selected': moduleFilter === m.key, 'is-off': !m.active }" @click="toggleModuleFilter(m.key)">
+            <span class="mod__icon"><i :class="m.icon || 'fa-solid fa-puzzle-piece'"></i></span>
+            <span class="mod__text">
+              <span class="mod__name">{{ m.name }} <span v-if="m.core" class="tag">Core</span><span v-else-if="!m.active" class="tag">Retired</span></span>
+              <span class="mod__meta">{{ adoption[m.key] || 0 }} of {{ orgCount }} organisation{{ orgCount === 1 ? '' : 's' }}</span>
+              <span class="bar"><span :style="{ width: pctOf(adoption[m.key]) + '%' }"></span></span>
+            </span>
+          </button>
         </div>
       </div>
-    </div>
+    </section>
+
+    <section class="ui-card">
+      <div class="pf-toolbar">
+        <div>
+          <h2 class="card-title">Entitlements by organisation</h2>
+          <span class="pf-card-sub">{{ moduleFilter ? `Showing organisations with ${moduleName(moduleFilter)}` : 'Tick = module is available to the organisation' }}</span>
+        </div>
+        <div class="pf-toolbar__right">
+          <div class="ui-input-group pf-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input v-model="q" class="ui-input" type="search" placeholder="Search organisations…" aria-label="Search organisations" />
+          </div>
+          <select v-model="tier" class="ui-select pf-select" aria-label="Plan tier">
+            <option value="">All tiers</option>
+            <option v-for="t in (data ? data.tiers : [])" :key="t.key" :value="t.key">{{ t.name }}</option>
+          </select>
+          <button v-if="moduleFilter" class="ui-btn" @click="moduleFilter = ''"><i class="fa-solid fa-xmark"></i> {{ moduleName(moduleFilter) }}</button>
+        </div>
+      </div>
+
+      <div v-if="!data && loading" class="ui-card__body">
+        <div v-for="n in 5" :key="n" class="pf-sk-row"><div class="ui-skeleton" style="width: 200px"></div><div class="ui-skeleton" style="flex: 1"></div></div>
+      </div>
+      <div v-else-if="data && !rows.length" class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-puzzle-piece"></i></div>
+        <h3>{{ data.organizations.length ? 'No organisations match' : 'No organisations yet' }}</h3>
+        <p>{{ data.organizations.length ? 'Try a different search or filter.' : 'Organisations and their modules will appear here.' }}</p>
+      </div>
+      <div v-else-if="data" class="ui-table-wrap matrix-wrap">
+        <table class="ui-table matrix">
+          <thead>
+            <tr>
+              <th class="sticky">Organisation</th>
+              <th>Plan</th>
+              <th v-for="m in columns" :key="m.key" class="mcol" :title="m.name">
+                <i :class="m.icon || 'fa-solid fa-puzzle-piece'"></i>
+                <span>{{ m.name }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="o in rows" :key="o.id">
+              <td class="sticky">
+                <router-link :to="`/organizations?open=${o.id}`" class="org-link">
+                  <span class="pf-cell__title">{{ o.name }}</span>
+                </router-link>
+                <span v-if="o.status === 'suspended'" class="ui-badge ui-badge--danger sm">Suspended</span>
+              </td>
+              <td class="pf-nowrap">
+                <template v-if="o.plan">
+                  <strong>{{ tierName(o.plan.tier) }}</strong>
+                  <span class="ui-badge sm" :class="planBadge(o.plan.status)">{{ o.plan.status }}</span>
+                </template>
+                <span v-else class="pf-muted">{{ o.error || '—' }}</span>
+              </td>
+              <td v-for="m in columns" :key="m.key" class="mcell">
+                <i v-if="has(o, m.key)" class="fa-solid fa-circle-check yes" :aria-label="`${m.name}: included`"></i>
+                <i v-else class="fa-solid fa-minus no" :aria-label="`${m.name}: not included`"></i>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </template>
 
 <script>
-import { listFrom } from '@/services/api'
-import { moduleService } from '@/services/moduleService'
-import { organizationService } from '@/services/organizationService'
+import '@/components/platform/platform.css'
+import { apiErrorMessage } from '@/services/api'
+import { platformAPI, ensurePlatformSession } from '@/services/platform'
 
 export default {
-  name: 'ModuleManagementPage',
-  data() {
-    return {
-      loading: false,
-      organizations: [],
-      originalModules: new Map(),
-      changedOrganizations: new Set()
-    }
-  },
+  name: 'ModuleManagement',
+  data: () => ({ data: null, loading: false, error: '', q: '', tier: '', moduleFilter: '' }),
   computed: {
-    inventoryEnabledCount() {
-      return this.organizations.filter(org => org.modules.inventory_enabled).length
+    orgCount() {
+      return this.data?.organizations?.length || 0
     },
-
-    posEnabledCount() {
-      return this.organizations.filter(org => org.modules.pos_enabled).length
+    columns() {
+      return (this.data?.modules || []).filter((m) => !m.core)
     },
-
-    crmEnabledCount() {
-      return this.organizations.filter(org => org.modules.crm_enabled).length
+    adoption() {
+      const out = {}
+      for (const o of this.data?.organizations || []) for (const k of o.modules || []) out[k] = (out[k] || 0) + 1
+      return out
     },
-
-    hasChanges() {
-      return this.changedOrganizations.size > 0
+    rows() {
+      const q = this.q.trim().toLowerCase()
+      return (this.data?.organizations || []).filter((o) => {
+        if (q && !o.name.toLowerCase().includes(q)) return false
+        if (this.tier && o.plan?.tier !== this.tier) return false
+        if (this.moduleFilter && !this.has(o, this.moduleFilter)) return false
+        return true
+      })
     }
   },
   created() {
-    this.fetchData()
+    if (ensurePlatformSession()) {
+      window.location.reload()
+      return
+    }
+    this.load()
   },
   methods: {
-    async fetchData() {
+    async load() {
       this.loading = true
+      this.error = ''
       try {
-        // Fetch organizations and their modules
-        const [orgsResponse, modulesResponse] = await Promise.all([
-          organizationService.getAllOrganizations(),
-          moduleService.getAllOrganizationModules()
-        ])
-
-        const orgs = listFrom(orgsResponse, 'organizations')
-        const moduleRows = listFrom(modulesResponse, 'modules', 'organization_modules')
-        this.organizations = orgs.map(org => {
-          const modules = moduleRows.find(m => m.organization_id === org.id) || {
-            inventory_enabled: false,
-            supplier_enabled: false,
-            purchase_order_enabled: false,
-            pos_enabled: false,
-            crm_enabled: false,
-            reports_enabled: false
-          }
-
-          // Store original state
-          this.originalModules.set(org.id, { ...modules })
-
-          return {
-            ...org,
-            modules
-          }
-        })
-
-      } catch (error) {
-        console.error('Error fetching data:', error)
-        this.$toast.error('Failed to fetch organization data')
+        this.data = await platformAPI.modules()
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load module entitlements')
       } finally {
         this.loading = false
       }
     },
-
-    markAsChanged(orgId) {
-      this.changedOrganizations.add(orgId)
+    has(o, k) {
+      return (o.modules || []).includes(k)
     },
-
-    async saveOrganizationModules(organization) {
-      try {
-        await moduleService.updateOrganizationModules(organization.id, organization.modules)
-
-        // Update original state
-        this.originalModules.set(organization.id, { ...organization.modules })
-        this.changedOrganizations.delete(organization.id)
-
-        this.$toast.success(`Modules updated for ${organization.name}`)
-      } catch (error) {
-        console.error('Error saving modules:', error)
-        this.$toast.error('Failed to save module configuration')
-      }
+    pctOf(n) {
+      return this.orgCount ? Math.round(((n || 0) / this.orgCount) * 100) : 0
     },
-
-    resetOrganizationModules(organization) {
-      const original = this.originalModules.get(organization.id)
-      if (original) {
-        organization.modules = { ...original }
-        this.changedOrganizations.delete(organization.id)
-      }
+    moduleName(k) {
+      return this.data?.modules?.find((m) => m.key === k)?.name || k
     },
-
-    enableAllModules(organization) {
-      organization.modules.inventory_enabled = true
-      organization.modules.supplier_enabled = true
-      organization.modules.purchase_order_enabled = true
-      organization.modules.pos_enabled = true
-      organization.modules.crm_enabled = true
-      organization.modules.reports_enabled = true
-      this.markAsChanged(organization.id)
+    tierName(k) {
+      return this.data?.tiers?.find((t) => t.key === k)?.name || k
     },
-
-    disableAllModules(organization) {
-      organization.modules.inventory_enabled = false
-      organization.modules.supplier_enabled = false
-      organization.modules.purchase_order_enabled = false
-      organization.modules.pos_enabled = false
-      organization.modules.crm_enabled = false
-      organization.modules.reports_enabled = false
-      this.markAsChanged(organization.id)
+    planBadge(s) {
+      return { active: 'ui-badge--success', trial: 'ui-badge--info', past_due: 'ui-badge--warning', cancelled: 'ui-badge--danger' }[s] || ''
     },
-
-    async saveAllChanges() {
-      const savePromises = []
-
-      for (const orgId of this.changedOrganizations) {
-        const org = this.organizations.find(o => o.id === orgId)
-        if (org) {
-          savePromises.push(this.saveOrganizationModules(org))
-        }
-      }
-
-      try {
-        await Promise.all(savePromises)
-        this.$toast.success('All changes saved successfully')
-      } catch (error) {
-        this.$toast.error('Some changes failed to save')
-      }
-    },
-
-    enableModuleForAll(moduleType) {
-      this.organizations.forEach(org => {
-        switch (moduleType) {
-          case 'inventory':
-            org.modules.inventory_enabled = true
-            break
-          case 'pos':
-            org.modules.pos_enabled = true
-            break
-          case 'crm':
-            org.modules.crm_enabled = true
-            break
-        }
-        this.markAsChanged(org.id)
-      })
-    },
-
-    enableAllModulesForAll() {
-      this.organizations.forEach(org => {
-        this.enableAllModules(org)
-      })
-    },
-
-    disableAllModulesForAll() {
-      if (!confirm('Are you sure you want to disable all modules for all organizations?')) {
-        return
-      }
-
-      this.organizations.forEach(org => {
-        this.disableAllModules(org)
-      })
+    toggleModuleFilter(k) {
+      this.moduleFilter = this.moduleFilter === k ? '' : k
     }
   }
 }
 </script>
 
 <style scoped>
-.module-management-page {
-  min-height: 100vh;
-  background-color: #f8f9fa;
-  padding: 2rem;
+.info-alert {
+  margin-bottom: 20px;
+  background: var(--info-soft);
+  color: var(--text-2);
+  border: 1px solid var(--border);
 }
 
-.card {
-  border: none;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+.info-alert > i {
+  color: var(--info);
 }
 
-.table th {
+.adoption {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  gap: 12px;
+}
+
+.mod {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.mod:hover {
+  border-color: var(--border-strong);
+}
+
+.mod.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.mod.is-off {
+  opacity: 0.6;
+}
+
+.mod__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.mod__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mod__name {
   font-weight: 600;
-  border-top: none;
+  font-size: 14px;
 }
 
-.form-check-input:checked {
-  background-color: var(--bs-success);
-  border-color: var(--bs-success);
+.mod__meta {
+  font-size: 12px;
+  color: var(--text-3);
 }
 
-.btn-group-sm .btn {
-  padding: 0.25rem 0.5rem;
+.tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  background: var(--neutral-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
 }
 
-.table td {
-  vertical-align: middle;
+.bar {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.matrix th.mcol {
+  text-align: center;
+  font-size: 11.5px;
+  text-transform: none;
+  letter-spacing: 0;
+  min-width: 104px;
+  white-space: normal;
+  line-height: 1.25;
+  vertical-align: bottom;
+}
+
+.matrix th.mcol i {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: var(--text-2);
+}
+
+.matrix td.mcell {
+  text-align: center;
+}
+
+.yes {
+  color: var(--success);
+}
+
+.no {
+  color: var(--border-strong);
+}
+
+.sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  min-width: 200px;
+}
+
+thead .sticky {
+  background: var(--surface-2);
+  z-index: 2;
+}
+
+.org-link {
+  color: var(--text);
+  text-decoration: none;
+  display: block;
+}
+
+.org-link:hover .pf-cell__title {
+  color: var(--accent);
+}
+
+.ui-badge.sm {
+  height: 20px;
+  font-size: 11px;
+  padding: 0 8px;
+  margin-left: 6px;
+  text-transform: capitalize;
+}
+
+td.sticky .ui-badge.sm {
+  margin: 4px 0 0;
 }
 </style>

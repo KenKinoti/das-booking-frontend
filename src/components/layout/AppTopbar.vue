@@ -17,13 +17,19 @@
         <span>Search…</span>
       </button>
 
-      <div class="tb__new" ref="newMenu">
+      <router-link v-if="planChip" to="/plan" class="tb__plan tb__hide-sm" :class="{ 'is-warn': planChip.warn }" :title="planChip.title">
+        <i class="fa-solid fa-gem"></i>
+        <span>{{ planChip.label }}</span>
+        <strong v-if="planChip.cta">{{ planChip.cta }}</strong>
+      </router-link>
+
+      <div v-if="visibleCreateActions.length" class="tb__new" ref="newMenu">
         <button class="ui-btn ui-btn--primary ui-btn--sm" @click="newOpen = !newOpen" :aria-expanded="newOpen">
           <i class="fa-solid fa-plus"></i><span class="tb__hide-sm">Create</span>
         </button>
         <transition name="pop">
           <div v-if="newOpen" class="tb__menu-pop" role="menu">
-            <router-link v-for="a in createActions" :key="a.to" :to="a.to" class="tb__menu-item" role="menuitem" @click="newOpen = false">
+            <router-link v-for="a in visibleCreateActions" :key="a.to" :to="a.to" class="tb__menu-item" role="menuitem" @click="newOpen = false">
               <span class="tb__menu-icon"><i :class="a.icon"></i></span>
               <span>
                 <strong>{{ a.label }}</strong>
@@ -69,6 +75,7 @@
 import { useAuthStore } from '@/stores/auth'
 import { globalTheme } from '@/composables/useTheme'
 import { findNav } from '@/navigation'
+import { entitlements, hasModule } from '@/composables/useEntitlements'
 
 export default {
   name: 'AppTopbar',
@@ -78,10 +85,10 @@ export default {
       newOpen: false,
       userOpen: false,
       createActions: [
-        { label: 'Invoice', hint: 'Bill a customer', to: '/invoices/new', icon: 'fa-solid fa-file-invoice-dollar' },
-        { label: 'Quote', hint: 'Send an estimate', to: '/quotes/new', icon: 'fa-solid fa-file-signature' },
-        { label: 'Booking', hint: 'Schedule an appointment', to: '/bookings', icon: 'fa-solid fa-calendar-plus' },
-        { label: 'Customer', hint: 'Add a contact', to: '/customers', icon: 'fa-solid fa-user-plus' }
+        { label: 'Invoice', hint: 'Bill a customer', to: '/invoices/new', icon: 'fa-solid fa-file-invoice-dollar', module: 'invoicing' },
+        { label: 'Quote', hint: 'Send an estimate', to: '/quotes/new', icon: 'fa-solid fa-file-signature', module: 'invoicing' },
+        { label: 'Booking', hint: 'Schedule an appointment', to: '/bookings', icon: 'fa-solid fa-calendar-plus', module: 'bookings' },
+        { label: 'Customer', hint: 'Add a contact', to: '/customers', icon: 'fa-solid fa-user-plus', module: 'crm' }
       ]
     }
   },
@@ -91,6 +98,22 @@ export default {
     },
     isDark() {
       return globalTheme.isDark.value
+    },
+    visibleCreateActions() {
+      // re-evaluate when the plan loads
+      void entitlements.modules
+      return this.createActions.filter((a) => hasModule(a.module))
+    },
+    planChip() {
+      const p = entitlements.plan
+      if (!p || !p.tier || this.auth.isSuperAdmin) return null
+      const tier = p.subscription?.tier
+      if (p.trial?.active) {
+        return { label: `${p.tier.name} trial · ${p.trial.days_left}d left`, cta: 'Choose plan', warn: p.trial.days_left <= 3, title: 'Your trial' }
+      }
+      if (p.trial?.expired) return { label: 'Trial ended', cta: 'Choose plan', warn: true, title: 'Your trial has ended' }
+      if (p.subscription?.status === 'past_due') return { label: `${p.tier.name} · past due`, cta: '', warn: true, title: 'Payment past due' }
+      return { label: `${p.tier.name} plan`, cta: tier === 'large' ? '' : 'Upgrade', warn: false, title: 'Plan & billing' }
     },
     roleLabel() {
       const r = this.auth.user?.role || ''
@@ -145,6 +168,47 @@ export default {
 </script>
 
 <style scoped>
+.tb__plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 550;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tb__plan i {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.tb__plan strong {
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.tb__plan:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.tb__plan.is-warn {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  background: var(--warning-soft);
+}
+
+.tb__plan.is-warn i {
+  color: var(--warning);
+}
+
 .tb {
   position: sticky;
   top: 0;

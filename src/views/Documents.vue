@@ -1,481 +1,281 @@
 <template>
-  <div class="page-container">
-    <!-- Action Buttons Section -->
-    <div class="page-actions d-flex justify-content-end mb-4">
-      <button @click="showCloudSettingsModal = true" class="btn btn-outline-primary me-2" title="Cloud Storage Settings">
-        <i class="fas fa-cloud me-2"></i>
-        Cloud Storage
+  <div class="ui-page ui-page--wide" @dragenter.prevent="onDragEnter" @dragover.prevent @dragleave="onDragLeave" @drop.prevent="onDropFiles">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Documents</div>
+        <h1>Documents</h1>
+        <p>Contracts, certificates, policies and other files, stored securely with your organisation's data.</p>
+      </div>
+      <div class="ui-actions">
+        <button class="ui-btn ui-btn--primary" @click="pickFiles"><i class="fa-solid fa-cloud-arrow-up"></i> Upload files</button>
+        <input ref="fileInput" type="file" multiple hidden @change="onPicked" />
+      </div>
+    </header>
+
+    <div class="ui-kpis">
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': !expiring && !category && !kind }" @click="resetFilters">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-regular fa-folder-open"></i></span>Documents</div>
+        <div class="ui-kpi__value"><span v-if="!stats" class="ui-skeleton sk-val"></span><template v-else>{{ stats.total }}</template></div>
+        <div class="ui-kpi__meta">{{ stats ? bytes(stats.total_size) : '—' }} stored</div>
       </button>
-      <button @click="showUploadModal = true" class="btn btn-primary">
-        <i class="fas fa-plus me-2"></i>
-        Upload Document
+      <div class="ui-kpi">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-info"><i class="fa-solid fa-clock-rotate-left"></i></span>Added this week</div>
+        <div class="ui-kpi__value"><span v-if="!stats" class="ui-skeleton sk-val"></span><template v-else>{{ stats.uploaded_this_week }}</template></div>
+        <div class="ui-kpi__meta">Last 7 days</div>
+      </div>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': expiring }" @click="toggleExpiring">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-solid fa-hourglass-half"></i></span>Expiring soon</div>
+        <div class="ui-kpi__value"><span v-if="!stats" class="ui-skeleton sk-val"></span><template v-else>{{ stats.expiring_soon }}</template></div>
+        <div class="ui-kpi__meta">Within 30 days · click to filter</div>
+      </button>
+      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': expiring }" @click="toggleExpiring">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-danger"><i class="fa-solid fa-triangle-exclamation"></i></span>Expired</div>
+        <div class="ui-kpi__value" :class="{ 'txt-danger': stats?.expired }"><span v-if="!stats" class="ui-skeleton sk-val"></span><template v-else>{{ stats.expired }}</template></div>
+        <div class="ui-kpi__meta">Need renewing</div>
       </button>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-icon">
-          <i class="fas fa-file-alt"></i>
+    <section class="ui-card" :class="{ 'is-dragover': dragDepth > 0 }">
+      <div class="toolbar">
+        <div class="ui-tabs cats" role="tablist">
+          <button class="ui-tab" :class="{ 'is-active': !category }" role="tab" :aria-selected="!category" @click="setCategory('')">All <span class="count">{{ stats?.total ?? 0 }}</span></button>
+          <button v-for="c in topCategories" :key="c.category" class="ui-tab" :class="{ 'is-active': category === c.category }" role="tab" :aria-selected="category === c.category" @click="setCategory(c.category)">
+            {{ catLabel(c.category) }} <span class="count">{{ c.count }}</span>
+          </button>
         </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ activeDocuments.length }}</div>
-          <div class="stat-label">Active Documents</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon warning">
-          <i class="fas fa-exclamation-triangle"></i>
-        </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ expiringDocuments.length }}</div>
-          <div class="stat-label">Expiring Soon</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon success">
-          <i class="fas fa-folder"></i>
-        </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ Object.keys(documentsByCategory).length }}</div>
-          <div class="stat-label">Categories</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon info">
-          <i class="fas fa-file"></i>
-        </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ documents.length }}</div>
-          <div class="stat-label">Total Files</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cloud Storage Status -->
-    <div v-if="cloudStorageEnabled" class="cloud-storage-status">
-      <div class="cloud-provider-info">
-        <div class="provider-icon" :class="currentProvider">
-          <i :class="getProviderIcon(currentProvider)"></i>
-        </div>
-        <div class="provider-details">
-          <h4>{{ getProviderName(currentProvider) }} Connected</h4>
-          <p class="storage-quota">{{ formatStorage(storageUsed) }} of {{ formatStorage(storageLimit) }} used</p>
-          <div class="storage-bar">
-            <div class="storage-fill" :style="{ width: storagePercentage + '%' }"></div>
+        <div class="toolbar__right">
+          <div class="ui-input-group search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input v-model="q" class="ui-input" type="search" placeholder="Search title, file name…" aria-label="Search documents" @input="debouncedLoad" />
           </div>
-        </div>
-        <div class="provider-actions">
-          <button @click="syncCloudStorage" class="btn-small btn-outline" :disabled="isSyncing">
-            <i :class="isSyncing ? 'fas fa-spinner fa-spin' : 'fas fa-sync'"></i>
-            {{ isSyncing ? 'Syncing...' : 'Sync' }}
-          </button>
-          <button @click="showCloudSettingsModal = true" class="btn-small btn-outline">
-            <i class="fas fa-cog"></i>
-            Settings
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Search and Filters -->
-    <div class="filters-section">
-      <div class="filters-row">
-        <div class="search-box">
-          <i class="fas fa-search"></i>
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Search documents..." 
-            class="form-input"
-            @input="filterDocuments"
-          />
-        </div>
-        
-        <!-- Filter Controls -->
-        <div class="filter-controls">
-          <select v-model="statusFilter" @change="filterDocuments" class="form-select">
-            <option value="">All Documents</option>
-            <option value="active">Active Documents</option>
-            <option value="expiring">Expiring Soon</option>
-            <option value="expired">Expired</option>
+          <select v-model="kind" class="ui-select sel" aria-label="File type" @change="reload">
+            <option value="">All file types</option>
+            <option value="pdf">PDF</option>
+            <option value="image">Images</option>
+            <option value="word">Documents</option>
+            <option value="sheet">Spreadsheets</option>
           </select>
-          
-          <button @click="clearFilters" class="btn btn-outline-elegant">
-            <i class="fas fa-times"></i>
-            Clear Filters
-          </button>
-          
-          <!-- View Toggle -->
-          <div class="view-toggle">
-            <button 
-              @click="currentView = 'list'" 
-              :class="['view-btn-elegant', { active: currentView === 'list' }]"
-              title="List View"
-            >
-              <i class="fas fa-list"></i>
-            </button>
-            <button 
-              @click="currentView = 'grid'" 
-              :class="['view-btn-elegant', { active: currentView === 'grid' }]"
-              title="Grid View"
-            >
-              <i class="fas fa-th"></i>
-            </button>
-          </div>
+          <select v-model="sort" class="ui-select sel" aria-label="Sort" @change="reload">
+            <option value="">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="name">Title A–Z</option>
+            <option value="size">Largest first</option>
+            <option value="expiry">Expiry date</option>
+          </select>
         </div>
       </div>
-    </div>
 
-    <!-- Documents List -->
-    <div class="content-card">
-      <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>Loading documents...</p>
+      <div v-if="expiring" class="filter-note">
+        <i class="fa-solid fa-filter"></i> Showing documents expired or expiring within 30 days
+        <button class="link-btn" @click="toggleExpiring">Clear</button>
       </div>
 
-      <div v-else-if="filteredDocuments.length === 0 && !searchQuery" class="empty-state">
-        <i class="fas fa-file-alt"></i>
-        <h3>No Documents Found</h3>
-        <p>Start by uploading your first document</p>
-        <button @click="showUploadModal = true" class="btn btn-primary">
-          <i class="fas fa-plus"></i>
-          Upload First Document
-        </button>
+      <div v-if="error" class="ui-card__body">
+        <div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span></div>
       </div>
 
-      <div v-else-if="filteredDocuments.length === 0 && searchQuery" class="empty-state">
-        <i class="fas fa-search"></i>
-        <h3>No Results Found</h3>
-        <p>Try adjusting your search criteria</p>
-      </div>
-
-      <div v-else class="documents-grid">
-        <div v-for="document in filteredDocuments" :key="document.id" class="document-card">
-          <div class="document-header">
-            <div class="document-icon">
-              <i :class="getFileIcon(document.file_type)"></i>
-            </div>
-            <div class="document-info">
-              <h4 class="document-name">{{ document.name }}</h4>
-              <p class="document-meta">{{ document.file_type }} • {{ formatFileSize(document.file_size) }}</p>
-            </div>
-            <div class="document-status">
-              <span :class="['status-badge', getStatusClass(document)]">
-                {{ getStatusLabel(document) }}
-              </span>
-            </div>
-          </div>
-          
-          <div class="document-details">
-            <div class="detail-row">
-              <div class="detail-item">
-                <i class="fas fa-user"></i>
-                <span><strong>Participant:</strong> {{ getParticipantName(document.participant_id) }}</span>
-              </div>
-              <div class="detail-item">
-                <i class="fas fa-folder"></i>
-                <span><strong>Category:</strong> {{ document.category }}</span>
-              </div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-item">
-                <i class="fas fa-calendar"></i>
-                <span><strong>Uploaded:</strong> {{ formatDate(document.created_at) }}</span>
-              </div>
-              <div v-if="document.expiry_date" class="detail-item">
-                <i class="fas fa-calendar-times"></i>
-                <span><strong>Expires:</strong> {{ formatDate(document.expiry_date) }}</span>
-              </div>
-            </div>
-            <div v-if="document.description" class="detail-item description">
-              <i class="fas fa-info-circle"></i>
-              <span><strong>Description:</strong> {{ document.description }}</span>
-            </div>
-          </div>
-
-          <div class="document-actions">
-            <button @click="viewDocument(document)" class="btn-small btn-outline">
-              <i class="fas fa-eye"></i>
-              View
-            </button>
-            <button @click="downloadDocument(document)" class="btn-small btn-outline">
-              <i class="fas fa-download"></i>
-              Download
-            </button>
-            <button @click="editDocument(document)" class="btn-small btn-outline">
-              <i class="fas fa-edit"></i>
-              Edit
-            </button>
-          </div>
+      <div v-else-if="loading && !docs.length" class="ui-card__body">
+        <div v-for="n in 6" :key="n" class="sk-row">
+          <div class="ui-skeleton" style="width: 36px; height: 36px; border-radius: 10px"></div>
+          <div class="ui-skeleton" style="flex: 2"></div>
+          <div class="ui-skeleton" style="width: 100px"></div>
+          <div class="ui-skeleton" style="width: 80px"></div>
         </div>
       </div>
-    </div>
 
-    <!-- Upload Modal -->
-    <div v-if="showUploadModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Upload Document</h3>
-          <button @click="closeModal" class="close-btn">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form @submit.prevent="uploadDocument">
-            <div class="form-group">
-              <label>Document File *</label>
-              <input 
-                ref="fileInput" 
-                type="file" 
-                class="form-input"
-                @change="handleFileSelect" 
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt"
-                required 
-              />
-              <div v-if="selectedFile" class="file-preview">
-                <i :class="getFileIcon(selectedFile.type)"></i>
-                <span>{{ selectedFile.name }} ({{ formatFileSize(selectedFile.size) }})</span>
-              </div>
-            </div>
-
-            <!-- Cloud Storage Destination -->
-            <div v-if="cloudStorageEnabled" class="form-group">
-              <label>Storage Destination</label>
-              <div class="storage-options">
-                <div class="storage-option" :class="{ active: newDocument.storageDestination === 'local' }">
-                  <input 
-                    id="storage-local" 
-                    v-model="newDocument.storageDestination" 
-                    type="radio" 
-                    value="local" 
-                  />
-                  <label for="storage-local" class="storage-label">
-                    <i class="fas fa-server"></i>
-                    <span>Local Storage</span>
-                    <small>Store on your server</small>
-                  </label>
-                </div>
-                
-                <div class="storage-option" :class="{ active: newDocument.storageDestination === 'google' }">
-                  <input 
-                    id="storage-google" 
-                    v-model="newDocument.storageDestination" 
-                    type="radio" 
-                    value="google"
-                    :disabled="!isGoogleConnected"
-                  />
-                  <label for="storage-google" class="storage-label">
-                    <i class="fab fa-google-drive"></i>
-                    <span>Google Drive</span>
-                    <small>{{ isGoogleConnected ? 'Connected' : 'Not connected' }}</small>
-                  </label>
-                </div>
-                
-                <div class="storage-option" :class="{ active: newDocument.storageDestination === 'onedrive' }">
-                  <input 
-                    id="storage-onedrive" 
-                    v-model="newDocument.storageDestination" 
-                    type="radio" 
-                    value="onedrive"
-                    :disabled="!isOneDriveConnected"
-                  />
-                  <label for="storage-onedrive" class="storage-label">
-                    <i class="fab fa-microsoft"></i>
-                    <span>OneDrive</span>
-                    <small>{{ isOneDriveConnected ? 'Connected' : 'Not connected' }}</small>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Document Name *</label>
-                <input v-model="newDocument.name" type="text" class="form-input" required placeholder="Enter document name" />
-              </div>
-              <div class="form-group">
-                <label>Category *</label>
-                <select v-model="newDocument.category" class="form-select" required>
-                  <option value="">Select Category</option>
-                  <option value="Medical">Medical</option>
-                  <option value="Legal">Legal</option>
-                  <option value="Insurance">Insurance</option>
-                  <option value="Care Plan">Care Plan</option>
-                  <option value="Personal">Personal</option>
-                  <option value="Emergency">Emergency</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Participant *</label>
-                <select v-model="newDocument.participant_id" class="form-select" required>
-                  <option value="">Select Participant</option>
-                  <option v-for="participant in participants" :key="participant.id" :value="participant.id">
-                    {{ participant.first_name }} {{ participant.last_name }}
-                  </option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Expiry Date</label>
-                <input v-model="newDocument.expiry_date" type="date" class="form-input" />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Description</label>
-              <textarea 
-                v-model="newDocument.description" 
-                rows="3" 
-                class="form-textarea"
-                placeholder="Brief description of the document..."
-              ></textarea>
-            </div>
-
-            <div class="form-group">
-              <label>
-                <input v-model="newDocument.is_confidential" type="checkbox" />
-                Mark as confidential
-              </label>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" @click="closeModal" class="btn btn-secondary">Cancel</button>
-              <button type="submit" class="btn btn-primary" :disabled="isUploading">
-                <span v-if="isUploading">
-                  <i class="fas fa-spinner fa-spin"></i>
-                  Uploading...
-                </span>
-                <span v-else>
-                  <i class="fas fa-upload"></i>
-                  Upload Document
-                </span>
-              </button>
-            </div>
-          </form>
-        </div>
+      <div v-else-if="!docs.length" class="ui-empty dropzone" @click="hasFilters ? null : pickFiles()">
+        <div class="ui-empty__icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+        <h3>{{ hasFilters ? 'No documents match your filters' : 'Drop files here to upload' }}</h3>
+        <p>{{ hasFilters ? 'Try a different search, category or file type.' : 'Or click to choose files. Up to 10 MB each: PDFs, images, Office documents and more.' }}</p>
+        <button v-if="hasFilters" class="ui-btn" style="margin-top: 14px" @click.stop="resetFilters">Clear filters</button>
       </div>
-    </div>
 
-    <!-- Cloud Settings Modal -->
-    <div v-if="showCloudSettingsModal" class="modal-overlay" @click="closeCloudModal">
-      <div class="modal-content cloud-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Cloud Storage Settings</h3>
-          <button @click="closeCloudModal" class="close-btn">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="cloud-providers">
-            <!-- Google Drive Section -->
-            <div class="provider-section">
-              <div class="provider-header">
-                <div class="provider-icon google">
-                  <i class="fab fa-google-drive"></i>
-                </div>
-                <div class="provider-info">
-                  <h4>Google Drive</h4>
-                  <p>Store documents in your Google Drive account</p>
-                </div>
-                <div class="provider-status">
-                  <span :class="['status-indicator', isGoogleConnected ? 'connected' : 'disconnected']">
-                    {{ isGoogleConnected ? 'Connected' : 'Disconnected' }}
+      <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th class="hide-sm">Category</th>
+              <th class="num hide-md">Size</th>
+              <th class="hide-lg">Uploaded by</th>
+              <th class="hide-md">Added</th>
+              <th class="hide-sm">Expiry</th>
+              <th class="actions-col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="d in docs" :key="d.id" class="is-clickable" @click="preview(d)">
+              <td>
+                <div class="doc">
+                  <span class="doc__icon" :class="`k-${kindOf(d)}`"><i :class="iconOf(d)"></i></span>
+                  <span class="doc__text">
+                    <span class="doc__title">{{ d.title }}</span>
+                    <small>{{ d.original_filename }}<template v-if="d.description"> · {{ d.description }}</template></small>
                   </span>
                 </div>
-              </div>
-              <div class="provider-actions">
-                <button 
-                  v-if="!isGoogleConnected" 
-                  @click="connectGoogleDrive" 
-                  class="btn btn-primary"
-                  :disabled="isConnecting"
-                >
-                  <i :class="isConnecting ? 'fas fa-spinner fa-spin' : 'fab fa-google'"></i>
-                  {{ isConnecting ? 'Connecting...' : 'Connect Google Drive' }}
-                </button>
-                <div v-else class="connected-info">
-                  <p><strong>Account:</strong> {{ googleAccount || 'Connected' }}</p>
-                  <p><strong>Storage:</strong> {{ formatStorage(googleStorageUsed) }} / {{ formatStorage(googleStorageLimit) }}</p>
-                  <button @click="disconnectGoogleDrive" class="btn btn-outline">
-                    <i class="fas fa-unlink"></i>
-                    Disconnect
+              </td>
+              <td class="hide-sm"><span class="cat-pill">{{ catLabel(d.category) }}</span></td>
+              <td class="num hide-md muted">{{ bytes(d.file_size) }}</td>
+              <td class="hide-lg muted">{{ uploader(d) }}</td>
+              <td class="hide-md muted nowrap">{{ date(d.created_at) }}</td>
+              <td class="hide-sm nowrap">
+                <template v-if="d.expiry_date">
+                  <span class="ui-badge" :class="expiryBadge(d)">{{ expiryText(d) }}</span>
+                </template>
+                <span v-else class="muted">—</span>
+              </td>
+              <td class="actions-col" @click.stop>
+                <div class="row-actions">
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon hide-sm" title="Preview" aria-label="Preview" @click="preview(d)"><i class="fa-regular fa-eye"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Download" aria-label="Download" :disabled="busy === d.id" @click="download(d)">
+                    <i :class="busy === d.id ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-download'"></i>
                   </button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Edit details" aria-label="Edit details" @click="openEdit(d)"><i class="fa-regular fa-pen-to-square"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon danger hide-sm" title="Delete" aria-label="Delete" @click="remove(d)"><i class="fa-regular fa-trash-can"></i></button>
                 </div>
-              </div>
-            </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-            <!-- OneDrive Section -->
-            <div class="provider-section">
-              <div class="provider-header">
-                <div class="provider-icon onedrive">
-                  <i class="fab fa-microsoft"></i>
-                </div>
-                <div class="provider-info">
-                  <h4>Microsoft OneDrive</h4>
-                  <p>Store documents in your OneDrive account</p>
-                </div>
-                <div class="provider-status">
-                  <span :class="['status-indicator', isOneDriveConnected ? 'connected' : 'disconnected']">
-                    {{ isOneDriveConnected ? 'Connected' : 'Disconnected' }}
-                  </span>
-                </div>
-              </div>
-              <div class="provider-actions">
-                <button 
-                  v-if="!isOneDriveConnected" 
-                  @click="connectOneDrive" 
-                  class="btn btn-primary"
-                  :disabled="isConnecting"
-                >
-                  <i :class="isConnecting ? 'fas fa-spinner fa-spin' : 'fab fa-microsoft'"></i>
-                  {{ isConnecting ? 'Connecting...' : 'Connect OneDrive' }}
-                </button>
-                <div v-else class="connected-info">
-                  <p><strong>Account:</strong> {{ oneDriveAccount || 'Connected' }}</p>
-                  <p><strong>Storage:</strong> {{ formatStorage(oneDriveStorageUsed) }} / {{ formatStorage(oneDriveStorageLimit) }}</p>
-                  <button @click="disconnectOneDrive" class="btn btn-outline">
-                    <i class="fas fa-unlink"></i>
-                    Disconnect
-                  </button>
-                </div>
-              </div>
-            </div>
+      <footer v-if="pagination.total > perPage" class="pager">
+        <span class="muted">{{ (page - 1) * perPage + 1 }}–{{ Math.min(page * perPage, pagination.total) }} of {{ pagination.total }}</span>
+        <div class="ui-actions">
+          <button class="ui-btn ui-btn--sm" :disabled="page <= 1" @click="go(page - 1)"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+          <button class="ui-btn ui-btn--sm" :disabled="page * perPage >= pagination.total" @click="go(page + 1)">Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </footer>
 
-            <!-- Settings -->
-            <div class="cloud-settings">
-              <h4>Settings</h4>
-              <div class="setting-item">
-                <label>
-                  <input v-model="cloudStorageEnabled" type="checkbox" @change="toggleCloudStorage" />
-                  Enable cloud storage integration
-                </label>
-              </div>
-              <div class="setting-item">
-                <label>
-                  <input v-model="autoSyncEnabled" type="checkbox" />
-                  Automatically sync documents
-                </label>
-              </div>
-              <div class="setting-item">
-                <label>Default storage location:</label>
-                <select v-model="defaultStorageLocation" class="form-select">
-                  <option value="local">Local Storage</option>
-                  <option value="google" :disabled="!isGoogleConnected">Google Drive</option>
-                  <option value="onedrive" :disabled="!isOneDriveConnected">OneDrive</option>
-                </select>
-              </div>
+      <div v-if="dragDepth > 0" class="drop-overlay"><i class="fa-solid fa-cloud-arrow-up"></i> Drop to upload</div>
+    </section>
+
+    <p class="storage-note"><i class="fa-solid fa-database"></i> Files are stored in your organisation's database, so they survive restarts and redeploys. Maximum 10 MB per file.</p>
+
+    <!-- Upload modal -->
+    <div v-if="queue.length" class="ui-modal-backdrop" @mousedown.self="closeUpload">
+      <form class="ui-modal" style="max-width: 760px" role="dialog" aria-modal="true" aria-label="Upload documents" @submit.prevent="uploadAll">
+        <div class="ui-modal__head">
+          <div>
+            <h2>Upload {{ queue.length }} file{{ queue.length === 1 ? '' : 's' }}</h2>
+            <p class="sub">Give each file a clear title and category so it's easy to find later.</p>
+          </div>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" :disabled="uploading" @click="closeUpload"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <div class="bulk">
+            <div class="ui-field">
+              <label for="bulk-cat">Category for all</label>
+              <select id="bulk-cat" v-model="bulkCategory" class="ui-select" :disabled="uploading" @change="applyBulk">
+                <option v-for="c in categoryOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
+              </select>
+            </div>
+            <div class="ui-field">
+              <label for="bulk-exp">Expiry for all (optional)</label>
+              <input id="bulk-exp" v-model="bulkExpiry" type="date" class="ui-input" :disabled="uploading" @change="applyBulk" />
             </div>
           </div>
+          <ul class="queue">
+            <li v-for="(item, i) in queue" :key="item.key" class="qitem" :class="{ 'is-done': item.status === 'done', 'is-error': item.status === 'error' }">
+              <span class="doc__icon" :class="`k-${kindOf({ file_type: item.file.type, name: item.file.name })}`"><i :class="iconOf({ file_type: item.file.type, name: item.file.name })"></i></span>
+              <div class="qitem__main">
+                <div class="qitem__row">
+                  <input v-model.trim="item.title" class="ui-input" :aria-label="`Title for ${item.file.name}`" :disabled="uploading || item.status === 'done'" placeholder="Title" />
+                  <select v-model="item.category" class="ui-select" :aria-label="`Category for ${item.file.name}`" :disabled="uploading || item.status === 'done'">
+                    <option v-for="c in categoryOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
+                  </select>
+                  <input v-model="item.expiry_date" type="date" class="ui-input" :aria-label="`Expiry for ${item.file.name}`" :disabled="uploading || item.status === 'done'" title="Expiry date (optional)" />
+                </div>
+                <div class="qitem__meta">
+                  <span>{{ item.file.name }} · {{ bytes(item.file.size) }}</span>
+                  <span v-if="item.file.size > maxSize" class="err">Too large (max 10 MB)</span>
+                  <span v-else-if="item.status === 'error'" class="err">{{ item.error }}</span>
+                  <span v-else-if="item.status === 'done'" class="ok"><i class="fa-solid fa-check"></i> Uploaded</span>
+                  <span v-else-if="item.status === 'uploading'" class="progress"><span :style="{ width: item.progress + '%' }"></span></span>
+                </div>
+              </div>
+              <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Remove from list" aria-label="Remove from list" :disabled="uploading" @click="queue.splice(i, 1)"><i class="fa-solid fa-xmark"></i></button>
+            </li>
+          </ul>
+          <button type="button" class="ui-btn ui-btn--sm" :disabled="uploading" @click="pickFiles"><i class="fa-solid fa-plus"></i> Add more files</button>
         </div>
-        <div class="modal-actions">
-          <button @click="closeCloudModal" class="btn btn-view">
-            <i class="fas fa-check"></i>
-            Done
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn" :disabled="uploading" @click="closeUpload">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="uploading || !uploadable.length">
+            <i :class="uploading ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-cloud-arrow-up'"></i>
+            Upload {{ uploadable.length }} file{{ uploadable.length === 1 ? '' : 's' }}
           </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Edit modal -->
+    <div v-if="editing" class="ui-modal-backdrop" @mousedown.self="editing = null">
+      <form class="ui-modal" style="max-width: 560px" role="dialog" aria-modal="true" aria-label="Edit document" @submit.prevent="saveEdit">
+        <div class="ui-modal__head">
+          <div>
+            <h2>Edit document</h2>
+            <p class="sub">{{ editing.original_filename }} · {{ bytes(editing.file_size) }}</p>
+          </div>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" @click="editing = null"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <div class="ui-field">
+            <label for="ed-title">Title <span class="req">*</span></label>
+            <input id="ed-title" v-model.trim="editForm.title" class="ui-input" :class="{ 'is-invalid': !editForm.title }" />
+          </div>
+          <div class="ui-grid-2" style="margin-top: 16px">
+            <div class="ui-field">
+              <label for="ed-cat">Category</label>
+              <select id="ed-cat" v-model="editForm.category" class="ui-select">
+                <option v-for="c in categoryOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
+              </select>
+            </div>
+            <div class="ui-field">
+              <label for="ed-exp">Expiry date</label>
+              <input id="ed-exp" v-model="editForm.expiry_date" type="date" class="ui-input" />
+            </div>
+          </div>
+          <div class="ui-field" style="margin-top: 16px">
+            <label for="ed-desc">Description</label>
+            <textarea id="ed-desc" v-model="editForm.description" class="ui-textarea" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn" @click="editing = null">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving || !editForm.title"><i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> Save</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Preview -->
+    <div v-if="viewing" class="ui-modal-backdrop" @mousedown.self="closePreview">
+      <div class="ui-modal preview" role="dialog" aria-modal="true" :aria-label="viewing.title">
+        <div class="ui-modal__head">
+          <div class="preview__title">
+            <span class="doc__icon" :class="`k-${kindOf(viewing)}`"><i :class="iconOf(viewing)"></i></span>
+            <div>
+              <h2>{{ viewing.title }}</h2>
+              <p class="sub">{{ catLabel(viewing.category) }} · {{ bytes(viewing.file_size) }} · added {{ date(viewing.created_at) }} by {{ uploader(viewing) }}</p>
+            </div>
+          </div>
+          <div class="ui-actions">
+            <button class="ui-btn ui-btn--sm" @click="download(viewing)"><i class="fa-solid fa-download"></i> Download</button>
+            <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" @click="closePreview"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+        <div class="ui-modal__body preview__body">
+          <div v-if="previewLoading" class="preview__msg"><i class="fa-solid fa-circle-notch spin"></i> Loading preview…</div>
+          <div v-else-if="previewError" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ previewError }}</span></div>
+          <img v-else-if="previewUrl && kindOf(viewing) === 'image'" :src="previewUrl" :alt="viewing.title" class="preview__img" />
+          <iframe v-else-if="previewUrl && ['pdf'].includes(kindOf(viewing))" :src="previewUrl" class="preview__frame" :title="viewing.title"></iframe>
+          <pre v-else-if="previewText !== null" class="preview__text">{{ previewText }}</pre>
+          <div v-else class="preview__msg">
+            <i :class="iconOf(viewing)" class="big"></i>
+            <p>No preview for this file type.</p>
+            <button class="ui-btn ui-btn--primary" @click="download(viewing)"><i class="fa-solid fa-download"></i> Download {{ viewing.original_filename }}</button>
+          </div>
+          <p v-if="viewing.description" class="preview__desc">{{ viewing.description }}</p>
         </div>
       </div>
     </div>
@@ -483,1433 +283,752 @@
 </template>
 
 <script>
-import { mapState, mapActions, mapGetters } from 'pinia'
-import { useDocumentsStore } from '../stores/documents'
-import { useParticipantsStore } from '../stores/participants'
-import { showViewModal, showEditModal } from '../utils/errorHandler'
+import { documentsService, DOCUMENT_CATEGORIES, categoryLabel, fileKind, KIND_ICONS, formatBytes } from '@/services/documents'
+import { apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+import { formatDate, downloadBlob, isoDate } from '@/utils/format'
+
+let seq = 0
 
 export default {
   name: 'Documents',
   data() {
     return {
-      filteredDocuments: [],
-      searchQuery: '',
-      statusFilter: '',
-      currentView: 'list',
-      showUploadModal: false,
-      isUploading: false,
-      selectedFile: null,
-      newDocument: {
-        name: '',
-        category: '',
-        participant_id: '',
-        expiry_date: '',
-        description: '',
-        is_confidential: false,
-        storageDestination: 'local'
-      },
-      // Cloud storage properties
-      showCloudSettingsModal: false,
-      cloudStorageEnabled: true,
-      isConnecting: false,
-      isSyncing: false,
-      // Google Drive
-      isGoogleConnected: false,
-      googleAccount: null,
-      googleStorageUsed: 0,
-      googleStorageLimit: 15000000000, // 15GB
-      // OneDrive  
-      isOneDriveConnected: false,
-      oneDriveAccount: null,
-      oneDriveStorageUsed: 0,
-      oneDriveStorageLimit: 5000000000, // 5GB
-      // Settings
-      autoSyncEnabled: true,
-      defaultStorageLocation: 'local',
-      currentProvider: 'local',
-      storageUsed: 0,
-      storageLimit: 0
+      docs: [],
+      pagination: {},
+      stats: null,
+      loading: false,
+      error: '',
+      q: '',
+      category: this.$route.query.category || '',
+      kind: '',
+      sort: '',
+      expiring: this.$route.query.expiring === '1',
+      page: 1,
+      perPage: 25,
+      timer: null,
+      busy: null,
+      dragDepth: 0,
+      queue: [],
+      uploading: false,
+      bulkCategory: 'general',
+      bulkExpiry: '',
+      maxSize: 10 * 1024 * 1024,
+      editing: null,
+      editForm: {},
+      saving: false,
+      viewing: null,
+      previewUrl: '',
+      previewText: null,
+      previewLoading: false,
+      previewError: ''
     }
   },
   computed: {
-    ...mapState(useDocumentsStore, ['documents', 'isLoading', 'error']),
-    ...mapGetters(useDocumentsStore, ['documentsByCategory', 'activeDocuments', 'expiringDocuments']),
-    ...mapState(useParticipantsStore, { participants: 'participants' }),
-    
-    storagePercentage() {
-      if (this.storageLimit === 0) return 0
-      return Math.min((this.storageUsed / this.storageLimit) * 100, 100)
+    hasFilters() {
+      return !!(this.q || this.category || this.kind || this.expiring)
+    },
+    topCategories() {
+      return (this.stats?.categories || []).slice(0, 6)
+    },
+    categoryOptions() {
+      const extra = (this.stats?.categories || []).map((c) => c.category).filter((c) => !DOCUMENT_CATEGORIES.some((d) => d.value === c))
+      return [...DOCUMENT_CATEGORIES, ...extra.map((c) => ({ value: c, label: categoryLabel(c) }))]
+    },
+    uploadable() {
+      return this.queue.filter((i) => i.status !== 'done' && i.file.size <= this.maxSize)
     }
   },
-  async mounted() {
-    await this.loadData()
+  created() {
+    this.load()
+    this.loadStats()
+  },
+  beforeUnmount() {
+    clearTimeout(this.timer)
+    this.revokePreview()
   },
   methods: {
-    ...mapActions(useDocumentsStore, ['fetchDocuments', 'uploadDocument', 'updateDocument', 'deleteDocument', 'downloadDocument']),
-    ...mapActions(useParticipantsStore, ['fetchParticipants']),
-    
-    async loadData() {
+    date: formatDate,
+    bytes: formatBytes,
+    catLabel: categoryLabel,
+    kindOf: fileKind,
+    iconOf(d) {
+      return KIND_ICONS[fileKind(d)]
+    },
+    uploader(d) {
+      const u = d.uploaded_by_user
+      return u && (u.first_name || u.last_name) ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : u?.email || '—'
+    },
+    daysLeft(d) {
+      return Math.round((new Date(String(d.expiry_date).slice(0, 10) + 'T00:00:00') - new Date(isoDate() + 'T00:00:00')) / 86400000)
+    },
+    expiryText(d) {
+      const n = this.daysLeft(d)
+      if (n < 0) return `Expired ${formatDate(d.expiry_date)}`
+      if (n === 0) return 'Expires today'
+      if (n <= 30) return `${n} day${n === 1 ? '' : 's'} left`
+      return formatDate(d.expiry_date)
+    },
+    expiryBadge(d) {
+      const n = this.daysLeft(d)
+      if (n < 0) return 'ui-badge--danger'
+      if (n <= 30) return 'ui-badge--warning'
+      return 'ui-badge--draft'
+    },
+    async load() {
+      this.loading = true
+      this.error = ''
       try {
-        await Promise.all([
-          this.fetchDocuments(),
-          this.fetchParticipants()
-        ])
-        this.filterDocuments()
-      } catch (error) {
-        console.error('Error loading data:', error)
-        this.showErrorMessage('Failed to load data. Please refresh the page.')
+        const params = { page: this.page, limit: this.perPage, search: this.q || undefined, category: this.category || undefined, file_type: this.kind || undefined, sort: this.sort || undefined }
+        if (this.expiring) {
+          params.expiring = 30
+          if (!this.sort) params.sort = 'expiry'
+        }
+        const { documents, pagination } = await documentsService.list(params)
+        this.docs = documents
+        this.pagination = pagination
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load documents')
+      } finally {
+        this.loading = false
       }
     },
-
-    filterDocuments() {
-      let filtered = [...this.documents]
-      
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase()
-        filtered = filtered.filter(doc => 
-          doc.name.toLowerCase().includes(query) ||
-          doc.category.toLowerCase().includes(query) ||
-          doc.description?.toLowerCase().includes(query)
-        )
+    async loadStats() {
+      try {
+        this.stats = await documentsService.stats()
+      } catch {
+        this.stats = { total: 0, total_size: 0, uploaded_this_week: 0, expiring_soon: 0, expired: 0, categories: [] }
       }
-
-      if (this.statusFilter) {
-        const now = new Date()
-        const thirtyDaysFromNow = new Date()
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-
-        filtered = filtered.filter(doc => {
-          switch (this.statusFilter) {
-            case 'active':
-              return doc.is_active && (!doc.expiry_date || new Date(doc.expiry_date) > now)
-            case 'expired':
-              return doc.expiry_date && new Date(doc.expiry_date) <= now
-            case 'expiring':
-              return doc.expiry_date && new Date(doc.expiry_date) <= thirtyDaysFromNow && new Date(doc.expiry_date) > now
-            default:
-              return true
-          }
+    },
+    refresh() {
+      this.load()
+      this.loadStats()
+    },
+    reload() {
+      this.page = 1
+      this.load()
+    },
+    go(p) {
+      this.page = p
+      this.load()
+    },
+    debouncedLoad() {
+      clearTimeout(this.timer)
+      this.timer = setTimeout(this.reload, 250)
+    },
+    setCategory(c) {
+      this.category = c
+      this.reload()
+    },
+    toggleExpiring() {
+      this.expiring = !this.expiring
+      this.reload()
+    },
+    resetFilters() {
+      this.q = ''
+      this.category = ''
+      this.kind = ''
+      this.expiring = false
+      this.reload()
+    },
+    // ----- Upload -----
+    pickFiles() {
+      this.$refs.fileInput.value = ''
+      this.$refs.fileInput.click()
+    },
+    onPicked(e) {
+      this.addFiles([...(e.target.files || [])])
+    },
+    onDragEnter(e) {
+      if ([...(e.dataTransfer?.types || [])].includes('Files')) this.dragDepth++
+    },
+    onDragLeave() {
+      if (this.dragDepth > 0) this.dragDepth--
+    },
+    onDropFiles(e) {
+      this.dragDepth = 0
+      const files = [...(e.dataTransfer?.files || [])]
+      if (files.length) this.addFiles(files)
+    },
+    addFiles(files) {
+      for (const file of files) {
+        this.queue.push({
+          key: ++seq,
+          file,
+          title: file.name.replace(/\.[^.]+$/, ''),
+          category: this.category || this.bulkCategory,
+          expiry_date: this.bulkExpiry,
+          status: 'pending',
+          progress: 0,
+          error: ''
         })
       }
-      
-      // Sort by creation date (newest first)
-      filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      
-      this.filteredDocuments = filtered
     },
-
-    handleFileSelect(event) {
-      const file = event.target.files[0]
-      if (file) {
-        this.selectedFile = file
-        if (!this.newDocument.name) {
-          this.newDocument.name = file.name.split('.').slice(0, -1).join('.')
-        }
+    applyBulk() {
+      for (const i of this.queue) {
+        if (i.status === 'done') continue
+        i.category = this.bulkCategory
+        i.expiry_date = this.bulkExpiry
       }
     },
-
-    async uploadDocument() {
-      if (!this.selectedFile) return
-      
-      this.isUploading = true
-      try {
-        const formData = new FormData()
-        formData.append('file', this.selectedFile)
-        formData.append('name', this.newDocument.name)
-        formData.append('category', this.newDocument.category)
-        formData.append('participant_id', this.newDocument.participant_id)
-        formData.append('description', this.newDocument.description || '')
-        formData.append('is_confidential', this.newDocument.is_confidential)
-        
-        if (this.newDocument.expiry_date) {
-          formData.append('expiry_date', this.newDocument.expiry_date + 'T23:59:59Z')
-        }
-        
-        await this.uploadDocument(formData)
-        this.filterDocuments()
-        this.closeModal()
-        this.showSuccessMessage('Document uploaded successfully!')
-        
-      } catch (error) {
-        console.error('Error uploading document:', error)
-        this.showErrorMessage('Error uploading document. Please try again.')
-      } finally {
-        this.isUploading = false
-      }
+    closeUpload() {
+      if (this.uploading) return
+      this.queue = []
     },
-
-    async downloadDocument(document) {
-      try {
-        const response = await this.downloadDocument(document.id)
-        const blob = response.data
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = document.name
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        this.showSuccessMessage('Document downloaded successfully!')
-      } catch (error) {
-        console.error('Error downloading document:', error)
-        this.showErrorMessage('Error downloading document. Please try again.')
-      }
-    },
-
-    viewDocument(document) {
-      const participant = this.getParticipantName(document.participant_id)
-      const status = this.getStatusLabel(document)
-      const expiry = document.expiry_date ? `\n📅 Expires: ${this.formatDate(document.expiry_date)}` : ''
-      
-      const details = `📁 Category: ${document.category}\n👤 Participant: ${participant}\n📊 Status: ${status}\n📅 Uploaded: ${this.formatDate(document.created_at)}${expiry}${document.description ? '\n📝 Description: ' + document.description : ''}`
-      showViewModal(details, `📄 ${document.name}`)
-    },
-
-    editDocument(document) {
-      showEditModal(`Edit functionality for "${document.name}" will be available soon! This feature will allow you to modify document details and upload new versions.`, 'Edit Document')
-    },
-
-    async deleteDocument(document) {
-      if (confirm(`Are you sure you want to delete "${document.name}"? This action cannot be undone.`)) {
+    async uploadAll() {
+      this.uploading = true
+      let ok = 0
+      for (const item of this.uploadable) {
+        item.status = 'uploading'
+        item.progress = 0
         try {
-          await this.deleteDocument(document.id)
-          this.filterDocuments()
-          this.showSuccessMessage('Document deleted successfully!')
-        } catch (error) {
-          console.error('Error deleting document:', error)
-          this.showErrorMessage('Error deleting document. Please try again.')
+          await documentsService.upload({ file: item.file, title: item.title, category: item.category, expiry_date: item.expiry_date }, (p) => (item.progress = p))
+          item.status = 'done'
+          ok++
+        } catch (e) {
+          item.status = 'error'
+          item.error = apiErrorMessage(e, 'Upload failed')
         }
       }
+      this.uploading = false
+      if (ok) toast.success(`${ok} file${ok === 1 ? '' : 's'} uploaded`)
+      if (this.queue.every((i) => i.status === 'done')) this.queue = []
+      this.refresh()
     },
-
-    closeModal() {
-      this.showUploadModal = false
-      this.selectedFile = null
-      this.resetForm()
+    // ----- Edit / delete -----
+    openEdit(d) {
+      this.editing = d
+      this.editForm = { title: d.title, category: d.category, description: d.description || '', expiry_date: d.expiry_date ? isoDate(d.expiry_date) : '' }
     },
-
-    clearFilters() {
-      this.searchQuery = ''
-      this.statusFilter = ''
-      this.filterDocuments()
-    },
-
-    resetForm() {
-      this.newDocument = {
-        name: '',
-        category: '',
-        participant_id: '',
-        expiry_date: '',
-        description: '',
-        is_confidential: false
-      }
-      if (this.$refs.fileInput) {
-        this.$refs.fileInput.value = ''
-      }
-    },
-
-    getParticipantName(participantId) {
-      const participant = this.participants.find(p => p.id === participantId)
-      return participant ? `${participant.first_name} ${participant.last_name}` : 'Unknown Participant'
-    },
-
-    getFileIcon(fileType) {
-      if (fileType.includes('pdf')) return 'fas fa-file-pdf text-red-500'
-      if (fileType.includes('word') || fileType.includes('doc')) return 'fas fa-file-word text-blue-500'
-      if (fileType.includes('image') || fileType.includes('jpeg') || fileType.includes('png')) return 'fas fa-file-image text-green-500'
-      if (fileType.includes('text')) return 'fas fa-file-alt text-gray-500'
-      return 'fas fa-file text-gray-400'
-    },
-
-    getStatusClass(document) {
-      if (document.expiry_date) {
-        const now = new Date()
-        const expiryDate = new Date(document.expiry_date)
-        const thirtyDaysFromNow = new Date()
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-        
-        if (expiryDate <= now) return 'expired'
-        if (expiryDate <= thirtyDaysFromNow) return 'expiring'
-      }
-      return document.is_active ? 'active' : 'inactive'
-    },
-
-    getStatusLabel(document) {
-      const statusClass = this.getStatusClass(document)
-      const statusMap = {
-        'active': 'Active',
-        'inactive': 'Inactive',
-        'expired': 'Expired',
-        'expiring': 'Expiring Soon'
-      }
-      return statusMap[statusClass] || 'Unknown'
-    },
-
-    formatDate(dateString) {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-AU', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      })
-    },
-
-    formatFileSize(bytes) {
-      if (bytes === 0) return '0 B'
-      const k = 1024
-      const sizes = ['B', 'KB', 'MB', 'GB']
-      const i = Math.floor(Math.log(bytes) / Math.log(k))
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-    },
-
-    showSuccessMessage(message) {
-      const notification = document.createElement('div')
-      notification.className = 'success-notification'
-      notification.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`
-      document.body.appendChild(notification)
-      
-      setTimeout(() => {
-        notification.remove()
-      }, 3000)
-    },
-    
-    showErrorMessage(message) {
-      const notification = document.createElement('div')
-      notification.className = 'error-notification'
-      notification.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`
-      document.body.appendChild(notification)
-      
-      setTimeout(() => {
-        notification.remove()
-      }, 3000)
-    },
-
-    // Cloud Storage Methods
-    closeCloudModal() {
-      this.showCloudSettingsModal = false
-    },
-
-    async connectGoogleDrive() {
-      this.isConnecting = true
+    async saveEdit() {
+      this.saving = true
       try {
-        // Placeholder for OAuth implementation
-        // In production, this would open OAuth popup and handle authentication
-        setTimeout(() => {
-          this.isGoogleConnected = true
-          this.googleAccount = 'user@gmail.com'
-          this.googleStorageUsed = 2500000000 // 2.5GB
-          this.updateCurrentProvider()
-          this.showSuccessMessage('Google Drive connected successfully!')
-          this.isConnecting = false
-        }, 2000)
-      } catch (error) {
-        this.showErrorMessage('Failed to connect Google Drive. Please try again.')
-        this.isConnecting = false
+        await documentsService.update(this.editing.id, { ...this.editForm })
+        toast.success('Document updated')
+        this.editing = null
+        this.refresh()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not update the document'))
+      } finally {
+        this.saving = false
       }
     },
-
-    async connectOneDrive() {
-      this.isConnecting = true
+    async remove(d) {
+      const ok = await confirmDialog({ title: `Delete “${d.title}”?`, message: `${d.original_filename} will be permanently deleted. This cannot be undone.`, confirmText: 'Delete document', danger: true })
+      if (!ok) return
       try {
-        // Placeholder for OAuth implementation
-        // In production, this would open OAuth popup and handle authentication  
-        setTimeout(() => {
-          this.isOneDriveConnected = true
-          this.oneDriveAccount = 'user@outlook.com'
-          this.oneDriveStorageUsed = 1200000000 // 1.2GB
-          this.updateCurrentProvider()
-          this.showSuccessMessage('OneDrive connected successfully!')
-          this.isConnecting = false
-        }, 2000)
-      } catch (error) {
-        this.showErrorMessage('Failed to connect OneDrive. Please try again.')
-        this.isConnecting = false
+        await documentsService.remove(d.id)
+        toast.success('Document deleted')
+        if (this.viewing?.id === d.id) this.closePreview()
+        this.refresh()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete the document'))
       }
     },
-
-    disconnectGoogleDrive() {
-      this.isGoogleConnected = false
-      this.googleAccount = null
-      this.googleStorageUsed = 0
-      if (this.defaultStorageLocation === 'google') {
-        this.defaultStorageLocation = 'local'
-      }
-      this.updateCurrentProvider()
-      this.showSuccessMessage('Google Drive disconnected')
-    },
-
-    disconnectOneDrive() {
-      this.isOneDriveConnected = false
-      this.oneDriveAccount = null
-      this.oneDriveStorageUsed = 0
-      if (this.defaultStorageLocation === 'onedrive') {
-        this.defaultStorageLocation = 'local'
-      }
-      this.updateCurrentProvider()
-      this.showSuccessMessage('OneDrive disconnected')
-    },
-
-    async syncCloudStorage() {
-      if (!this.cloudStorageEnabled) return
-      
-      this.isSyncing = true
+    async download(d) {
+      this.busy = d.id
       try {
-        // Placeholder for sync implementation
-        // In production, this would sync files between local and cloud storage
-        setTimeout(() => {
-          this.showSuccessMessage('Documents synced successfully!')
-          this.isSyncing = false
-        }, 3000)
-      } catch (error) {
-        this.showErrorMessage('Sync failed. Please try again.')
-        this.isSyncing = false
+        const blob = await documentsService.file(d.id)
+        downloadBlob(blob, d.original_filename || d.title)
+      } catch (e) {
+        toast.error(await this.blobError(e, 'Could not download the file'))
+      } finally {
+        this.busy = null
       }
     },
-
-    toggleCloudStorage() {
-      if (!this.cloudStorageEnabled) {
-        // Reset to local storage when disabled
-        this.defaultStorageLocation = 'local'
-        this.newDocument.storageDestination = 'local'
+    async blobError(e, fallback) {
+      try {
+        if (e?.response?.data instanceof Blob) {
+          const j = JSON.parse(await e.response.data.text())
+          return j.error?.message || j.message || fallback
+        }
+      } catch {
+        /* ignore */
+      }
+      return apiErrorMessage(e, fallback)
+    },
+    // ----- Preview -----
+    revokePreview() {
+      if (this.previewUrl) URL.revokeObjectURL(this.previewUrl)
+      this.previewUrl = ''
+      this.previewText = null
+    },
+    async preview(d) {
+      this.revokePreview()
+      this.viewing = d
+      this.previewError = ''
+      const kind = fileKind(d)
+      if (!['image', 'pdf', 'text'].includes(kind)) return
+      this.previewLoading = true
+      try {
+        const blob = await documentsService.file(d.id, true)
+        if (kind === 'text') this.previewText = (await blob.slice(0, 200000).text()) || '(empty file)'
+        else this.previewUrl = URL.createObjectURL(new Blob([blob], { type: d.file_type }))
+      } catch (e) {
+        this.previewError = await this.blobError(e, 'Could not load the preview')
+      } finally {
+        this.previewLoading = false
       }
     },
-
-    updateCurrentProvider() {
-      if (this.isGoogleConnected) {
-        this.currentProvider = 'google'
-        this.storageUsed = this.googleStorageUsed
-        this.storageLimit = this.googleStorageLimit
-      } else if (this.isOneDriveConnected) {
-        this.currentProvider = 'onedrive'
-        this.storageUsed = this.oneDriveStorageUsed
-        this.storageLimit = this.oneDriveStorageLimit
-      } else {
-        this.currentProvider = 'local'
-        this.storageUsed = 0
-        this.storageLimit = 0
-      }
-    },
-
-    getProviderIcon(provider) {
-      const icons = {
-        'google': 'fab fa-google-drive',
-        'onedrive': 'fab fa-microsoft',
-        'local': 'fas fa-server'
-      }
-      return icons[provider] || 'fas fa-cloud'
-    },
-
-    getProviderName(provider) {
-      const names = {
-        'google': 'Google Drive',
-        'onedrive': 'OneDrive',
-        'local': 'Local Storage'
-      }
-      return names[provider] || 'Unknown'
-    },
-
-    formatStorage(bytes) {
-      return this.formatFileSize(bytes)
+    closePreview() {
+      this.viewing = null
+      this.revokePreview()
     }
   }
 }
 </script>
 
 <style scoped>
-.page-container {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* Participants-style filters */
-.filters-section {
-  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  margin-bottom: 1rem;
-}
-
-.filters-row {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.search-box {
-  position: relative;
-  flex: 1;
-  min-width: 300px;
-  max-width: 400px;
-}
-
-.search-box i {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  font-size: 0.875rem;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  font-weight: 500;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
-  background: rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
-}
-
-.filter-controls {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.form-select {
-  padding: 0.75rem 1rem;
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  font-size: 0.875rem;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  font-weight: 500;
-  min-width: 140px;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px;
-  padding-right: 40px;
-}
-
-.form-select:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
-  background-color: rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
-}
-
-.btn-outline-elegant {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  color: #4a5568;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-}
-
-.btn-outline-elegant:hover {
-  border-color: #667eea;
-  color: #667eea;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(102, 126, 234, 0.04) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.15);
-}
-
-.view-toggle {
-  display: flex;
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-}
-
-.view-btn-elegant {
-  padding: 0.75rem 1rem;
-  border: none;
-  background: transparent;
-  color: #6b7280;
+.kpi-btn {
+  text-align: left;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  min-width: 44px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.view-btn-elegant:hover {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-  transform: translateY(-1px);
+.kpi-btn:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
 }
 
-.view-btn-elegant.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.25);
+.kpi-btn.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-.page-header {
+.kpi-info { background: var(--info-soft); color: var(--info); }
+.kpi-warning { background: var(--warning-soft); color: var(--warning); }
+.kpi-danger { background: var(--danger-soft); color: var(--danger); }
+.txt-danger { color: var(--danger); }
+
+.sk-val {
+  display: inline-block;
+  width: 60px;
+  height: 26px;
+}
+
+.ui-card {
+  position: relative;
+}
+
+.ui-card.is-dragover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--accent);
+  background: var(--accent-soft);
+  backdrop-filter: blur(2px);
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.drop-overlay i {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
 }
 
-.page-header h1 {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--text-dark);
-}
-
-.header-actions {
+.toolbar__right {
   display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-/* Filters Section - Enhanced for Care Plans style */
-.filters-section {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: var(--stat-card-shadow);
-  display: flex;
-  gap: 24px;
-  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
-.search-box {
-  position: relative;
-  flex: 1;
-  min-width: 300px;
+.cats {
+  max-width: 100%;
+  overflow-x: auto;
+  flex-wrap: nowrap;
 }
 
-.search-box i {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
+.cats .ui-tab {
+  white-space: nowrap;
 }
 
-.search-box input {
-  width: 100%;
-  padding: 12px 16px 12px 48px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.2s;
+.search {
+  width: 260px;
 }
 
-.search-box input:focus {
-  outline: none;
-  border-color: #3b82f6;
+.sel {
+  width: 160px;
 }
 
-.filter-controls {
+.filter-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--warning-soft);
+  border-bottom: 1px solid var(--border);
+}
+
+.link-btn {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sk-row {
   display: flex;
   gap: 16px;
+  padding: 12px 0;
   align-items: center;
-  flex-wrap: wrap;
 }
 
-/* Cloud Storage Status Bar */
-.cloud-storage-status {
-  background: var(--card-bg);
+.dropzone {
+  margin: 16px;
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: var(--shadow-sm);
-  border-left: 4px solid var(--primary-500);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-.cloud-provider-info {
+.dropzone:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.doc {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 12px;
+  min-width: 240px;
 }
 
-.provider-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  color: white;
-}
-
-.provider-icon.google {
-  background: linear-gradient(135deg, #4285f4, #34a853);
-}
-
-.provider-icon.onedrive {
-  background: linear-gradient(135deg, #0078d4, #106ebe);
-}
-
-.provider-icon.local {
-  background: linear-gradient(135deg, #6b7280, #4b5563);
-}
-
-.provider-details {
-  flex: 1;
-}
-
-.provider-details h4 {
-  margin: 0 0 0.25rem 0;
-  color: var(--gray-800);
-  font-size: var(--font-size-lg);
-}
-
-.storage-quota {
-  margin: 0 0 0.5rem 0;
-  color: var(--gray-600);
-  font-size: var(--font-size-sm);
-}
-
-.storage-bar {
-  width: 200px;
-  height: 6px;
-  background: #e5e7eb;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.storage-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary-500), var(--primary-600));
-  transition: width 0.3s ease;
-}
-
-.provider-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-/* Storage Options in Upload Modal */
-.storage-options {
+.doc__icon {
+  --k: var(--text-2);
+  --ks: var(--neutral-soft);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.75rem;
-  margin-top: 0.5rem;
+  place-items: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  color: var(--k);
+  background: var(--ks);
 }
 
-.storage-option {
-  position: relative;
-  border: 2px solid #e5e7eb;
-  border-radius: var(--radius-lg);
-  padding: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: center;
-}
+.k-pdf { --k: var(--danger); --ks: var(--danger-soft); }
+.k-image { --k: var(--accent); --ks: var(--accent-soft); }
+.k-sheet { --k: var(--success); --ks: var(--success-soft); }
+.k-word { --k: var(--info); --ks: var(--info-soft); }
+.k-slides { --k: var(--warning); --ks: var(--warning-soft); }
 
-.storage-option:hover {
-  border-color: var(--primary-300);
-}
-
-.storage-option.active {
-  border-color: var(--primary-500);
-  background: var(--primary-50);
-}
-
-.storage-option input[type="radio"] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.storage-label {
-  cursor: pointer;
+.doc__text {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+  min-width: 0;
 }
 
-.storage-label i {
-  font-size: 1.5rem;
-  color: var(--primary-500);
-}
-
-.storage-label span {
+.doc__title {
   font-weight: 600;
-  color: var(--gray-800);
-  font-size: var(--font-size-sm);
 }
 
-.storage-label small {
-  color: var(--gray-500);
-  font-size: var(--font-size-xs);
+.doc__text small {
+  color: var(--text-3);
+  font-size: 12.5px;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Cloud Settings Modal */
-.cloud-modal {
-  max-width: 700px;
+.cat-pill {
+  display: inline-block;
+  font-size: 12.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
 }
 
-.cloud-providers {
-  space-y: 1.5rem;
+.muted {
+  color: var(--text-3);
 }
 
-.provider-section {
-  border: 1px solid #e5e7eb;
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+.nowrap {
+  white-space: nowrap;
 }
 
-.provider-header {
+.actions-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.row-actions {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 2px;
+  justify-content: flex-end;
 }
 
-.provider-info {
-  flex: 1;
+.danger:hover {
+  color: var(--danger);
 }
 
-.provider-info h4 {
-  margin: 0 0 0.25rem 0;
-  color: var(--gray-800);
-  font-size: var(--font-size-lg);
+.is-loading {
+  opacity: 0.6;
 }
 
-.provider-info p {
-  margin: 0;
-  color: var(--gray-600);
-  font-size: var(--font-size-sm);
-}
-
-.provider-status .status-indicator {
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.status-indicator.connected {
-  background: var(--success-50);
-  color: var(--success-700);
-}
-
-.status-indicator.disconnected {
-  background: var(--gray-100);
-  color: var(--gray-600);
-}
-
-.provider-actions {
-  margin-top: 1rem;
-}
-
-.connected-info {
-  padding: 1rem;
-  background: var(--success-50);
-  border-radius: var(--radius-md);
-  margin-top: 1rem;
-}
-
-.connected-info p {
-  margin: 0 0 0.5rem 0;
-  color: var(--success-800);
-  font-size: var(--font-size-sm);
-}
-
-.connected-info p:last-of-type {
-  margin-bottom: 1rem;
-}
-
-.cloud-settings {
-  border-top: 1px solid #e5e7eb;
-  padding-top: 1.5rem;
-  margin-top: 1.5rem;
-}
-
-.cloud-settings h4 {
-  margin: 0 0 1rem 0;
-  color: var(--gray-800);
-  font-size: var(--font-size-lg);
-}
-
-.setting-item {
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.setting-item label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  color: var(--gray-700);
-}
-
-.setting-item select {
-  margin-left: auto;
-  min-width: 150px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: var(--white);
-  padding: 1.5rem;
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-soft);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: var(--primary-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 1.2rem;
-}
-
-.stat-icon.success {
-  background: var(--success-gradient);
-}
-
-.stat-icon.warning {
-  background: var(--warning-gradient);
-}
-
-.stat-icon.info {
-  background: var(--info-gradient);
-}
-
-.stat-number {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--text-dark);
-}
-
-.stat-label {
-  font-size: 0.9rem;
-  color: var(--text-medium);
-}
-
-.filters-section {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.search-box {
-  position: relative;
-  flex: 1;
-  max-width: 300px;
-}
-
-.search-box i {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-light);
-}
-
-.search-box input {
-  width: 100%;
-  padding: 12px 12px 12px 40px;
-  border: 2px solid #e2e8f0;
-  border-radius: var(--border-radius-sm);
-  transition: border-color 0.3s ease;
-}
-
-.search-box input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-/* Filter controls now use global styles for consistency */
-
-.content-card {
-  background: var(--white);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-soft);
-  padding: 2rem;
-}
-
-.documents-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
-  gap: 1.5rem;
-}
-
-.document-card {
-  border: 1px solid var(--card-border);
-  border-radius: var(--border-radius);
-  padding: 1.5rem;
-  transition: all 0.3s ease;
-}
-
-.document-card:hover {
-  border-color: var(--primary-color);
-  box-shadow: var(--shadow-soft);
-  transform: translateY(-2px);
-}
-
-.document-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.document-icon {
-  font-size: 2rem;
-  flex-shrink: 0;
-}
-
-.document-info {
-  flex: 1;
-}
-
-.document-name {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-dark);
-  margin: 0 0 0.25rem 0;
-}
-
-.document-meta {
-  font-size: 0.9rem;
-  color: var(--text-medium);
-  margin: 0;
-}
-
-.document-status {
-  flex-shrink: 0;
-}
-
-.status-badge {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.status-badge.active {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-badge.inactive {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.status-badge.expired {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.status-badge.expiring {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.document-details {
-  margin-bottom: 1rem;
-}
-
-.detail-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.detail-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--text-medium);
-}
-
-.detail-item i {
-  width: 16px;
-  color: var(--text-light);
-  flex-shrink: 0;
-}
-
-.detail-item.description {
-  grid-column: 1 / -1;
-  background: var(--bs-body-bg);
-  padding: 0.75rem;
-  border-radius: var(--border-radius-sm);
-  margin-top: 0.5rem;
-}
-
-.document-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.btn-small {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--text-medium);
-}
-
-.btn-outline:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  background: rgba(102, 126, 234, 0.1);
-}
-
-.btn-danger {
-  background: transparent;
-  border: 1px solid #fee2e2;
-  color: #dc2626;
-}
-
-.btn-danger:hover {
-  background: #dc2626;
-  color: white;
-}
-
-/* Loading and Empty states */
-.loading-state,
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-}
-
-.loading-spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid var(--primary-color);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 2s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-.empty-state i {
-  font-size: 4rem;
-  color: var(--text-light);
-  margin-bottom: 1rem;
-}
-
-.empty-state h3 {
-  color: var(--text-dark);
-  margin-bottom: 0.5rem;
-}
-
-.empty-state p {
-  color: var(--text-medium);
-  margin-bottom: 2rem;
-}
-
-/* Modal styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--card-bg);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-medium);
-  width: 90%;
-  max-width: 700px;
-  max-height: 90vh;
-  overflow: auto;
-}
-
-.modal-header {
+.pager {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--card-border);
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
 }
 
-.modal-header h3 {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--text-dark);
-  margin: 0;
+.storage-note {
+  margin: 14px 4px 0;
+  font-size: 12.5px;
+  color: var(--text-3);
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  color: var(--text-light);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.3s ease;
+.storage-note i {
+  margin-right: 6px;
 }
 
-.close-btn:hover {
-  color: var(--text-dark);
-  background: #f1f5f9;
+.sub {
+  margin: 4px 0 0;
+  color: var(--text-3);
+  font-size: 13.5px;
 }
 
-.modal-body {
-  padding: 1.5rem;
-}
-
-.form-row {
+.bulk {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
 }
 
-.form-group {
-  margin-bottom: 1rem;
+.queue {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
 }
 
-.form-group label {
+.qitem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.qitem.is-done {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.qitem.is-error {
+  border-color: var(--danger);
+}
+
+.qitem__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.qitem__row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 150px;
+  gap: 8px;
+}
+
+.qitem__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.qitem__meta .err {
+  color: var(--danger);
+}
+
+.qitem__meta .ok {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.progress {
+  flex: 1;
+  max-width: 180px;
+  height: 5px;
+  background: var(--neutral-soft);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress span {
   display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text-dark);
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
 }
 
-.form-group input,
-.form-group select,
-.form-group textarea {
+.preview {
+  max-width: 980px;
+}
+
+.preview__title {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.preview__title h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview__body {
+  min-height: 240px;
+}
+
+.preview__img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  margin: 0 auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.preview__frame {
   width: 100%;
-  padding: 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: var(--border-radius-sm);
-  transition: border-color 0.3s ease;
-  font-size: 1rem;
+  height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
 }
 
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.preview__text {
+  max-height: 65vh;
+  overflow: auto;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  color: var(--text);
 }
 
-.form-group input[type="checkbox"] {
-  width: auto;
-  margin-right: 8px;
+.preview__msg {
+  text-align: center;
+  padding: 48px 12px;
+  color: var(--text-3);
 }
 
-.form-group textarea {
-  resize: vertical;
-  min-height: 80px;
+.preview__msg .big {
+  font-size: 40px;
+  margin-bottom: 12px;
 }
 
-.file-preview {
-  margin-top: 0.5rem;
-  padding: 0.75rem;
-  background: var(--bs-body-bg);
-  border-radius: var(--border-radius-sm);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--text-medium);
+.preview__desc {
+  margin: 14px 0 0;
+  color: var(--text-2);
+  white-space: pre-wrap;
 }
 
-.modal-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
+.req {
+  color: var(--danger);
 }
 
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: var(--border-radius-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
-.btn-primary {
-  background: var(--primary-gradient);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-medium);
-}
-
-.btn-primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-secondary {
-  background: #f1f5f9;
-  color: var(--text-medium);
-}
-
-.btn-secondary:hover {
-  background: #e2e8f0;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Success and Error notifications */
-:global(.success-notification) {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #10b981;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  animation: slideIn 0.3s ease;
-}
-
-:global(.error-notification) {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #dc2626;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
+@media (max-width: 1200px) {
+  .hide-lg {
+    display: none;
   }
 }
 
-@media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
+@media (max-width: 960px) {
+  .hide-md {
+    display: none;
   }
+}
 
-  .filters-section {
-    flex-direction: column;
-    align-items: stretch;
+@media (max-width: 640px) {
+  .hide-sm {
+    display: none;
   }
-
-  .search-box {
-    max-width: none;
+  .search,
+  .sel {
+    width: 100%;
   }
-
-  /* Filter controls responsive styles handled by global CSS */
-
-  .documents-grid {
+  .toolbar__right {
+    width: 100%;
+  }
+  .qitem__row,
+  .bulk {
     grid-template-columns: 1fr;
   }
-
-  .form-row {
-    grid-template-columns: 1fr;
+  .doc {
+    min-width: 0;
   }
+}
 
-  .modal-actions {
-    flex-direction: column;
+@media (max-width: 640px) {
+  .ui-kpis {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
   }
-
-  .document-actions {
-    justify-content: center;
+  .ui-kpi {
+    padding: 14px;
   }
-
-  .detail-row {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+  .ui-kpi__value {
+    font-size: 20px;
+  }
+  .ui-kpi__meta {
+    display: none;
   }
 }
 </style>

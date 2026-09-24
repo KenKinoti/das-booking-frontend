@@ -1,88 +1,62 @@
 import api from './api'
 
+/** Organisation users (staff) API. */
 export const usersService = {
+  /** Returns { users, pagination, summary } */
+  async list(params = {}) {
+    const r = await api.get('/users', { params })
+    const d = r.data?.data || {}
+    return { users: d.users || [], pagination: d.pagination || {}, summary: d.summary || {} }
+  },
+  async create(data) {
+    const r = await api.post('/users', data)
+    return { user: r.data?.data, temporaryPassword: r.data?.temporary_password || '' }
+  },
+  async update(id, data) {
+    const r = await api.put(`/users/${id}`, data)
+    return r.data?.data
+  },
+  async remove(id) {
+    await api.delete(`/users/${id}`)
+  },
+  /** Omit password to have the server generate a temporary one. */
+  async resetPassword(id, password) {
+    const r = await api.post(`/users/${id}/reset-password`, password ? { password } : {})
+    return r.data?.temporary_password || ''
+  },
+  async me() {
+    const r = await api.get('/users/me')
+    return r.data?.data
+  },
+
+  // Backwards-compatible names
   async getAll(params = {}) {
-    console.log('🚀 usersService.getAll called with params:', params)
-    try {
-      // Try /users first, fallback to /staff for mock server
-      let response
-      try {
-        console.log('📡 Trying /users endpoint...')
-        response = await api.get('/users', { params })
-        console.log('✅ /users response:', response)
-      } catch (error) {
-        console.log('❌ /users failed:', error.response?.status, error.message)
-        if (error.response?.status === 404) {
-          console.log('📡 Fallback to /staff endpoint...')
-          // Fallback to staff endpoint for mock server
-          response = await api.get('/staff', { params })
-          console.log('✅ /staff response:', response)
-          
-          // Transform staff data to match users format
-          if (response.data?.staff) {
-            console.log('🔄 Transforming staff data to users format...')
-            response.data.users = response.data.staff.map(staff => ({
-              ...staff,
-              email: `${staff.first_name.toLowerCase()}.${staff.last_name.toLowerCase()}@company.com`,
-              role: 'care_worker',
-              is_active: true,
-              last_login_at: null
-            }))
-            console.log('✅ Transformed users:', response.data.users)
-          }
-        } else {
-          throw error
-        }
-      }
-      return response
-    } catch (error) {
-      console.error('❌ usersService.getAll error:', error)
-      throw error
-    }
+    return api.get('/users', { params })
   },
-
   async getById(id) {
-    try {
-      const response = await api.get(`/users/${id}`)
-      return response
-    } catch (error) {
-      throw error
-    }
+    return api.get(`/users/${id}`)
   },
-
-  async create(userData) {
-    try {
-      const response = await api.post('/users', userData)
-      return response
-    } catch (error) {
-      throw error
-    }
-  },
-
-  async update(id, userData) {
-    try {
-      const response = await api.put(`/users/${id}`, userData)
-      return response
-    } catch (error) {
-      throw error
-    }
-  },
-
   async delete(id) {
-    try {
-      const response = await api.delete(`/users/${id}`)
-      return response
-    } catch (error) {
-      throw error
-    }
+    return api.delete(`/users/${id}`)
   },
-
   async getCurrentUser() {
-    try {
-      const response = await api.get('/users/me')
-      return response
-    } catch (error) {
-      throw error
-    }
+    return api.get('/users/me')
   }
+}
+
+export const ROLES = [
+  { value: 'admin', label: 'Admin', description: 'Full access, including settings, billing and users', badge: 'ui-badge--converted' },
+  { value: 'manager', label: 'Manager', description: 'Runs day-to-day operations, rosters and bookings', badge: 'ui-badge--info' },
+  { value: 'staff', label: 'Staff member', description: 'Works shifts and bookings assigned to them', badge: 'ui-badge--draft' },
+  { value: 'care_worker', label: 'Care worker', description: 'Delivers care shifts to participants', badge: 'ui-badge--success' },
+  { value: 'support_coordinator', label: 'Support coordinator', description: 'Coordinates participant plans and supports', badge: 'ui-badge--warning' }
+]
+
+export function roleInfo(role) {
+  if (role === 'super_admin') return { value: role, label: 'Super admin', badge: 'ui-badge--danger' }
+  return ROLES.find((r) => r.value === role) || { value: role, label: String(role || 'Unknown').replace(/_/g, ' '), badge: 'ui-badge--draft' }
+}
+
+export function userName(u) {
+  return `${u?.first_name || ''} ${u?.last_name || ''}`.trim() || u?.email || 'Unnamed'
 }

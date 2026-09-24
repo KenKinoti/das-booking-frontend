@@ -1,444 +1,245 @@
 <template>
-  <div v-if="show" class="modal-overlay" @click="closeModal">
-    <div class="modal-container" @click.stop>
-      <div class="modal-header">
-        <h2>Vehicle Management - {{ customer?.first_name }} {{ customer?.last_name }}</h2>
-        <button @click="closeModal" class="btn-close">
-          <i class="fas fa-times"></i>
-        </button>
+  <component :is="embedded ? 'div' : 'ModalShell'" v-if="embedded || show" v-bind="embedded ? {} : { title: `Vehicles · ${ownerName}` }" @close="$emit('close')">
+    <div class="vm">
+      <div class="vm__head">
+        <span class="muted">{{ vehicles.length ? `${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'}` : '' }}</span>
+        <button class="ui-btn ui-btn--sm ui-btn--primary" type="button" @click="openForm(null)"><i class="fa-solid fa-plus"></i> Add vehicle</button>
       </div>
 
-      <div class="modal-content">
-        <div class="vehicles-header">
-          <h3>Customer Vehicles</h3>
-          <button @click="showAddVehicle = true" class="btn btn-primary">
-            <i class="fas fa-plus"></i>
-            Add Vehicle
-          </button>
-        </div>
-
-        <div v-if="vehicles.length === 0" class="empty-state">
-          <i class="fas fa-car"></i>
-          <h4>No Vehicles</h4>
-          <p>This customer doesn't have any vehicles yet.</p>
-          <button @click="showAddVehicle = true" class="btn btn-primary">
-            <i class="fas fa-plus"></i>
-            Add First Vehicle
-          </button>
-        </div>
-
-        <div v-else class="vehicles-list">
-          <div 
-            v-for="vehicle in vehicles" 
-            :key="vehicle.id"
-            class="vehicle-card"
-          >
-            <div class="vehicle-info">
-              <h4>{{ vehicle.make }} {{ vehicle.model }}</h4>
-              <div class="vehicle-details">
-                <span class="license-plate">{{ vehicle.license_plate }}</span>
-                <span class="year">{{ vehicle.year }}</span>
-                <span class="color" v-if="vehicle.color">{{ vehicle.color }}</span>
-              </div>
-              <div class="vehicle-meta">
-                <span class="vin" v-if="vehicle.vin">VIN: {{ vehicle.vin }}</span>
-                <span class="mileage" v-if="vehicle.mileage">{{ vehicle.mileage?.toLocaleString() }} km</span>
-              </div>
-              <p v-if="vehicle.notes" class="vehicle-notes">{{ vehicle.notes }}</p>
-            </div>
-            
-            <div class="vehicle-actions">
-              <button 
-                @click="editVehicle(vehicle)" 
-                class="btn-icon btn-edit"
-                title="Edit vehicle"
-              >
-                <i class="fas fa-edit"></i>
-              </button>
-              <button 
-                @click="deleteVehicle(vehicle)" 
-                class="btn-icon btn-delete"
-                title="Delete vehicle"
-              >
-                <i class="fas fa-trash"></i>
-              </button>
+      <div v-if="loading" class="vm__list">
+        <div v-for="n in 2" :key="n" class="ui-skeleton" style="height: 64px; border-radius: 12px"></div>
+      </div>
+      <div v-else-if="error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Retry</a></span></div>
+      <div v-else-if="!vehicles.length" class="vm__empty">
+        <i class="fa-solid fa-car-side"></i>
+        <p>No vehicles recorded for this customer.</p>
+      </div>
+      <ul v-else class="vm__list">
+        <li v-for="v in vehicles" :key="v.id" class="vm__item" :class="{ 'is-off': !v.is_active }">
+          <span class="vm__icon"><i class="fa-solid fa-car"></i></span>
+          <div class="vm__main">
+            <strong>{{ v.year }} {{ v.make }} {{ v.model }}</strong>
+            <div class="vm__meta">
+              <span v-if="v.license_plate" class="plate">{{ v.license_plate }}</span>
+              <span v-if="v.color">{{ v.color }}</span>
+              <span v-if="v.mileage">{{ Number(v.mileage).toLocaleString() }} km</span>
+              <span v-if="v.vin" class="mono" :title="'VIN ' + v.vin">VIN …{{ v.vin.slice(-6) }}</span>
+              <span v-if="!v.is_active" class="ui-badge">Inactive</span>
             </div>
           </div>
-        </div>
-
-        <div class="modal-actions">
-          <button @click="closeModal" class="btn btn-outline">
-            Close
-          </button>
-        </div>
-      </div>
-
-      <!-- Add/Edit Vehicle Modal -->
-      <VehicleFormModal
-        v-if="showAddVehicle || showEditVehicle"
-        :show="showAddVehicle || showEditVehicle"
-        :vehicle="editingVehicle"
-        :customer="customer"
-        @close="closeVehicleModal"
-        @save="saveVehicle"
-      />
+          <div class="vm__actions">
+            <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" type="button" title="Edit vehicle" aria-label="Edit vehicle" @click="openForm(v)"><i class="fa-regular fa-pen-to-square"></i></button>
+            <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon danger" type="button" title="Delete vehicle" aria-label="Delete vehicle" @click="remove(v)"><i class="fa-regular fa-trash-can"></i></button>
+          </div>
+        </li>
+      </ul>
     </div>
-  </div>
+
+    <VehicleFormModal :show="formOpen" :vehicle="editing" :customer-id="customer?.id || ''" :owner-name="ownerName" @close="formOpen = false" @saved="onSaved" />
+  </component>
 </template>
 
 <script>
-import { ref, watch } from 'vue'
+import { h } from 'vue'
 import VehicleFormModal from './VehicleFormModal.vue'
+import { customerService, customerName } from '@/services/customerService'
+import { apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+
+// Minimal modal wrapper used when the list is shown on its own.
+const ModalShell = {
+  props: { title: String },
+  emits: ['close'],
+  setup(props, { slots, emit }) {
+    return () =>
+      h('div', { class: 'ui-modal-backdrop', onMousedown: (e) => e.target === e.currentTarget && emit('close') }, [
+        h('div', { class: 'ui-modal', style: 'max-width: 640px', role: 'dialog', 'aria-modal': 'true' }, [
+          h('div', { class: 'ui-modal__head' }, [
+            h('h2', props.title),
+            h('button', { class: 'ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon', type: 'button', title: 'Close', 'aria-label': 'Close', onClick: () => emit('close') }, [h('i', { class: 'fa-solid fa-xmark' })])
+          ]),
+          h('div', { class: 'ui-modal__body' }, slots.default?.())
+        ])
+      ])
+  }
+}
 
 export default {
   name: 'VehicleManagementModal',
-  components: {
-    VehicleFormModal
-  },
+  components: { VehicleFormModal, ModalShell },
   props: {
-    show: {
-      type: Boolean,
-      default: false
-    },
-    customer: {
-      type: Object,
-      default: null
+    show: { type: Boolean, default: false },
+    customer: { type: Object, default: null },
+    embedded: { type: Boolean, default: false },
+    initial: { type: Array, default: null }
+  },
+  emits: ['close', 'changed'],
+  data() {
+    return { vehicles: [], loading: false, error: '', formOpen: false, editing: null }
+  },
+  computed: {
+    ownerName() {
+      return customerName(this.customer)
     }
   },
-  emits: ['close'],
-  setup(props, { emit }) {
-    const vehicles = ref([])
-    const showAddVehicle = ref(false)
-    const showEditVehicle = ref(false)
-    const editingVehicle = ref(null)
-
-    const closeModal = () => {
-      emit('close')
-    }
-
-    const editVehicle = (vehicle) => {
-      editingVehicle.value = vehicle
-      showEditVehicle.value = true
-    }
-
-    const deleteVehicle = (vehicle) => {
-      if (confirm(`Are you sure you want to delete ${vehicle.make} ${vehicle.model}?`)) {
-        // Implementation for deleting vehicle
-        const index = vehicles.value.findIndex(v => v.id === vehicle.id)
-        if (index > -1) {
-          vehicles.value.splice(index, 1)
-        }
-        console.log('Deleting vehicle:', vehicle)
+  watch: {
+    'customer.id': {
+      immediate: true,
+      handler() {
+        if (this.initial) this.vehicles = [...this.initial]
+        else if (this.customer?.id && (this.embedded || this.show)) this.load()
       }
+    },
+    show(v) {
+      if (v && !this.embedded) this.load()
+    },
+    initial(v) {
+      if (v) this.vehicles = [...v]
     }
-
-    const closeVehicleModal = () => {
-      showAddVehicle.value = false
-      showEditVehicle.value = false
-      editingVehicle.value = null
-    }
-
-    const saveVehicle = (vehicleData) => {
-      // Implementation for saving vehicle
-      if (editingVehicle.value) {
-        // Update existing vehicle
-        const index = vehicles.value.findIndex(v => v.id === editingVehicle.value.id)
-        if (index > -1) {
-          vehicles.value[index] = { ...vehicles.value[index], ...vehicleData }
-        }
-      } else {
-        // Add new vehicle
-        const newVehicle = {
-          id: Date.now().toString(), // Mock ID
-          ...vehicleData,
-          customer_id: props.customer?.id
-        }
-        vehicles.value.push(newVehicle)
+  },
+  methods: {
+    async load() {
+      if (!this.customer?.id) return
+      this.loading = true
+      this.error = ''
+      try {
+        this.vehicles = await customerService.vehicles(this.customer.id)
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load vehicles')
+      } finally {
+        this.loading = false
       }
-      closeVehicleModal()
-      console.log('Saving vehicle:', vehicleData)
-    }
-
-    // Watch for customer changes and load vehicles
-    watch(() => props.customer, (newCustomer) => {
-      if (newCustomer) {
-        // Mock vehicle data - replace with actual API call
-        vehicles.value = newCustomer.vehicles || []
+    },
+    openForm(v) {
+      this.editing = v
+      this.formOpen = true
+    },
+    async onSaved() {
+      this.formOpen = false
+      await this.load()
+      this.$emit('changed', this.vehicles)
+    },
+    async remove(v) {
+      const ok = await confirmDialog({
+        title: 'Delete vehicle?',
+        message: `${v.year} ${v.make} ${v.model}${v.license_plate ? ` (${v.license_plate})` : ''} will be removed from this customer.`,
+        confirmText: 'Delete vehicle',
+        danger: true
+      })
+      if (!ok) return
+      try {
+        await customerService.removeVehicle(v.id)
+        toast.success('Vehicle deleted')
+        await this.load()
+        this.$emit('changed', this.vehicles)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete the vehicle'))
       }
-    }, { immediate: true })
-
-    return {
-      vehicles,
-      showAddVehicle,
-      showEditVehicle,
-      editingVehicle,
-      closeModal,
-      editVehicle,
-      deleteVehicle,
-      closeVehicleModal,
-      saveVehicle
     }
   }
 }
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  padding: var(--spacing-lg);
-}
-
-.modal-container {
-  background: white;
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-strong);
-  width: 100%;
-  max-width: 800px;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
+.vm__head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-xl);
-  border-bottom: 1px solid var(--border-color);
-  background: var(--gradient-primary);
-  color: white;
+  margin-bottom: 12px;
 }
 
-.modal-header h2 {
+.muted {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.vm__list {
+  list-style: none;
   margin: 0;
-  font-size: 1.3rem;
-  font-weight: 700;
+  padding: 0;
+  display: grid;
+  gap: 10px;
 }
 
-.btn-close {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: var(--spacing-sm);
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.btn-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: rotate(90deg);
-}
-
-.modal-content {
-  padding: var(--spacing-xl);
-  overflow-y: auto;
-  flex: 1;
-}
-
-.vehicles-header {
+.vm__item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-lg);
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
-.vehicles-header h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-weight: 600;
+.vm__item.is-off {
+  opacity: 0.65;
 }
 
-.empty-state {
-  text-align: center;
-  padding: var(--spacing-xl);
-  color: var(--text-secondary);
+.vm__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--info-soft);
+  color: var(--info);
+  flex-shrink: 0;
 }
 
-.empty-state i {
-  font-size: 3rem;
-  margin-bottom: var(--spacing-lg);
-  color: var(--text-muted);
-}
-
-.empty-state h4 {
-  margin: 0 0 var(--spacing-sm) 0;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.vehicles-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-.vehicle-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: var(--spacing-lg);
-  background: white;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-soft);
-  transition: all 0.2s ease;
-}
-
-.vehicle-card:hover {
-  box-shadow: var(--shadow-medium);
-  transform: translateY(-2px);
-}
-
-.vehicle-info {
+.vm__main {
   flex: 1;
+  min-width: 0;
 }
 
-.vehicle-info h4 {
-  margin: 0 0 var(--spacing-sm) 0;
-  color: var(--text-primary);
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-
-.vehicle-details {
+.vm__meta {
   display: flex;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-sm);
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin-top: 3px;
+  align-items: center;
 }
 
-.license-plate {
-  background: var(--gradient-primary);
-  color: white;
-  padding: 4px 8px;
+.plate {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
-  font-family: monospace;
-  font-weight: 600;
-  font-size: 0.9rem;
+  padding: 0 6px;
+  letter-spacing: 0.05em;
 }
 
-.year, .color {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
+.mono {
+  font-family: var(--font-mono);
 }
 
-.vehicle-meta {
+.vm__actions {
   display: flex;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-sm);
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  gap: 2px;
 }
 
-.vin {
-  font-family: monospace;
+.danger:hover {
+  color: var(--danger);
 }
 
-.mileage {
-  font-weight: 500;
+.vm__empty {
+  text-align: center;
+  padding: 28px 12px;
+  color: var(--text-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
 }
 
-.vehicle-notes {
+.vm__empty i {
+  font-size: 22px;
+  margin-bottom: 8px;
+  color: var(--text-3);
+}
+
+.vm__empty p {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  font-style: italic;
-  background: var(--bg-secondary);
-  padding: var(--spacing-sm);
-  border-radius: var(--border-radius);
-  border-left: 3px solid var(--primary);
-}
-
-.vehicle-actions {
-  display: flex;
-  gap: var(--spacing-xs);
-  margin-left: var(--spacing-md);
-}
-
-.btn-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.9rem;
-}
-
-.btn-edit {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-}
-
-.btn-edit:hover {
-  background: #f59e0b;
-  color: white;
-  transform: scale(1.1);
-}
-
-.btn-delete {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-}
-
-.btn-delete:hover {
-  background: #ef4444;
-  color: white;
-  transform: scale(1.1);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-md);
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--border-color);
-  margin-top: var(--spacing-lg);
-}
-
-@media (max-width: 768px) {
-  .modal-overlay {
-    padding: var(--spacing-md);
-  }
-  
-  .modal-container {
-    max-height: 95vh;
-  }
-  
-  .modal-header,
-  .modal-content {
-    padding: var(--spacing-lg);
-  }
-  
-  .vehicles-header {
-    flex-direction: column;
-    gap: var(--spacing-md);
-    align-items: stretch;
-  }
-  
-  .vehicle-card {
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-  
-  .vehicle-actions {
-    margin-left: 0;
-    justify-content: flex-end;
-  }
 }
 </style>

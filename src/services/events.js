@@ -1,437 +1,119 @@
 import api from './api'
+import { API_BASE_URL } from '../config'
 
-export const eventsService = {
-  // Events CRUD
-  async getAllEvents(params = {}) {
-    try {
-      const queryParams = new URLSearchParams()
+/** Unwrap `{ success, data }` responses. */
+const unwrap = (res) => (res && res.data && Object.prototype.hasOwnProperty.call(res.data, 'data') ? res.data.data : res.data)
 
-      // Add pagination
-      if (params.page) queryParams.append('page', params.page.toString())
-      if (params.limit) queryParams.append('limit', params.limit.toString())
+const clean = (params = {}) => {
+  const out = {}
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '' && v !== 'all') out[k] = v
+  })
+  return out
+}
 
-      // Add filters
-      if (params.category) queryParams.append('category', params.category)
-      if (params.type) queryParams.append('type', params.type)
-      if (params.status) queryParams.append('status', params.status)
-      if (params.organization_id) queryParams.append('organization_id', params.organization_id)
-      if (params.search) queryParams.append('search', params.search)
-      if (params.upcoming) queryParams.append('upcoming', 'true')
+export const EVENT_TYPES = [
+  { value: 'in_person', label: 'In person', icon: 'fa-solid fa-location-dot' },
+  { value: 'online', label: 'Online', icon: 'fa-solid fa-video' },
+  { value: 'hybrid', label: 'Hybrid', icon: 'fa-solid fa-circle-half-stroke' }
+]
 
-      const response = await api.get(`/events?${queryParams}`)
-      return response
-    } catch (error) {
-      console.error('Failed to get events:', error)
-      throw error
-    }
+export const STATUS_META = {
+  draft: { label: 'Draft', badge: 'draft' },
+  upcoming: { label: 'Upcoming', badge: 'info' },
+  live: { label: 'Happening now', badge: 'success' },
+  completed: { label: 'Completed', badge: 'void-plain' },
+  cancelled: { label: 'Cancelled', badge: 'danger' },
+  published: { label: 'Published', badge: 'info' }
+}
+
+export const REG_STATUS = {
+  confirmed: { label: 'Confirmed', badge: 'success' },
+  pending: { label: 'Pending', badge: 'warning' },
+  waitlisted: { label: 'Waitlisted', badge: 'info' },
+  cancelled: { label: 'Cancelled', badge: 'danger' }
+}
+
+export const PAY_STATUS = {
+  paid: { label: 'Paid', badge: 'success' },
+  pending: { label: 'Unpaid', badge: 'warning' },
+  free: { label: 'Free', badge: 'draft' },
+  refunded: { label: 'Refunded', badge: 'draft' }
+}
+
+export function typeLabel(t) {
+  return (EVENT_TYPES.find((x) => x.value === t) || EVENT_TYPES[0]).label
+}
+
+export function typeIcon(t) {
+  return (EVENT_TYPES.find((x) => x.value === t) || EVENT_TYPES[0]).icon
+}
+
+/** Public, shareable landing page served by the backend. */
+export function publicEventUrl(id) {
+  let base = API_BASE_URL || '/api/v1'
+  if (!/^https?:\/\//.test(base)) base = window.location.origin + (base.startsWith('/') ? '' : '/') + base
+  return `${base.replace(/\/$/, '')}/public/events/${id}/page`
+}
+
+export function eventLocation(e) {
+  if (!e) return ''
+  if (e.type === 'online') return e.online_platform || 'Online'
+  const a = e.address || {}
+  const parts = [e.venue_name, a.suburb || a.city].filter(Boolean)
+  const place = parts.join(', ') || 'Venue to be announced'
+  return e.type === 'hybrid' ? `${place} + online` : place
+}
+
+export const eventsApi = {
+  async list(params = {}) {
+    return unwrap(await api.get('/events', { params: clean(params) }))
   },
-
-  async getEventById(eventId) {
-    try {
-      const response = await api.get(`/events/${eventId}`)
-      return response
-    } catch (error) {
-      console.error('Failed to get event:', error)
-      throw error
-    }
+  async stats() {
+    return unwrap(await api.get('/events/stats'))
   },
-
-  async createEvent(eventData) {
-    try {
-      // Transform the event data to match backend expectations
-      const transformedData = {
-        ...eventData,
-        // Convert date strings to proper ISO format if needed
-        start_date: eventData.start_date ? new Date(eventData.start_date).toISOString() : null,
-        end_date: eventData.end_date ? new Date(eventData.end_date).toISOString() : null,
-        // Handle address object
-        address: {
-          street: eventData.venue_address_street || '',
-          city: eventData.venue_address_city || '',
-          state: eventData.venue_address_state || '',
-          postcode: eventData.venue_address_postcode || '',
-          country: eventData.venue_address_country || 'Australia'
-        }
-      }
-
-      const response = await api.post('/events', transformedData)
-      return response
-    } catch (error) {
-      console.error('Failed to create event:', error)
-      throw error
-    }
+  async categories() {
+    return unwrap(await api.get('/events/categories'))
   },
-
-  async updateEvent(eventId, eventData) {
-    try {
-      const transformedData = {
-        ...eventData,
-        start_date: eventData.start_date ? new Date(eventData.start_date).toISOString() : null,
-        end_date: eventData.end_date ? new Date(eventData.end_date).toISOString() : null,
-        address: {
-          street: eventData.venue_address_street || '',
-          city: eventData.venue_address_city || '',
-          state: eventData.venue_address_state || '',
-          postcode: eventData.venue_address_postcode || '',
-          country: eventData.venue_address_country || 'Australia'
-        }
-      }
-
-      const response = await api.put(`/events/${eventId}`, transformedData)
-      return response
-    } catch (error) {
-      console.error('Failed to update event:', error)
-      throw error
-    }
+  async get(id) {
+    return unwrap(await api.get(`/events/${id}`))
   },
-
-  async deleteEvent(eventId) {
-    try {
-      const response = await api.delete(`/events/${eventId}`)
-      return response
-    } catch (error) {
-      console.error('Failed to delete event:', error)
-      throw error
-    }
+  async create(payload) {
+    return unwrap(await api.post('/events', payload))
   },
-
-  // Ticket Types
-  async getTicketTypes(eventId) {
-    try {
-      const response = await api.get(`/events/${eventId}/tickets`)
-      return response
-    } catch (error) {
-      console.error('Failed to get ticket types:', error)
-      throw error
-    }
+  async update(id, payload) {
+    return unwrap(await api.put(`/events/${id}`, payload))
   },
-
-  async createTicketType(eventId, ticketTypeData) {
-    try {
-      const transformedData = {
-        ...ticketTypeData,
-        sale_start_date: ticketTypeData.sale_start_date ? new Date(ticketTypeData.sale_start_date).toISOString() : null,
-        sale_end_date: ticketTypeData.sale_end_date ? new Date(ticketTypeData.sale_end_date).toISOString() : null
-      }
-
-      const response = await api.post(`/events/${eventId}/tickets`, transformedData)
-      return response
-    } catch (error) {
-      console.error('Failed to create ticket type:', error)
-      throw error
-    }
+  async setStatus(id, status) {
+    return unwrap(await api.post(`/events/${id}/status`, { status }))
+  },
+  async duplicate(id) {
+    return unwrap(await api.post(`/events/${id}/duplicate`))
+  },
+  async remove(id) {
+    return unwrap(await api.delete(`/events/${id}`))
   },
 
   // Registrations
-  async registerForEvent(eventId, registrationData) {
-    try {
-      const response = await api.post(`/events/${eventId}/register`, registrationData)
-      return response
-    } catch (error) {
-      console.error('Failed to register for event:', error)
-      throw error
-    }
+  async registrations(id, params = {}) {
+    return unwrap(await api.get(`/events/${id}/registrations`, { params: clean(params) }))
   },
-
-  async getRegistrations(eventId) {
-    try {
-      const response = await api.get(`/events/${eventId}/registrations`)
-      return response
-    } catch (error) {
-      console.error('Failed to get registrations:', error)
-      throw error
-    }
+  async addRegistration(id, payload) {
+    return unwrap(await api.post(`/events/${id}/registrations`, payload))
   },
-
-  async checkInRegistration(qrCode, checkedInBy) {
-    try {
-      const response = await api.post('/events/checkin', {
-        qr_code: qrCode,
-        checked_in_by: checkedInBy
-      })
-      return response
-    } catch (error) {
-      console.error('Failed to check in registration:', error)
-      throw error
-    }
+  async updateRegistration(id, regId, payload) {
+    return unwrap(await api.put(`/events/${id}/registrations/${regId}`, payload))
   },
-
-  // Event Categories
-  async getEventCategories() {
-    try {
-      const response = await api.get('/events/categories')
-      return response
-    } catch (error) {
-      console.error('Failed to get event categories:', error)
-      throw error
-    }
+  async checkIn(id, regId, checkedIn = true) {
+    return unwrap(await api.post(`/events/${id}/registrations/${regId}/check-in`, { checked_in: checkedIn }))
   },
-
-  // Analytics
-  async getEventAnalytics(eventId) {
-    try {
-      const response = await api.get(`/events/${eventId}/analytics`)
-      return response
-    } catch (error) {
-      console.error('Failed to get event analytics:', error)
-      throw error
-    }
+  async removeRegistration(id, regId) {
+    return unwrap(await api.delete(`/events/${id}/registrations/${regId}`))
   },
-
-  // Search
-  async searchEvents(query) {
-    try {
-      const response = await api.get(`/events/search?q=${encodeURIComponent(query)}`)
-      return response
-    } catch (error) {
-      console.error('Failed to search events:', error)
-      throw error
-    }
-  },
-
-  // Organizer-specific methods
-  async getOrganizerEvents(params = {}) {
-    try {
-      const queryParams = new URLSearchParams()
-
-      if (params.page) queryParams.append('page', params.page.toString())
-      if (params.limit) queryParams.append('limit', params.limit.toString())
-      if (params.status) queryParams.append('status', params.status)
-
-      const response = await api.get(`/organizer/events?${queryParams}`)
-      return response
-    } catch (error) {
-      console.error('Failed to get organizer events:', error)
-      throw error
-    }
-  },
-
-  async createOrganizerEvent(eventData) {
-    try {
-      const transformedData = {
-        ...eventData,
-        start_date: eventData.start_date ? new Date(eventData.start_date).toISOString() : null,
-        end_date: eventData.end_date ? new Date(eventData.end_date).toISOString() : null,
-        address: {
-          street: eventData.venue_address_street || '',
-          city: eventData.venue_address_city || '',
-          state: eventData.venue_address_state || '',
-          postcode: eventData.venue_address_postcode || '',
-          country: eventData.venue_address_country || 'Australia'
-        }
-      }
-
-      const response = await api.post('/organizer/events', transformedData)
-      return response
-    } catch (error) {
-      console.error('Failed to create organizer event:', error)
-      throw error
-    }
-  },
-
-  // File upload helpers
-  async uploadEventImage(eventId, imageFile, imageType = 'cover') {
-    try {
-      const formData = new FormData()
-      formData.append('image', imageFile)
-      formData.append('type', imageType)
-
-      const response = await api.post(`/events/${eventId}/images`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      })
-      return response
-    } catch (error) {
-      console.error('Failed to upload event image:', error)
-      throw error
-    }
-  },
-
-  // Export functionality
-  async exportRegistrations(eventId, format = 'csv') {
-    try {
-      const response = await api.get(`/events/${eventId}/registrations/export?format=${format}`, {
-        responseType: 'blob'
-      })
-
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `event-${eventId}-registrations.${format}`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Failed to export registrations:', error)
-      throw error
-    }
-  },
-
-  // Duplicate event
-  async duplicateEvent(eventId) {
-    try {
-      const response = await api.post(`/events/${eventId}/duplicate`)
-      return response
-    } catch (error) {
-      console.error('Failed to duplicate event:', error)
-      throw error
-    }
-  },
-
-  // Batch operations
-  async bulkUpdateEventStatus(eventIds, status) {
-    try {
-      const response = await api.post('/events/bulk/status', {
-        event_ids: eventIds,
-        status: status
-      })
-      return response
-    } catch (error) {
-      console.error('Failed to bulk update event status:', error)
-      throw error
-    }
-  },
-
-  async bulkDeleteEvents(eventIds) {
-    try {
-      const response = await api.delete('/events/bulk', {
-        data: { event_ids: eventIds }
-      })
-      return response
-    } catch (error) {
-      console.error('Failed to bulk delete events:', error)
-      throw error
-    }
+  async exportCsv(id, params = {}) {
+    const res = await api.get(`/events/${id}/registrations/export`, { params: clean(params), responseType: 'blob' })
+    return res.data
   }
 }
 
-// Event utility functions
-export const eventUtils = {
-  formatEventType(type) {
-    const types = {
-      'in_person': 'In Person',
-      'online': 'Online',
-      'hybrid': 'Hybrid'
-    }
-    return types[type] || type
-  },
-
-  formatEventStatus(status) {
-    const statuses = {
-      'draft': 'Draft',
-      'published': 'Published',
-      'cancelled': 'Cancelled',
-      'postponed': 'Postponed',
-      'completed': 'Completed'
-    }
-    return statuses[status] || status
-  },
-
-  getEventBadgeClass(type, status) {
-    if (status) {
-      return `badge-${status}`
-    }
-    return `badge-${type}`
-  },
-
-  isEventUpcoming(startDate) {
-    return new Date(startDate) > new Date()
-  },
-
-  isEventOngoing(startDate, endDate) {
-    const now = new Date()
-    return now >= new Date(startDate) && now <= new Date(endDate)
-  },
-
-  isEventFinished(endDate) {
-    return new Date(endDate) < new Date()
-  },
-
-  calculateEventDuration(startDate, endDate) {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    const durationMs = end - start
-    const durationMins = Math.floor(durationMs / (1000 * 60))
-
-    const hours = Math.floor(durationMins / 60)
-    const minutes = durationMins % 60
-
-    if (hours === 0) return `${minutes} minutes`
-    if (minutes === 0) return `${hours} hour${hours > 1 ? 's' : ''}`
-    return `${hours} hour${hours > 1 ? 's' : ''} ${minutes} minutes`
-  },
-
-  formatEventDate(startDate, endDate) {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-
-    if (start.toDateString() === end.toDateString()) {
-      return start.toLocaleDateString('en-AU', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      })
-    } else {
-      return `${start.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    }
-  },
-
-  formatEventTime(startDate, endDate) {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-
-    return `${start.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`
-  },
-
-  getEventLocation(event) {
-    if (event.type === 'online') {
-      return event.online_platform || 'Online'
-    } else if (event.type === 'hybrid') {
-      return `${event.venue_name || 'TBA'} + Online`
-    } else {
-      const parts = []
-      if (event.venue_name) parts.push(event.venue_name)
-      if (event.venue_address_city) parts.push(event.venue_address_city)
-      if (event.venue_address_state) parts.push(event.venue_address_state)
-      return parts.join(', ') || 'TBA'
-    }
-  },
-
-  getEventPrice(event) {
-    if (event.is_free) {
-      return 'Free'
-    }
-
-    if (event.ticket_types && event.ticket_types.length > 1) {
-      const prices = event.ticket_types.map(t => t.price).sort((a, b) => a - b)
-      return `$${prices[0]} - $${prices[prices.length - 1]}`
-    }
-
-    return `$${event.base_price || 0}`
-  },
-
-  calculateEventRevenue(event) {
-    if (!event.ticket_types) return 0
-    return event.ticket_types.reduce((sum, ticket) => {
-      return sum + (ticket.price * ticket.sold_quantity || 0)
-    }, 0)
-  },
-
-  getTicketAvailability(ticketType) {
-    return (ticketType.quantity || 0) - (ticketType.sold_quantity || 0)
-  },
-
-  isTicketSaleActive(ticketType) {
-    const now = new Date()
-    const saleStart = ticketType.sale_start_date ? new Date(ticketType.sale_start_date) : new Date(0)
-    const saleEnd = ticketType.sale_end_date ? new Date(ticketType.sale_end_date) : new Date('2099-12-31')
-
-    return now >= saleStart && now <= saleEnd && ticketType.is_active
-  }
-}
-
-export default eventsService
+export default eventsApi

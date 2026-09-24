@@ -1,818 +1,237 @@
 <template>
-  <BaseModal :show="show" @close="$emit('close')" max-width="600px">
-    <template #header>
-      <div class="modal-header">
-        <h3 class="modal-title">
-          <i class="fas fa-plus-circle"></i>
-          New Conversation
-        </h3>
+  <div class="mp ui-modal-backdrop" @mousedown.self="close">
+    <form class="ui-modal" style="max-width: 560px" novalidate @submit.prevent="submit">
+      <div class="ui-modal__head">
+        <h2>New conversation</h2>
+        <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Close" @click="close"><i class="fa-solid fa-xmark"></i></button>
       </div>
-    </template>
-
-    <template #body>
-      <div class="new-conversation-form">
-        <!-- Conversation Type -->
-        <div class="form-section">
-          <label class="form-label">Conversation Type</label>
-          <div class="type-selector">
-            <div
-              class="type-option"
-              :class="{ active: selectedType === 'direct' }"
-              @click="selectedType = 'direct'"
-            >
-              <i class="fas fa-user"></i>
-              <div class="type-details">
-                <div class="type-title">Direct Message</div>
-                <div class="type-subtitle">Private conversation with one person</div>
-              </div>
-            </div>
-            <div
-              class="type-option"
-              :class="{ active: selectedType === 'group' }"
-              @click="selectedType = 'group'"
-            >
-              <i class="fas fa-users"></i>
-              <div class="type-details">
-                <div class="type-title">Group Chat</div>
-                <div class="type-subtitle">Conversation with multiple people</div>
-              </div>
-            </div>
-          </div>
+      <div class="ui-modal__body">
+        <div v-if="error" class="ui-alert ui-alert--danger" style="margin-bottom: 14px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
+        <p v-if="!allowGroups" class="ui-hint" style="margin: 0 0 10px">Group conversations are turned off — choose one person.</p>
+        <div class="ui-input-group">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input ref="search" v-model="q" class="ui-input" type="search" placeholder="Search people in your organisation" aria-label="Search people" />
         </div>
 
-        <!-- Participants Selection -->
-        <div class="form-section">
-          <label class="form-label">
-            {{ selectedType === 'direct' ? 'Select Contact' : 'Add Participants' }}
-            <span class="required">*</span>
+        <div v-if="selected.length" class="picked">
+          <span v-for="u in selectedUsers" :key="u.id" class="pill">
+            {{ name(u) }}
+            <button type="button" :aria-label="`Remove ${name(u)}`" @click="toggle(u.id)"><i class="fa-solid fa-xmark"></i></button>
+          </span>
+        </div>
+
+        <div class="people" role="listbox" aria-multiselectable="true" aria-label="People">
+          <div v-if="loading" class="sk"><div v-for="n in 4" :key="n" class="ui-skeleton" style="height: 44px"></div></div>
+          <div v-else-if="!filtered.length" class="empty muted">{{ users.length ? 'No one matches that search.' : 'No one else is in your organisation yet. Add staff to start chatting.' }}</div>
+          <label v-for="u in filtered" v-else :key="u.id" class="person-row" :class="{ 'is-selected': selected.includes(u.id) }">
+            <input type="checkbox" :checked="selected.includes(u.id)" @change="toggle(u.id)" />
+            <span class="avatar">{{ initials(name(u)) }}</span>
+            <span class="who">
+              <strong>{{ name(u) }}</strong>
+              <small>{{ u.email }}<template v-if="u.role"> · {{ roleLabel(u.role) }}</template></small>
+            </span>
+            <i v-if="selected.includes(u.id)" class="fa-solid fa-circle-check tick"></i>
           </label>
-
-          <!-- Search Input -->
-          <div class="search-container">
-            <div class="search-box">
-              <i class="fas fa-search"></i>
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Search contacts..."
-                class="search-input"
-                @input="searchContacts"
-              >
-            </div>
-          </div>
-
-          <!-- Selected Participants -->
-          <div v-if="selectedParticipants.length > 0" class="selected-participants">
-            <div class="participants-label">Selected:</div>
-            <div class="participant-chips">
-              <div
-                v-for="participant in selectedParticipants"
-                :key="participant.id"
-                class="participant-chip"
-              >
-                <div class="participant-avatar">
-                  <img v-if="participant.avatar" :src="participant.avatar" :alt="participant.name">
-                  <div v-else class="avatar-placeholder">{{ getInitials(participant.name) }}</div>
-                </div>
-                <span class="participant-name">{{ participant.name }}</span>
-                <button class="remove-participant" @click="removeParticipant(participant)">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Contact List -->
-          <div class="contacts-list">
-            <div v-if="isSearching" class="loading-state">
-              <div class="spinner"></div>
-              <span>Searching contacts...</span>
-            </div>
-
-            <div v-else-if="filteredContacts.length === 0" class="empty-state">
-              <i class="fas fa-user-slash"></i>
-              <p>No contacts found</p>
-            </div>
-
-            <div v-else class="contact-items">
-              <div
-                v-for="contact in filteredContacts"
-                :key="contact.id"
-                class="contact-item"
-                :class="{ selected: isParticipantSelected(contact) }"
-                @click="toggleParticipant(contact)"
-              >
-                <div class="contact-avatar">
-                  <img v-if="contact.avatar" :src="contact.avatar" :alt="contact.name">
-                  <div v-else class="avatar-placeholder">{{ getInitials(contact.name) }}</div>
-                  <div v-if="contact.status === 'online'" class="online-indicator"></div>
-                </div>
-                <div class="contact-info">
-                  <div class="contact-name">{{ contact.name }}</div>
-                  <div class="contact-detail">{{ contact.email }}</div>
-                </div>
-                <div class="contact-status">
-                  <span class="status-indicator" :class="contact.status">{{ contact.status }}</span>
-                </div>
-                <div class="selection-indicator">
-                  <i class="fas fa-check" v-if="isParticipantSelected(contact)"></i>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <!-- Group Settings (only for group chats) -->
-        <div v-if="selectedType === 'group'" class="form-section">
-          <label class="form-label" for="groupName">
-            Group Name
-            <span class="required">*</span>
-          </label>
-          <input
-            id="groupName"
-            v-model="groupName"
-            type="text"
-            class="form-input"
-            placeholder="Enter group name..."
-            maxlength="50"
-          >
-          <div class="input-help">
-            {{ groupName.length }}/50 characters
-          </div>
-        </div>
-
-        <!-- Initial Message (optional) -->
-        <div class="form-section">
-          <label class="form-label" for="initialMessage">Initial Message (Optional)</label>
-          <textarea
-            id="initialMessage"
-            v-model="initialMessage"
-            class="form-textarea"
-            placeholder="Type a message to start the conversation..."
-            rows="3"
-            maxlength="500"
-          ></textarea>
-          <div class="input-help">
-            {{ initialMessage.length }}/500 characters
-          </div>
-        </div>
+        <label v-if="selected.length > 1" class="ui-field" style="margin-top: 14px">
+          <span class="ui-label">Group name (optional)</span>
+          <input v-model.trim="groupName" class="ui-input" maxlength="100" placeholder="e.g. Kitchen team" />
+        </label>
       </div>
-    </template>
-
-    <template #footer>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" @click="$emit('close')">
-          Cancel
-        </button>
-        <button
-          class="btn btn-primary"
-          @click="createConversation"
-          :disabled="!canCreateConversation"
-        >
-          <i class="fas fa-plus"></i>
-          {{ selectedType === 'direct' ? 'Start Chat' : 'Create Group' }}
+      <div class="ui-modal__foot">
+        <button type="button" class="ui-btn" @click="close">Cancel</button>
+        <button type="submit" class="ui-btn ui-btn--primary" :disabled="!selected.length || saving">
+          <i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-regular fa-paper-plane'"></i>
+          {{ selected.length > 1 ? 'Start group chat' : 'Start chat' }}
         </button>
       </div>
-    </template>
-  </BaseModal>
+    </form>
+  </div>
 </template>
 
 <script>
-import BaseModal from '../BaseModal.vue'
-import { useCommunicationStore } from '../../stores/communication'
+import '@/styles/module-page.css'
+import api, { apiErrorMessage, listFrom } from '@/services/api'
+import { messagingService, personName, initials } from '@/services/messaging'
+
+const ROLES = { super_admin: 'Super admin', admin: 'Admin', manager: 'Manager', care_worker: 'Staff', support_coordinator: 'Coordinator' }
 
 export default {
   name: 'NewConversationModal',
-  components: {
-    BaseModal
-  },
   props: {
-    show: {
-      type: Boolean,
-      default: false
-    }
+    meId: { type: String, default: '' },
+    threads: { type: Array, default: () => [] },
+    allowGroups: { type: Boolean, default: true }
   },
-  emits: ['close', 'conversation-created'],
+  emits: ['close', 'created', 'open'],
   data() {
-    return {
-      selectedType: 'direct',
-      searchQuery: '',
-      selectedParticipants: [],
-      groupName: '',
-      initialMessage: '',
-      isSearching: false,
-      availableContacts: []
-    }
+    return { users: [], loading: true, q: '', selected: [], groupName: '', saving: false, error: '' }
   },
   computed: {
-    communicationStore() {
-      return useCommunicationStore()
+    filtered() {
+      const q = this.q.toLowerCase()
+      return this.users.filter((u) => !q || `${this.name(u)} ${u.email}`.toLowerCase().includes(q))
     },
-    filteredContacts() {
-      if (!this.searchQuery.trim()) {
-        return this.availableContacts
-      }
-
-      const query = this.searchQuery.toLowerCase()
-      return this.availableContacts.filter(contact =>
-        contact.name.toLowerCase().includes(query) ||
-        contact.email.toLowerCase().includes(query)
-      )
-    },
-    canCreateConversation() {
-      if (this.selectedType === 'direct') {
-        return this.selectedParticipants.length === 1
-      } else {
-        return this.selectedParticipants.length >= 2 && this.groupName.trim().length > 0
-      }
+    selectedUsers() {
+      return this.selected.map((id) => this.users.find((u) => u.id === id)).filter(Boolean)
     }
   },
-  watch: {
-    show(newVal) {
-      if (newVal) {
-        this.loadContacts()
-        this.resetForm()
-      }
-    },
-    selectedType() {
-      this.selectedParticipants = []
+  async created() {
+    try {
+      const res = await api.get('/users', { params: { limit: 500, is_active: true } })
+      this.users = listFrom(res, 'users').filter((u) => u.id !== this.meId && u.is_active !== false).sort((a, b) => this.name(a).localeCompare(this.name(b)))
+    } catch (e) {
+      this.error = apiErrorMessage(e, 'Could not load people')
+    } finally {
+      this.loading = false
+      this.$nextTick(() => this.$refs.search && this.$refs.search.focus())
     }
   },
   methods: {
-    async loadContacts() {
-      // Use contacts from communication store
-      this.availableContacts = this.communicationStore.contacts || []
+    name: personName,
+    initials,
+    roleLabel: (r) => ROLES[r] || r,
+    toggle(id) {
+      if (this.selected.includes(id)) this.selected = this.selected.filter((x) => x !== id)
+      else this.selected = this.allowGroups ? [...this.selected, id] : [id]
     },
-
-    searchContacts() {
-      this.isSearching = true
-      // Simulate search delay
-      setTimeout(() => {
-        this.isSearching = false
-      }, 300)
+    close() {
+      if (!this.saving) this.$emit('close')
     },
-
-    toggleParticipant(contact) {
-      if (this.selectedType === 'direct') {
-        // For direct messages, only allow one participant
-        this.selectedParticipants = [contact]
-      } else {
-        // For group chats, toggle participant
-        const index = this.selectedParticipants.findIndex(p => p.id === contact.id)
-        if (index > -1) {
-          this.selectedParticipants.splice(index, 1)
-        } else {
-          this.selectedParticipants.push(contact)
+    async submit() {
+      if (!this.selected.length) return
+      // Re-use an existing one-to-one chat instead of creating a duplicate.
+      if (this.selected.length === 1) {
+        const existing = this.threads.find((t) => !t.isGroup && t.others.length === 1 && t.others[0].user_id === this.selected[0])
+        if (existing) {
+          this.$emit('open', existing.id)
+          return
         }
       }
-    },
-
-    isParticipantSelected(contact) {
-      return this.selectedParticipants.some(p => p.id === contact.id)
-    },
-
-    removeParticipant(participant) {
-      const index = this.selectedParticipants.findIndex(p => p.id === participant.id)
-      if (index > -1) {
-        this.selectedParticipants.splice(index, 1)
-      }
-    },
-
-    getInitials(name) {
-      return name
-        .split(' ')
-        .map(word => word.charAt(0))
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    },
-
-    async createConversation() {
-      if (!this.canCreateConversation) return
-
+      this.saving = true
+      this.error = ''
       try {
-        const conversationData = {
-          type: this.selectedType,
-          participants: this.selectedParticipants,
-          name: this.selectedType === 'group' ? this.groupName : null,
-          initialMessage: this.initialMessage.trim() || null
-        }
-
-        // Emit event with conversation data
-        this.$emit('conversation-created', conversationData)
-
-        // Close modal
-        this.$emit('close')
-
-        // Reset form
-        this.resetForm()
-
-      } catch (error) {
-        console.error('Failed to create conversation:', error)
-        // Handle error (show notification, etc.)
+        const thread = await messagingService.createThread({
+          type: this.selected.length > 1 ? 'group' : 'direct',
+          name: this.selected.length > 1 ? this.groupName : '',
+          participant_ids: this.selected
+        })
+        this.$emit('created', thread)
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not start the conversation')
+      } finally {
+        this.saving = false
       }
-    },
-
-    resetForm() {
-      this.selectedType = 'direct'
-      this.searchQuery = ''
-      this.selectedParticipants = []
-      this.groupName = ''
-      this.initialMessage = ''
     }
   }
 }
 </script>
 
 <style scoped>
-.modal-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.modal-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.new-conversation-form {
-  padding: 8px 0;
-}
-
-.form-section {
-  margin-bottom: 24px;
-}
-
-.form-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 8px;
-}
-
-.required {
-  color: #dc2626;
-}
-
-/* Type Selector */
-.type-selector {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.type-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.type-option:hover {
-  border-color: #d1d5db;
-  background: #f9fafb;
-}
-
-.type-option.active {
-  border-color: #3b82f6;
-  background: #eff6ff;
-}
-
-.type-option i {
-  font-size: 20px;
-  color: #6b7280;
-  width: 24px;
-  text-align: center;
-}
-
-.type-option.active i {
-  color: #3b82f6;
-}
-
-.type-details {
-  flex: 1;
-}
-
-.type-title {
-  font-weight: 600;
-  color: #111827;
-  font-size: 14px;
-  line-height: 1.3;
-}
-
-.type-subtitle {
-  font-size: 12px;
-  color: #6b7280;
-  line-height: 1.4;
-  margin-top: 2px;
-}
-
-/* Search */
-.search-container {
-  margin-bottom: 16px;
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 0 12px;
-  height: 40px;
-}
-
-.search-box i {
-  color: #9ca3af;
-  margin-right: 8px;
-}
-
-.search-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 14px;
-  color: #111827;
-}
-
-.search-input::placeholder {
-  color: #9ca3af;
-}
-
-/* Selected Participants */
-.selected-participants {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: #f9fafb;
-  border-radius: 8px;
-}
-
-.participants-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.participant-chips {
+.picked {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 12px;
 }
 
-.participant-chip {
-  display: flex;
+.pill {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  padding: 4px 12px 4px 4px;
-  font-size: 13px;
-}
-
-.participant-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.participant-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
   font-weight: 600;
 }
 
-.participant-name {
-  color: #111827;
-  font-weight: 500;
-}
-
-.remove-participant {
+.pill button {
+  border: 0;
   background: none;
-  border: none;
-  color: #9ca3af;
+  color: inherit;
   cursor: pointer;
-  padding: 2px;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  transition: all 0.2s ease;
-}
-
-.remove-participant:hover {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-/* Contacts List */
-.contacts-list {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.loading-state,
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 40px 20px;
-  color: #6b7280;
-  text-align: center;
-}
-
-.spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #e5e7eb;
-  border-top: 2px solid #3b82f6;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.pill button:hover {
+  background: var(--surface);
 }
 
-.empty-state i {
-  font-size: 24px;
-  color: #d1d5db;
+.people {
+  margin-top: 12px;
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-.contact-item {
+.sk {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13.5px;
+}
+
+.person-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.contact-item:last-child {
-  border-bottom: none;
+.person-row:last-child {
+  border-bottom: 0;
 }
 
-.contact-item:hover {
-  background: #f9fafb;
+.person-row:hover {
+  background: var(--surface-hover);
 }
 
-.contact-item.selected {
-  background: #eff6ff;
-  border-color: #dbeafe;
+.person-row.is-selected {
+  background: var(--accent-soft);
 }
 
-.contact-avatar {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.contact-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.contact-avatar .avatar-placeholder {
-  font-size: 14px;
-}
-
-.online-indicator {
+.person-row input {
   position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 10px;
-  height: 10px;
-  background: #10b981;
-  border: 2px solid white;
-  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.contact-info {
+.who {
   flex: 1;
   min-width: 0;
 }
 
-.contact-name {
+.who strong {
+  display: block;
   font-weight: 600;
-  color: #111827;
-  font-size: 14px;
-  line-height: 1.3;
 }
 
-.contact-detail {
+.who small {
+  display: block;
+  color: var(--text-3);
   font-size: 12px;
-  color: #6b7280;
-  line-height: 1.3;
-  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.contact-status {
-  flex-shrink: 0;
-}
-
-.status-indicator {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.status-indicator.online {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-indicator.away {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-indicator.offline {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.selection-indicator {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #3b82f6;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-/* Form Inputs */
-.form-input,
-.form-textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #111827;
-  background: white;
-  transition: all 0.2s ease;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.input-help {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 4px;
-  text-align: right;
-}
-
-/* Modal Actions */
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.btn-secondary {
-  background: #f9fafb;
-  color: #374151;
-  border: 1px solid #e5e7eb;
-}
-
-.btn-secondary:hover {
-  background: #f3f4f6;
-}
-
-.btn-primary {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.btn-primary:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-/* Dark theme support */
-[data-bs-theme="dark"] .modal-title {
-  color: #f9fafb;
-}
-
-[data-bs-theme="dark"] .type-option {
-  border-color: #4b5563;
-  background: #374151;
-}
-
-[data-bs-theme="dark"] .type-option:hover {
-  border-color: #6b7280;
-  background: #4b5563;
-}
-
-[data-bs-theme="dark"] .type-option.active {
-  border-color: #60a5fa;
-  background: #1e3a8a;
-}
-
-[data-bs-theme="dark"] .search-box {
-  background: #374151;
-  border-color: #4b5563;
-}
-
-[data-bs-theme="dark"] .search-input {
-  color: #f9fafb;
-}
-
-[data-bs-theme="dark"] .contacts-list {
-  border-color: #4b5563;
-  background: #1f2937;
-}
-
-[data-bs-theme="dark"] .contact-item {
-  border-color: #374151;
-}
-
-[data-bs-theme="dark"] .contact-item:hover {
-  background: #374151;
-}
-
-[data-bs-theme="dark"] .contact-item.selected {
-  background: #1e3a8a;
-  border-color: #3b82f6;
-}
-
-[data-bs-theme="dark"] .form-input,
-[data-bs-theme="dark"] .form-textarea {
-  background: #374151;
-  border-color: #4b5563;
-  color: #f9fafb;
+.tick {
+  color: var(--accent);
 }
 </style>

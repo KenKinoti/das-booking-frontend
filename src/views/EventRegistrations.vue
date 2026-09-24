@@ -1,1236 +1,591 @@
 <template>
-  <div class="event-registrations-page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-left">
-          <button @click="$router.back()" class="btn btn-outline-secondary btn-sm me-3">
-            <i class="fas fa-arrow-left me-2"></i>Back
-          </button>
-          <div>
-            <h1 class="page-title">Event Registrations</h1>
-            <p class="page-subtitle" v-if="event">{{ event.title }}</p>
-          </div>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div class="head-main">
+        <div class="ui-eyebrow">
+          <router-link :to="`/events/${eventId}`" class="crumb"><i class="fa-solid fa-arrow-left"></i> {{ event ? event.title : 'Event' }}</router-link>
         </div>
-        <div class="header-actions">
-          <button @click="exportRegistrations" class="btn btn-outline-primary">
-            <i class="fas fa-download me-2"></i>Export
-          </button>
-          <button @click="openCheckInMode" class="btn btn-primary">
-            <i class="fas fa-qrcode me-2"></i>Check-in Mode
-          </button>
-        </div>
+        <h1>Registrations</h1>
+        <p v-if="event">{{ whenLabel }} · {{ location(event) }}</p>
+        <p v-else>&nbsp;</p>
       </div>
-    </div>
-
-    <!-- Loading State -->
-    <div v-if="loading" class="loading-container">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading registrations...</span>
+      <div class="ui-actions">
+        <button class="ui-btn" :disabled="exporting || !event" @click="exportCsv"><i :class="exporting ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-download'"></i> Export CSV</button>
+        <button class="ui-btn ui-btn--primary" :disabled="!event" @click="openAdd"><i class="fa-solid fa-user-plus"></i> Add attendee</button>
       </div>
-      <p class="loading-text">Loading registrations...</p>
-    </div>
+    </header>
 
-    <!-- Error State -->
-    <div v-else-if="error" class="alert alert-danger" role="alert">
-      <i class="fas fa-exclamation-triangle me-2"></i>
-      {{ error }}
-      <button @click="fetchRegistrations" class="btn btn-outline-danger btn-sm ms-3">
-        <i class="fas fa-redo me-1"></i>Try Again
-      </button>
-    </div>
+    <div v-if="loadError" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ loadError }} <a href="#" @click.prevent="init">Try again</a></span></div>
 
-    <!-- Registration Statistics -->
-    <div v-else class="registrations-content">
-      <div class="stats-overview">
-        <div class="stat-card primary">
-          <div class="stat-number">{{ stats.totalRegistrations }}</div>
-          <div class="stat-label">Total Registrations</div>
+    <template v-else>
+      <div class="ui-kpis">
+        <div class="ui-kpi">
+          <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-ticket"></i></span>Registered</div>
+          <div class="ui-kpi__value">{{ sum.tickets || 0 }}<small v-if="sum.capacity" class="of">/ {{ sum.capacity }}</small></div>
+          <div class="ui-kpi__meta">{{ sum.registrations || 0 }} bookings{{ sum.waitlisted ? ` · ${sum.waitlisted} waitlisted` : '' }}</div>
         </div>
-        <div class="stat-card success">
-          <div class="stat-number">{{ stats.checkedIn }}</div>
-          <div class="stat-label">Checked In</div>
+        <div class="ui-kpi">
+          <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-user-check"></i></span>Checked in</div>
+          <div class="ui-kpi__value">{{ sum.checked_in || 0 }}</div>
+          <div class="ui-kpi__meta">{{ sum.tickets ? Math.round(((sum.checked_in || 0) / sum.tickets) * 100) : 0 }}% arrived</div>
+          <div class="kpi-bar"><span :style="{ width: (sum.tickets ? Math.min(100, (sum.checked_in / sum.tickets) * 100) : 0) + '%' }"></span></div>
         </div>
-        <div class="stat-card warning">
-          <div class="stat-number">{{ stats.pendingCheckIn }}</div>
-          <div class="stat-label">Pending Check-in</div>
+        <div class="ui-kpi">
+          <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-solid fa-hourglass-half"></i></span>Awaiting</div>
+          <div class="ui-kpi__value">{{ counts.pending }}</div>
+          <div class="ui-kpi__meta">Pending approval · {{ unpaidCount }} unpaid</div>
         </div>
-        <div class="stat-card info">
-          <div class="stat-number">${{ stats.totalRevenue.toFixed(2) }}</div>
-          <div class="stat-label">Total Revenue</div>
+        <div class="ui-kpi">
+          <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-info"><i class="fa-solid fa-sack-dollar"></i></span>Revenue</div>
+          <div class="ui-kpi__value">{{ money(sum.revenue) }}</div>
+          <div class="ui-kpi__meta">{{ money(sum.paid) }} collected</div>
         </div>
       </div>
 
-      <!-- Filters and Search -->
-      <div class="filters-section">
-        <div class="filters-header">
-          <h5>Filter Registrations</h5>
-          <button
-            @click="showFilters = !showFilters"
-            class="btn btn-outline-secondary btn-sm"
-          >
-            <i :class="showFilters ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
-            {{ showFilters ? 'Hide' : 'Show' }} Filters
-          </button>
-        </div>
-
-        <div v-show="showFilters" class="filters-panel">
-          <div class="filters-grid">
-            <!-- Search -->
-            <div class="filter-group">
-              <label class="form-label">Search</label>
-              <input
-                v-model="filters.search"
-                type="text"
-                class="form-control"
-                placeholder="Search by name, email..."
-                @input="debouncedSearch"
-              >
-            </div>
-
-            <!-- Status Filter -->
-            <div class="filter-group">
-              <label class="form-label">Status</label>
-              <select v-model="filters.status" @change="applyFilters" class="form-select">
-                <option value="">All Statuses</option>
-                <option value="registered">Registered</option>
-                <option value="checked_in">Checked In</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-
-            <!-- Ticket Type Filter -->
-            <div class="filter-group">
-              <label class="form-label">Ticket Type</label>
-              <select v-model="filters.ticketType" @change="applyFilters" class="form-select">
-                <option value="">All Ticket Types</option>
-                <option v-for="ticket in ticketTypes" :key="ticket.id" :value="ticket.id">
-                  {{ ticket.name }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Registration Date Range -->
-            <div class="filter-group">
-              <label class="form-label">Registration Date</label>
-              <input
-                v-model="filters.dateFrom"
-                type="date"
-                class="form-control"
-                @change="applyFilters"
-              >
-            </div>
-            <div class="filter-group">
-              <label class="form-label">To</label>
-              <input
-                v-model="filters.dateTo"
-                type="date"
-                class="form-control"
-                @change="applyFilters"
-              >
-            </div>
-
-            <!-- Clear Filters -->
-            <div class="filter-group d-flex align-items-end">
-              <button @click="clearFilters" class="btn btn-outline-secondary w-100">
-                <i class="fas fa-times me-2"></i>Clear
-              </button>
-            </div>
+      <section class="ui-card">
+        <div class="toolbar">
+          <div class="ui-tabs" role="tablist">
+            <button v-for="t in tabs" :key="t.value" class="ui-tab" :class="{ 'is-active': status === t.value }" role="tab" :aria-selected="status === t.value" @click="status = t.value">
+              {{ t.label }}<span class="count">{{ t.count }}</span>
+            </button>
           </div>
-        </div>
-      </div>
-
-      <!-- Registrations Table -->
-      <div class="registrations-table-container">
-        <div class="table-header">
-          <div class="table-header-left">
-            <h5>Registrations ({{ filteredRegistrations.length }})</h5>
-          </div>
-          <div class="table-header-right">
-            <div class="bulk-actions" v-show="selectedRegistrations.length > 0">
-              <span class="selection-count">{{ selectedRegistrations.length }} selected</span>
-              <button @click="bulkCheckIn" class="btn btn-primary btn-sm">
-                <i class="fas fa-check me-1"></i>Bulk Check-in
-              </button>
-              <button @click="bulkDelete" class="btn btn-danger btn-sm">
-                <i class="fas fa-trash me-1"></i>Delete
-              </button>
+          <div class="toolbar__right">
+            <div class="ui-input-group search">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input v-model="q" class="ui-input" type="search" placeholder="Name, email, phone or reference…" aria-label="Search registrations" />
             </div>
-            <div class="view-options">
-              <div class="btn-group" role="group">
-                <button
-                  @click="viewMode = 'table'"
-                  :class="['btn', 'btn-outline-secondary', { active: viewMode === 'table' }]"
-                  title="Table View"
-                >
-                  <i class="fas fa-table"></i>
-                </button>
-                <button
-                  @click="viewMode = 'cards'"
-                  :class="['btn', 'btn-outline-secondary', { active: viewMode === 'cards' }]"
-                  title="Cards View"
-                >
-                  <i class="fas fa-th-large"></i>
-                </button>
-              </div>
-            </div>
+            <select v-model="checked" class="ui-select filter" aria-label="Check-in filter">
+              <option value="">Any check-in</option>
+              <option value="yes">Checked in</option>
+              <option value="no">Not checked in</option>
+            </select>
+            <select v-if="event && event.ticket_types && event.ticket_types.length > 1" v-model="ticket" class="ui-select filter" aria-label="Ticket filter">
+              <option value="">All tickets</option>
+              <option v-for="t in event.ticket_types" :key="t.id" :value="t.id">{{ t.name }}</option>
+            </select>
           </div>
         </div>
 
-        <!-- Table View -->
-        <div v-if="viewMode === 'table'" class="table-responsive">
-          <table class="table table-hover">
+        <div v-if="loading && !regs.length" class="ui-card__body">
+          <div v-for="n in 6" :key="n" class="sk-row">
+            <div class="ui-skeleton" style="width: 34px; height: 34px; border-radius: 10px"></div>
+            <div class="ui-skeleton" style="flex: 1"></div>
+            <div class="ui-skeleton" style="width: 90px"></div>
+            <div class="ui-skeleton" style="width: 110px"></div>
+          </div>
+        </div>
+
+        <div v-else-if="!rows.length" class="ui-empty">
+          <div class="ui-empty__icon"><i class="fa-solid fa-user-group"></i></div>
+          <h3>{{ regs.length ? 'No registrations match' : 'No registrations yet' }}</h3>
+          <p>{{ regs.length ? 'Try a different search or filter.' : 'Share the registration page, or add attendees manually.' }}</p>
+          <div style="margin-top: 12px">
+            <button v-if="regs.length" class="ui-btn" @click="clearFilters"><i class="fa-solid fa-xmark"></i> Clear filters</button>
+            <button v-else class="ui-btn ui-btn--primary" @click="openAdd"><i class="fa-solid fa-user-plus"></i> Add attendee</button>
+          </div>
+        </div>
+
+        <div v-else class="ui-table-wrap">
+          <table class="ui-table">
             <thead>
               <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    :checked="allSelected"
-                    @change="toggleSelectAll"
-                    class="form-check-input"
-                  >
-                </th>
-                <th @click="sortBy('attendee_name')" class="sortable">
-                  Name
-                  <i class="fas fa-sort ms-1"></i>
-                </th>
-                <th @click="sortBy('attendee_email')" class="sortable">
-                  Email
-                  <i class="fas fa-sort ms-1"></i>
-                </th>
-                <th>Ticket Type</th>
-                <th @click="sortBy('status')" class="sortable">
-                  Status
-                  <i class="fas fa-sort ms-1"></i>
-                </th>
-                <th @click="sortBy('registered_at')" class="sortable">
-                  Registered
-                  <i class="fas fa-sort ms-1"></i>
-                </th>
-                <th>Actions</th>
+                <th>Attendee</th>
+                <th class="hide-sm">Ticket</th>
+                <th class="hide-md">Status</th>
+                <th class="hide-md">Payment</th>
+                <th class="num hide-sm">Amount</th>
+                <th class="hide-lg">Registered</th>
+                <th>Check-in</th>
+                <th style="width: 44px"></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="registration in paginatedRegistrations" :key="registration.id">
+              <tr v-for="r in rows" :key="r.id" :class="{ 'is-cancelled': r.status === 'cancelled' }">
                 <td>
-                  <input
-                    type="checkbox"
-                    :value="registration.id"
-                    v-model="selectedRegistrations"
-                    class="form-check-input"
-                  >
-                </td>
-                <td>
-                  <div class="attendee-info">
-                    <strong>{{ registration.attendee_name }}</strong>
-                    <div v-if="registration.attendee_phone" class="text-muted small">
-                      {{ registration.attendee_phone }}
-                    </div>
+                  <div class="who">
+                    <span class="avatar">{{ initials(r.registrant_name) }}</span>
+                    <span class="who__txt">
+                      <strong>{{ r.registrant_name }}</strong>
+                      <small>{{ r.registrant_email }}</small>
+                      <small class="show-sm">{{ r.ticket_type_name }}{{ r.quantity > 1 ? ` ×${r.quantity}` : '' }} · {{ regMeta(r).label }}</small>
+                    </span>
                   </div>
                 </td>
-                <td>{{ registration.attendee_email }}</td>
+                <td class="hide-sm">
+                  {{ r.ticket_type_name || '—' }}<span v-if="r.quantity > 1" class="muted"> ×{{ r.quantity }}</span>
+                  <small class="ref">#{{ r.qr_code }}</small>
+                </td>
+                <td class="hide-md"><span class="ui-badge" :class="`ui-badge--${regMeta(r).badge}`">{{ regMeta(r).label }}</span></td>
+                <td class="hide-md"><span class="ui-badge" :class="`ui-badge--${payMeta(r).badge}`">{{ payMeta(r).label }}</span></td>
+                <td class="num hide-sm">{{ r.total_amount > 0 ? money(r.total_amount) : '—' }}</td>
+                <td class="hide-lg muted nowrap">{{ dateTime(r.registration_date || r.created_at) }}</td>
                 <td>
-                  <span class="badge bg-secondary">{{ registration.ticket_type?.name || 'General' }}</span>
-                  <div v-if="registration.ticket_type?.price > 0" class="text-success small">
-                    ${{ registration.ticket_type.price }}
-                  </div>
+                  <label class="ui-switch ci" :title="r.checked_in_at ? `Checked in ${dateTime(r.checked_in_at)}` : 'Not checked in'">
+                    <input type="checkbox" :checked="!!r.checked_in_at" :disabled="busy === r.id || (!r.checked_in_at && !canCheck(r))" :aria-label="`Check in ${r.registrant_name}`" @change="toggleCheckIn(r)" />
+                    <span class="ci__txt hide-sm">{{ r.checked_in_at ? time(r.checked_in_at) : '' }}</span>
+                  </label>
                 </td>
                 <td>
-                  <span :class="`badge badge-status-${registration.status}`">
-                    {{ formatStatus(registration.status) }}
-                  </span>
-                  <div v-if="registration.checked_in_at" class="text-muted small">
-                    {{ new Date(registration.checked_in_at).toLocaleString('en-AU') }}
-                  </div>
-                </td>
-                <td>{{ new Date(registration.registered_at).toLocaleDateString('en-AU') }}</td>
-                <td>
-                  <div class="dropdown">
-                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                      <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <ul class="dropdown-menu">
-                      <li v-if="registration.status !== 'checked_in'">
-                        <a class="dropdown-item" @click="checkInRegistration(registration)">
-                          <i class="fas fa-check me-2"></i>Check In
-                        </a>
-                      </li>
-                      <li>
-                        <a class="dropdown-item" @click="viewRegistrationDetails(registration)">
-                          <i class="fas fa-eye me-2"></i>View Details
-                        </a>
-                      </li>
-                      <li>
-                        <a class="dropdown-item" @click="sendConfirmationEmail(registration)">
-                          <i class="fas fa-envelope me-2"></i>Send Email
-                        </a>
-                      </li>
-                      <li><hr class="dropdown-divider"></li>
-                      <li>
-                        <a class="dropdown-item text-danger" @click="cancelRegistration(registration)">
-                          <i class="fas fa-times me-2"></i>Cancel
-                        </a>
-                      </li>
-                    </ul>
-                  </div>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Actions for ${r.registrant_name}`" @click.stop="openMenu(r, $event)"><i class="fa-solid fa-ellipsis-vertical"></i></button>
                 </td>
               </tr>
             </tbody>
           </table>
-
-          <!-- Empty State -->
-          <div v-if="filteredRegistrations.length === 0" class="empty-state">
-            <i class="fas fa-users fa-3x text-muted"></i>
-            <h4>No registrations found</h4>
-            <p class="text-muted">{{ filters.search || hasActiveFilters ? 'Try adjusting your filters' : 'No one has registered for this event yet.' }}</p>
-          </div>
         </div>
+        <footer v-if="rows.length" class="pager">
+          <span class="muted">{{ rows.length }} of {{ regs.length }} registration{{ regs.length === 1 ? '' : 's' }}</span>
+        </footer>
+      </section>
+    </template>
 
-        <!-- Cards View -->
-        <div v-else class="cards-view">
-          <div class="registrations-grid">
-            <div v-for="registration in paginatedRegistrations" :key="registration.id" class="registration-card">
-              <div class="card-header">
-                <input
-                  type="checkbox"
-                  :value="registration.id"
-                  v-model="selectedRegistrations"
-                  class="form-check-input"
-                >
-                <span :class="`badge badge-status-${registration.status}`">
-                  {{ formatStatus(registration.status) }}
-                </span>
-              </div>
-              <div class="card-content">
-                <h6 class="attendee-name">{{ registration.attendee_name }}</h6>
-                <p class="attendee-email">{{ registration.attendee_email }}</p>
-                <div v-if="registration.attendee_phone" class="attendee-phone">
-                  <i class="fas fa-phone me-1"></i>{{ registration.attendee_phone }}
-                </div>
-                <div class="ticket-info">
-                  <span class="badge bg-secondary">{{ registration.ticket_type?.name || 'General' }}</span>
-                  <span v-if="registration.ticket_type?.price > 0" class="price">
-                    ${{ registration.ticket_type.price }}
-                  </span>
-                </div>
-                <div class="registration-date">
-                  Registered: {{ new Date(registration.registered_at).toLocaleDateString('en-AU') }}
-                </div>
-              </div>
-              <div class="card-actions">
-                <button v-if="registration.status !== 'checked_in'" @click="checkInRegistration(registration)" class="btn btn-primary btn-sm">
-                  <i class="fas fa-check me-1"></i>Check In
-                </button>
-                <button @click="viewRegistrationDetails(registration)" class="btn btn-outline-secondary btn-sm">
-                  <i class="fas fa-eye me-1"></i>Details
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Empty State for Cards -->
-          <div v-if="filteredRegistrations.length === 0" class="empty-state">
-            <i class="fas fa-users fa-3x text-muted"></i>
-            <h4>No registrations found</h4>
-            <p class="text-muted">{{ filters.search || hasActiveFilters ? 'Try adjusting your filters' : 'No one has registered for this event yet.' }}</p>
-          </div>
-        </div>
-
-        <!-- Pagination -->
-        <div v-if="totalPages > 1" class="pagination-container">
-          <nav>
-            <ul class="pagination justify-content-center">
-              <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                <a class="page-link" @click="changePage(currentPage - 1)">Previous</a>
-              </li>
-              <li
-                v-for="page in visiblePages"
-                :key="page"
-                class="page-item"
-                :class="{ active: page === currentPage }"
-              >
-                <a class="page-link" @click="changePage(page)">{{ page }}</a>
-              </li>
-              <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                <a class="page-link" @click="changePage(currentPage + 1)">Next</a>
-              </li>
-            </ul>
-          </nav>
-        </div>
-      </div>
+    <div v-if="menuReg" class="menu__list" :style="menuStyle" role="menu" @click="menuReg = null">
+      <button role="menuitem" @click="openEdit(menuReg)"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
+      <button v-if="menuReg.status === 'pending' || menuReg.status === 'waitlisted'" role="menuitem" @click="patch(menuReg, { status: 'confirmed' }, 'Registration confirmed')"><i class="fa-solid fa-check"></i> Confirm</button>
+      <button v-if="menuReg.payment_status === 'pending'" role="menuitem" @click="patch(menuReg, { payment_status: 'paid' }, 'Marked as paid')"><i class="fa-solid fa-money-bill"></i> Mark as paid</button>
+      <a role="menuitem" :href="`mailto:${menuReg.registrant_email}`"><i class="fa-regular fa-envelope"></i> Email attendee</a>
+      <button v-if="menuReg.status !== 'cancelled'" role="menuitem" @click="cancelReg(menuReg)"><i class="fa-solid fa-ban"></i> Cancel registration</button>
+      <button role="menuitem" class="danger" @click="remove(menuReg)"><i class="fa-regular fa-trash-can"></i> Delete</button>
     </div>
 
-    <!-- Check-in Mode Modal -->
-    <div class="modal fade" id="checkinModal" tabindex="-1">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Quick Check-in Mode</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="qr-scanner-container">
-              <div class="scanner-instructions">
-                <h6>Scan QR Code or Search Manually</h6>
-                <p>Use the camera to scan attendee QR codes or search by name/email below.</p>
-              </div>
-              <div class="scanner-area">
-                <div class="qr-scanner-placeholder">
-                  <i class="fas fa-qrcode fa-4x text-muted mb-3"></i>
-                  <p>QR Scanner Will Load Here</p>
-                  <button class="btn btn-primary">Enable Camera</button>
-                </div>
-              </div>
-              <div class="manual-search">
-                <div class="input-group">
-                  <input
-                    v-model="manualSearchQuery"
-                    type="text"
-                    class="form-control"
-                    placeholder="Search by name or email..."
-                    @input="searchForCheckIn"
-                  >
-                  <button class="btn btn-outline-secondary" type="button">
-                    <i class="fas fa-search"></i>
-                  </button>
-                </div>
-                <div v-if="searchResults.length" class="search-results">
-                  <div
-                    v-for="result in searchResults"
-                    :key="result.id"
-                    class="search-result-item"
-                    @click="checkInRegistration(result)"
-                  >
-                    <div class="result-info">
-                      <strong>{{ result.attendee_name }}</strong>
-                      <div class="text-muted">{{ result.attendee_email }}</div>
-                    </div>
-                    <span :class="`badge badge-status-${result.status}`">
-                      {{ formatStatus(result.status) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Registration Details Modal -->
-    <div class="modal fade" id="registrationModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content" v-if="selectedRegistration">
-          <div class="modal-header">
-            <h5 class="modal-title">Registration Details</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="registration-details">
-              <div class="detail-group">
-                <label>Attendee Name</label>
-                <p>{{ selectedRegistration.attendee_name }}</p>
-              </div>
-              <div class="detail-group">
-                <label>Email</label>
-                <p>{{ selectedRegistration.attendee_email }}</p>
-              </div>
-              <div class="detail-group" v-if="selectedRegistration.attendee_phone">
-                <label>Phone</label>
-                <p>{{ selectedRegistration.attendee_phone }}</p>
-              </div>
-              <div class="detail-group">
-                <label>Ticket Type</label>
-                <p>{{ selectedRegistration.ticket_type?.name || 'General' }}</p>
-              </div>
-              <div class="detail-group">
-                <label>Status</label>
-                <span :class="`badge badge-status-${selectedRegistration.status}`">
-                  {{ formatStatus(selectedRegistration.status) }}
-                </span>
-              </div>
-              <div class="detail-group">
-                <label>Registration Date</label>
-                <p>{{ new Date(selectedRegistration.registered_at).toLocaleString('en-AU') }}</p>
-              </div>
-              <div class="detail-group" v-if="selectedRegistration.checked_in_at">
-                <label>Check-in Time</label>
-                <p>{{ new Date(selectedRegistration.checked_in_at).toLocaleString('en-AU') }}</p>
-              </div>
-              <div class="detail-group" v-if="selectedRegistration.special_requirements">
-                <label>Special Requirements</label>
-                <p>{{ selectedRegistration.special_requirements }}</p>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button v-if="selectedRegistration.status !== 'checked_in'" @click="checkInRegistration(selectedRegistration)" class="btn btn-primary">
-              <i class="fas fa-check me-2"></i>Check In
-            </button>
-            <button @click="sendConfirmationEmail(selectedRegistration)" class="btn btn-outline-primary">
-              <i class="fas fa-envelope me-2"></i>Send Email
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AttendeeModal v-if="modal && event" :event="event" :registration="editing" @close="closeModal" @saved="onSaved" />
   </div>
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { eventsService } from '../services/events'
+import { eventsApi, REG_STATUS, PAY_STATUS, eventLocation } from '@/services/events'
+import { apiErrorMessage } from '@/services/api'
+import { formatMoney, formatDateTime, downloadBlob, isoDate } from '@/utils/format'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+import AttendeeModal from '@/components/events/AttendeeModal.vue'
 
 export default {
   name: 'EventRegistrations',
-  setup() {
-    const route = useRoute()
-    const router = useRouter()
-    const authStore = useAuthStore()
-
-    // State
-    const loading = ref(true)
-    const error = ref('')
-    const event = ref(null)
-    const registrations = ref([])
-    const ticketTypes = ref([])
-    const selectedRegistrations = ref([])
-    const selectedRegistration = ref(null)
-    const showFilters = ref(false)
-    const viewMode = ref('table')
-    const currentPage = ref(1)
-    const itemsPerPage = ref(20)
-    const manualSearchQuery = ref('')
-    const searchResults = ref([])
-
-    // Filters
-    const filters = reactive({
-      search: '',
-      status: '',
-      ticketType: '',
-      dateFrom: '',
-      dateTo: ''
-    })
-
-    // Sorting
-    const sortBy = ref('registered_at')
-    const sortOrder = ref('desc')
-
-    // Computed Properties
-    const stats = computed(() => {
-      const total = registrations.value.length
-      const checkedIn = registrations.value.filter(r => r.status === 'checked_in').length
-      const pendingCheckIn = total - checkedIn
-      const totalRevenue = registrations.value.reduce((sum, r) => {
-        return sum + (r.ticket_type?.price || 0)
-      }, 0)
-
-      return {
-        totalRegistrations: total,
-        checkedIn,
-        pendingCheckIn,
-        totalRevenue
-      }
-    })
-
-    const hasActiveFilters = computed(() => {
-      return filters.search || filters.status || filters.ticketType || filters.dateFrom || filters.dateTo
-    })
-
-    const filteredRegistrations = computed(() => {
-      let filtered = [...registrations.value]
-
-      // Apply filters
-      if (filters.search) {
-        const query = filters.search.toLowerCase()
-        filtered = filtered.filter(r =>
-          r.attendee_name.toLowerCase().includes(query) ||
-          r.attendee_email.toLowerCase().includes(query)
-        )
-      }
-
-      if (filters.status) {
-        filtered = filtered.filter(r => r.status === filters.status)
-      }
-
-      if (filters.ticketType) {
-        filtered = filtered.filter(r => r.ticket_type_id === filters.ticketType)
-      }
-
-      if (filters.dateFrom) {
-        filtered = filtered.filter(r => new Date(r.registered_at) >= new Date(filters.dateFrom))
-      }
-
-      if (filters.dateTo) {
-        filtered = filtered.filter(r => new Date(r.registered_at) <= new Date(filters.dateTo))
-      }
-
-      // Apply sorting
-      filtered.sort((a, b) => {
-        const aValue = a[sortBy.value]
-        const bValue = b[sortBy.value]
-
-        if (sortOrder.value === 'asc') {
-          return aValue > bValue ? 1 : -1
-        } else {
-          return aValue < bValue ? 1 : -1
-        }
-      })
-
-      return filtered
-    })
-
-    const totalPages = computed(() => {
-      return Math.ceil(filteredRegistrations.value.length / itemsPerPage.value)
-    })
-
-    const paginatedRegistrations = computed(() => {
-      const start = (currentPage.value - 1) * itemsPerPage.value
-      const end = start + itemsPerPage.value
-      return filteredRegistrations.value.slice(start, end)
-    })
-
-    const visiblePages = computed(() => {
-      const pages = []
-      const total = totalPages.value
-      const current = currentPage.value
-
-      if (total <= 7) {
-        for (let i = 1; i <= total; i++) pages.push(i)
-      } else {
-        if (current <= 4) {
-          for (let i = 1; i <= 5; i++) pages.push(i)
-          pages.push('...')
-          pages.push(total)
-        } else if (current >= total - 3) {
-          pages.push(1)
-          pages.push('...')
-          for (let i = total - 4; i <= total; i++) pages.push(i)
-        } else {
-          pages.push(1)
-          pages.push('...')
-          for (let i = current - 1; i <= current + 1; i++) pages.push(i)
-          pages.push('...')
-          pages.push(total)
-        }
-      }
-
-      return pages
-    })
-
-    const allSelected = computed(() => {
-      return paginatedRegistrations.value.length > 0 &&
-             selectedRegistrations.value.length === paginatedRegistrations.value.length
-    })
-
-    // Methods
-    const fetchData = async () => {
-      try {
-        loading.value = true
-        error.value = ''
-
-        const eventId = route.params.eventId
-
-        const [eventResponse, registrationsResponse, ticketsResponse] = await Promise.all([
-          eventsService.getEventById(eventId),
-          eventsService.getRegistrations(eventId),
-          eventsService.getTicketTypes(eventId)
-        ])
-
-        event.value = eventResponse.data
-        registrations.value = registrationsResponse.data || []
-        ticketTypes.value = ticketsResponse.data || []
-
-      } catch (err) {
-        console.error('Error fetching data:', err)
-        error.value = err.response?.data?.message || 'Failed to load registrations'
-      } finally {
-        loading.value = false
-      }
-    }
-
-    const applyFilters = () => {
-      currentPage.value = 1
-    }
-
-    const clearFilters = () => {
-      Object.assign(filters, {
-        search: '',
-        status: '',
-        ticketType: '',
-        dateFrom: '',
-        dateTo: ''
-      })
-      currentPage.value = 1
-    }
-
-    const debouncedSearch = debounce(() => {
-      applyFilters()
-    }, 300)
-
-    const changePage = (page) => {
-      if (page >= 1 && page <= totalPages.value) {
-        currentPage.value = page
-      }
-    }
-
-    const toggleSelectAll = () => {
-      if (allSelected.value) {
-        selectedRegistrations.value = []
-      } else {
-        selectedRegistrations.value = paginatedRegistrations.value.map(r => r.id)
-      }
-    }
-
-    const checkInRegistration = async (registration) => {
-      try {
-        await eventsService.checkInRegistration(registration.qr_code, authStore.user.id)
-        registration.status = 'checked_in'
-        registration.checked_in_at = new Date().toISOString()
-
-        // Close modals if open
-        const modals = ['checkinModal', 'registrationModal']
-        modals.forEach(modalId => {
-          const modal = bootstrap.Modal.getInstance(document.getElementById(modalId))
-          if (modal) modal.hide()
-        })
-
-      } catch (err) {
-        console.error('Error checking in registration:', err)
-        // Show error notification
-      }
-    }
-
-    const bulkCheckIn = async () => {
-      try {
-        const promises = selectedRegistrations.value.map(async (regId) => {
-          const registration = registrations.value.find(r => r.id === regId)
-          if (registration && registration.status !== 'checked_in') {
-            await eventsService.checkInRegistration(registration.qr_code, authStore.user.id)
-            registration.status = 'checked_in'
-            registration.checked_in_at = new Date().toISOString()
-          }
-        })
-
-        await Promise.all(promises)
-        selectedRegistrations.value = []
-
-      } catch (err) {
-        console.error('Error bulk checking in:', err)
-        // Show error notification
-      }
-    }
-
-    const bulkDelete = async () => {
-      if (!confirm(`Are you sure you want to cancel ${selectedRegistrations.value.length} registrations?`)) {
-        return
-      }
-
-      try {
-        // Implementation for bulk delete
-        selectedRegistrations.value = []
-      } catch (err) {
-        console.error('Error bulk deleting:', err)
-      }
-    }
-
-    const exportRegistrations = async () => {
-      try {
-        await eventsService.exportRegistrations(route.params.eventId, 'csv')
-      } catch (err) {
-        console.error('Error exporting registrations:', err)
-      }
-    }
-
-    const openCheckInMode = () => {
-      const modal = // new bootstrap.Modal(document.getElementById('checkinModal'))
-      modal.show()
-    }
-
-    const viewRegistrationDetails = (registration) => {
-      selectedRegistration.value = registration
-      const modal = // new bootstrap.Modal(document.getElementById('registrationModal'))
-      modal.show()
-    }
-
-    const sendConfirmationEmail = async (registration) => {
-      try {
-        // Implementation for sending confirmation email
-        console.log('Sending confirmation email to:', registration.attendee_email)
-      } catch (err) {
-        console.error('Error sending email:', err)
-      }
-    }
-
-    const cancelRegistration = async (registration) => {
-      if (!confirm('Are you sure you want to cancel this registration?')) {
-        return
-      }
-
-      try {
-        registration.status = 'cancelled'
-      } catch (err) {
-        console.error('Error cancelling registration:', err)
-      }
-    }
-
-    const searchForCheckIn = () => {
-      if (!manualSearchQuery.value.trim()) {
-        searchResults.value = []
-        return
-      }
-
-      const query = manualSearchQuery.value.toLowerCase()
-      searchResults.value = registrations.value.filter(r =>
-        r.attendee_name.toLowerCase().includes(query) ||
-        r.attendee_email.toLowerCase().includes(query)
-      ).slice(0, 5)
-    }
-
-    const formatStatus = (status) => {
-      const statusMap = {
-        'registered': 'Registered',
-        'checked_in': 'Checked In',
-        'cancelled': 'Cancelled'
-      }
-      return statusMap[status] || status
-    }
-
-    // Utility function for debouncing
-    function debounce(func, delay) {
-      let timeoutId
-      return function (...args) {
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => func.apply(this, args), delay)
-      }
-    }
-
-    // Lifecycle
-    onMounted(() => {
-      fetchData()
-    })
-
+  components: { AttendeeModal },
+  data() {
     return {
-      loading,
-      error,
-      event,
-      registrations,
-      ticketTypes,
-      selectedRegistrations,
-      selectedRegistration,
-      showFilters,
-      viewMode,
-      currentPage,
-      filters,
-      stats,
-      hasActiveFilters,
-      filteredRegistrations,
-      paginatedRegistrations,
-      totalPages,
-      visiblePages,
-      allSelected,
-      manualSearchQuery,
-      searchResults,
-      fetchRegistrations: fetchData,
-      applyFilters,
-      clearFilters,
-      debouncedSearch,
-      changePage,
-      toggleSelectAll,
-      checkInRegistration,
-      bulkCheckIn,
-      bulkDelete,
-      exportRegistrations,
-      openCheckInMode,
-      viewRegistrationDetails,
-      sendConfirmationEmail,
-      cancelRegistration,
-      searchForCheckIn,
-      formatStatus
+      event: null,
+      regs: [],
+      sum: {},
+      loading: false,
+      loadError: '',
+      exporting: false,
+      status: 'all',
+      checked: '',
+      ticket: '',
+      q: '',
+      busy: '',
+      menuReg: null,
+      menuStyle: {},
+      modal: false,
+      editing: null
+    }
+  },
+  computed: {
+    eventId() {
+      return this.$route.params.eventId
+    },
+    counts() {
+      const c = { all: this.regs.length, confirmed: 0, pending: 0, waitlisted: 0, cancelled: 0 }
+      this.regs.forEach((r) => {
+        if (c[r.status] != null) c[r.status]++
+      })
+      return c
+    },
+    unpaidCount() {
+      return this.regs.filter((r) => r.payment_status === 'pending' && r.status !== 'cancelled').length
+    },
+    tabs() {
+      return [
+        { value: 'all', label: 'All', count: this.counts.all },
+        { value: 'confirmed', label: 'Confirmed', count: this.counts.confirmed },
+        { value: 'pending', label: 'Pending', count: this.counts.pending },
+        { value: 'waitlisted', label: 'Waitlist', count: this.counts.waitlisted },
+        { value: 'cancelled', label: 'Cancelled', count: this.counts.cancelled }
+      ]
+    },
+    rows() {
+      const q = this.q.trim().toLowerCase().replace(/^#/, '')
+      return this.regs.filter((r) => {
+        if (this.status !== 'all' && r.status !== this.status) return false
+        if (this.checked === 'yes' && !r.checked_in_at) return false
+        if (this.checked === 'no' && r.checked_in_at) return false
+        if (this.ticket && r.ticket_type_id !== this.ticket) return false
+        if (!q) return true
+        return [r.registrant_name, r.registrant_email, r.registrant_phone, r.company, r.qr_code].some((v) => String(v || '').toLowerCase().includes(q))
+      })
+    },
+    whenLabel() {
+      if (!this.event) return ''
+      return formatDateTime(this.event.start_date)
+    }
+  },
+  watch: {
+    eventId() {
+      this.init()
+    }
+  },
+  created() {
+    this.init()
+    document.addEventListener('click', this.closeMenu)
+    window.addEventListener('scroll', this.closeMenu, true)
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.closeMenu)
+    window.removeEventListener('scroll', this.closeMenu, true)
+  },
+  methods: {
+    location: eventLocation,
+    dateTime: formatDateTime,
+    time(v) {
+      return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(v))
+    },
+    money(v) {
+      return formatMoney(v || 0, (this.event && this.event.currency) || 'AUD')
+    },
+    regMeta(r) {
+      return REG_STATUS[r.status] || REG_STATUS.pending
+    },
+    payMeta(r) {
+      return PAY_STATUS[r.payment_status] || PAY_STATUS.pending
+    },
+    canCheck(r) {
+      return r.status === 'confirmed' || r.status === 'pending'
+    },
+    initials(name = '') {
+      return (
+        String(name)
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((p) => p[0])
+          .join('')
+          .toUpperCase() || '?'
+      )
+    },
+    closeMenu() {
+      this.menuReg = null
+    },
+    openMenu(r, ev) {
+      if (this.menuReg && this.menuReg.id === r.id) {
+        this.menuReg = null
+        return
+      }
+      const rect = ev.currentTarget.getBoundingClientRect()
+      const h = 250
+      const top = rect.bottom + h > window.innerHeight ? Math.max(8, rect.top - h) : rect.bottom + 4
+      this.menuStyle = { position: 'fixed', top: `${top}px`, left: `${Math.max(8, rect.right - 220)}px`, width: '220px' }
+      this.menuReg = r
+    },
+    clearFilters() {
+      this.q = ''
+      this.status = 'all'
+      this.checked = ''
+      this.ticket = ''
+    },
+    async init() {
+      this.loadError = ''
+      this.loading = true
+      try {
+        const [ev, data] = await Promise.all([eventsApi.get(this.eventId), eventsApi.registrations(this.eventId)])
+        this.event = ev
+        this.regs = data.registrations || []
+        this.sum = data.summary || ev.stats || {}
+      } catch (e) {
+        this.loadError = apiErrorMessage(e, 'Could not load registrations')
+      } finally {
+        this.loading = false
+      }
+    },
+    async reload() {
+      try {
+        const [ev, data] = await Promise.all([eventsApi.get(this.eventId), eventsApi.registrations(this.eventId)])
+        this.event = ev
+        this.regs = data.registrations || []
+        this.sum = data.summary || {}
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not refresh registrations'))
+      }
+    },
+    replace(reg) {
+      const i = this.regs.findIndex((r) => r.id === reg.id)
+      if (i >= 0) this.regs.splice(i, 1, reg)
+    },
+    async toggleCheckIn(r) {
+      this.busy = r.id
+      const want = !r.checked_in_at
+      try {
+        const updated = await eventsApi.checkIn(this.eventId, r.id, want)
+        this.replace(updated)
+        this.sum = { ...this.sum, checked_in: Math.max(0, (this.sum.checked_in || 0) + (want ? r.quantity : -r.quantity)) }
+        toast.success(want ? `${r.registrant_name} checked in` : 'Check-in undone')
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not update check-in'))
+        this.regs = this.regs.slice()
+      } finally {
+        this.busy = ''
+      }
+    },
+    async patch(r, body, msg) {
+      try {
+        const updated = await eventsApi.updateRegistration(this.eventId, r.id, body)
+        this.replace(updated)
+        toast.success(msg)
+        this.reload()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not update registration'))
+      }
+    },
+    async cancelReg(r) {
+      const ok = await confirmDialog({ title: 'Cancel registration?', message: `${r.registrant_name}'s place will be released. You can re-confirm it later.`, confirmText: 'Cancel registration', danger: true })
+      if (ok) this.patch(r, { status: 'cancelled', checked_in: false }, 'Registration cancelled')
+    },
+    async remove(r) {
+      const ok = await confirmDialog({ title: 'Delete registration?', message: `${r.registrant_name} (${r.registrant_email}) will be permanently removed from this event.`, confirmText: 'Delete', danger: true })
+      if (!ok) return
+      try {
+        await eventsApi.removeRegistration(this.eventId, r.id)
+        this.regs = this.regs.filter((x) => x.id !== r.id)
+        toast.success('Registration deleted')
+        this.reload()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not delete registration'))
+      }
+    },
+    openAdd() {
+      this.editing = null
+      this.modal = true
+    },
+    openEdit(r) {
+      this.editing = r
+      this.modal = true
+    },
+    closeModal() {
+      this.modal = false
+      this.editing = null
+    },
+    onSaved() {
+      this.closeModal()
+      this.reload()
+    },
+    async exportCsv() {
+      this.exporting = true
+      try {
+        const blob = await eventsApi.exportCsv(this.eventId, { status: this.status, checked_in: this.checked, ticket_type_id: this.ticket, search: this.q.trim().replace(/^#/, '') })
+        const slug = String(this.event.title || 'event')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+        downloadBlob(blob, `${slug}-registrations-${isoDate()}.csv`)
+        toast.success('Export downloaded')
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Export failed'))
+      } finally {
+        this.exporting = false
+      }
     }
   }
 }
 </script>
 
 <style scoped>
-.event-registrations-page {
-  padding: 2rem 0;
-}
-
-.page-header {
-  background: white;
-  border-bottom: 1px solid var(--bs-border-color);
-  margin-bottom: 2rem;
-  padding: 1.5rem 0;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
+.crumb {
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.header-left {
-  display: flex;
-  align-items: center;
+.crumb:hover {
+  color: var(--accent);
 }
-
-.page-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--bs-primary);
+.head-main {
+  min-width: 0;
+  max-width: 100%;
 }
-
-.page-subtitle {
-  color: var(--bs-secondary);
-  margin: 0;
-  font-size: 1rem;
+.of {
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--text-3);
+  margin-left: 4px;
 }
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.loading-container {
-  text-align: center;
-  padding: 4rem 0;
-}
-
-.loading-text {
-  margin-top: 1rem;
-  color: var(--bs-secondary);
-}
-
-.stats-overview {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  border-radius: var(--bs-border-radius);
-  padding: 1.5rem;
-  text-align: center;
-  border-left: 4px solid transparent;
-}
-
-.stat-card.primary { border-left-color: var(--bs-primary); }
-.stat-card.success { border-left-color: var(--bs-success); }
-.stat-card.warning { border-left-color: var(--bs-warning); }
-.stat-card.info { border-left-color: var(--bs-info); }
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.stat-card.primary .stat-number { color: var(--bs-primary); }
-.stat-card.success .stat-number { color: var(--bs-success); }
-.stat-card.warning .stat-number { color: var(--bs-warning); }
-.stat-card.info .stat-number { color: var(--bs-info); }
-
-.stat-label {
-  font-size: 0.9rem;
-  color: var(--bs-secondary);
-  margin-top: 0.5rem;
-}
-
-.filters-section {
-  background: white;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.filters-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.filter-group label {
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--bs-secondary);
-}
-
-.registrations-table-container {
-  background: white;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
+.kpi-success { background: var(--success-soft); color: var(--success); }
+.kpi-info { background: var(--info-soft); color: var(--info); }
+.kpi-warning { background: var(--warning-soft); color: var(--warning); }
+.kpi-bar {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--bg-subtle);
+  margin-top: 10px;
   overflow: hidden;
 }
-
-.table-header {
+.kpi-bar span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+.toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--bs-border-color);
-  background: var(--bs-light);
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
 }
-
-.table-header h5 {
-  margin: 0;
-  color: var(--bs-dark);
-}
-
-.table-header-right {
+.toolbar__right {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-
-.bulk-actions {
+.search { width: 280px; }
+.filter { width: 160px; }
+.sk-row {
   display: flex;
+  gap: 16px;
+  padding: 10px 0;
   align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 1rem;
-  background: var(--bs-primary);
-  color: white;
-  border-radius: var(--bs-border-radius);
 }
-
-.selection-count {
-  font-weight: 500;
+.sk-row .ui-skeleton {
+  height: 16px;
 }
-
-.table {
-  margin: 0;
+.who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
 }
-
-.table th.sortable {
-  cursor: pointer;
-  user-select: none;
+.who__txt {
+  min-width: 0;
 }
-
-.table th.sortable:hover {
-  background: var(--bs-light);
+.who__txt strong {
+  display: block;
+  font-weight: 600;
 }
-
-.attendee-info strong {
-  color: var(--bs-dark);
+.who__txt small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
 }
-
-.badge-status-registered { background-color: var(--bs-primary); }
-.badge-status-checked_in { background-color: var(--bs-success); }
-.badge-status-cancelled { background-color: var(--bs-danger); }
-
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--bs-secondary);
-}
-
-.empty-state h4 {
-  margin-top: 1rem;
-  color: var(--bs-secondary);
-}
-
-.cards-view {
-  padding: 1.5rem;
-}
-
-.registrations-grid {
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1.5rem;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
 }
-
-.registration-card {
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  padding: 1.5rem;
-  transition: all 0.2s ease;
+.ref {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
 }
-
-.registration-card:hover {
-  border-color: var(--bs-primary);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+.ci {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
 }
-
-.card-header {
+.ci__txt {
+  font-size: 12px;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+tr.is-cancelled td {
+  opacity: 0.6;
+}
+.show-sm {
+  display: none !important;
+}
+.muted { color: var(--text-3); }
+.nowrap { white-space: nowrap; }
+.pager {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
 }
-
-.card-content {
-  margin-bottom: 1rem;
-}
-
-.attendee-name {
-  font-weight: 600;
-  color: var(--bs-dark);
-  margin-bottom: 0.25rem;
-}
-
-.attendee-email {
-  color: var(--bs-secondary);
-  margin-bottom: 0.5rem;
-}
-
-.attendee-phone {
-  font-size: 0.9rem;
-  color: var(--bs-secondary);
-  margin-bottom: 0.5rem;
-}
-
-.ticket-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.price {
-  font-weight: 600;
-  color: var(--bs-success);
-}
-
-.registration-date {
-  font-size: 0.9rem;
-  color: var(--bs-secondary);
-}
-
-.card-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.pagination-container {
-  padding: 1.5rem;
-  border-top: 1px solid var(--bs-border-color);
-  background: var(--bs-light);
-}
-
-.qr-scanner-container {
-  text-align: center;
-}
-
-.scanner-instructions {
-  margin-bottom: 2rem;
-}
-
-.scanner-instructions h6 {
-  color: var(--bs-primary);
-}
-
-.qr-scanner-placeholder {
-  background: var(--bs-light);
-  border: 2px dashed var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  padding: 3rem;
-  margin-bottom: 2rem;
-}
-
-.manual-search {
-  text-align: left;
-  margin-top: 2rem;
-}
-
-.search-results {
-  margin-top: 1rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.search-result-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  cursor: pointer;
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-.search-result-item:hover {
-  background: var(--bs-light);
-}
-
-.search-result-item:last-child {
-  border-bottom: none;
-}
-
-.registration-details {
+.menu__list {
+  z-index: 60;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
 }
-
-.detail-group label {
-  font-weight: 600;
-  color: var(--bs-secondary);
-  margin-bottom: 0.25rem;
-  display: block;
+.menu__list button,
+.menu__list a {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
 }
-
-.detail-group p {
-  margin: 0;
-  color: var(--bs-dark);
+.menu__list i {
+  width: 16px;
+  color: var(--text-3);
 }
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .header-content {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
+.menu__list button:hover,
+.menu__list a:hover {
+  background: var(--surface-hover);
+}
+.menu__list .danger,
+.menu__list .danger i {
+  color: var(--danger);
+}
+@media (max-width: 1200px) {
+  .hide-lg { display: none; }
+}
+@media (max-width: 900px) {
+  .hide-md { display: none; }
+}
+@media (max-width: 640px) {
+  .hide-sm { display: none; }
+  .show-sm { display: block !important; }
+  .toolbar__right { width: 100%; }
+  .search { width: 100%; flex: 1 1 100%; }
+  .filter { flex: 1; width: auto; min-width: 0; }
+  .ui-tabs { overflow-x: auto; max-width: 100%; }
+  .who__txt small { max-width: 180px; }
+}
+@media (max-width: 640px) {
+  .ui-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
-
-  .header-actions {
-    justify-content: center;
+  .ui-kpi {
+    padding: 14px;
   }
-
-  .stats-overview {
-    grid-template-columns: repeat(2, 1fr);
+  .ui-kpi__value {
+    font-size: 20px;
   }
-
-  .filters-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .table-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-
-  .table-header-right {
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .bulk-actions {
-    justify-content: center;
-  }
-
-  .registrations-grid {
-    grid-template-columns: 1fr;
+  .ui-kpi__meta {
+    white-space: normal;
   }
 }
 </style>

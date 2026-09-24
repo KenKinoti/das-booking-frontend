@@ -1,1242 +1,562 @@
 <template>
-  <div class="settings-page">
-    <!-- Action Buttons Section -->
-    <div class="page-actions d-flex justify-content-end mb-4">
-      <button @click="saveAllSettings" class="btn btn-primary" :disabled="isSaving">
-        <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
-        <i v-else class="fas fa-save"></i>
-        {{ isSaving ? 'Saving...' : 'Save Changes' }}
-      </button>
+  <div class="mp ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Workspace</div>
+        <h1>Settings</h1>
+        <p>Business details, regional formats and notifications for {{ org.name || 'your organisation' }}.</p>
+      </div>
+      <div class="ui-actions">
+        <button class="ui-btn" :disabled="!dirty || saving" @click="reset"><i class="fa-solid fa-rotate-left"></i> Discard</button>
+        <button class="ui-btn ui-btn--primary" :disabled="!dirty || saving || !canEdit" @click="save"><i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> Save changes</button>
+      </div>
+    </header>
+
+    <div v-if="loadError" class="ui-alert ui-alert--danger" style="margin-bottom: 16px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ loadError }} <a href="#" @click.prevent="load">Try again</a></span></div>
+    <div v-else-if="loaded && !canEdit" class="ui-alert ui-alert--warning" style="margin-bottom: 16px"><i class="fa-solid fa-lock"></i><span>Only admins and managers can change these settings. You can view them.</span></div>
+
+    <div class="layout">
+      <nav class="side" aria-label="Settings sections">
+        <a v-for="s in sections" :key="s.id" :href="`#${s.id}`" :class="{ 'is-active': active === s.id }" @click.prevent="scrollTo(s.id)"><i :class="s.icon"></i> {{ s.label }}</a>
+      </nav>
+
+      <div class="stack">
+        <fieldset :disabled="!canEdit || !loaded" class="plain">
+          <section id="business" class="ui-card">
+            <div class="ui-card__head">
+              <div>
+                <h2>Business details</h2>
+                <p class="sub">Shown on invoices, quotes, receipts and booking pages.</p>
+              </div>
+            </div>
+            <div class="ui-card__body">
+              <div v-if="!loaded" class="sk"><div v-for="n in 4" :key="n" class="ui-skeleton" style="height: 38px"></div></div>
+              <div v-else class="form-grid">
+                <label class="ui-field">
+                  <span class="ui-label">Business name *</span>
+                  <input id="st_name" v-model.trim="org.name" class="ui-input" :class="{ 'is-invalid': errors.name }" maxlength="255" />
+                  <span v-if="errors.name" class="field-error">{{ errors.name }}</span>
+                </label>
+                <label class="ui-field">
+                  <span class="ui-label">Business number (ABN / registration)</span>
+                  <input v-model.trim="org.abn" class="ui-input" maxlength="14" placeholder="e.g. 12 345 678 901" />
+                </label>
+                <label class="ui-field">
+                  <span class="ui-label">Email</span>
+                  <input v-model.trim="org.email" type="email" class="ui-input" :class="{ 'is-invalid': errors.email }" placeholder="hello@yourbusiness.com" />
+                  <span v-if="errors.email" class="field-error">{{ errors.email }}</span>
+                </label>
+                <label class="ui-field">
+                  <span class="ui-label">Phone</span>
+                  <input v-model.trim="org.phone" type="tel" class="ui-input" maxlength="20" />
+                </label>
+                <label class="ui-field span-2">
+                  <span class="ui-label">Website</span>
+                  <input v-model.trim="org.website" class="ui-input" :class="{ 'is-invalid': errors.website }" placeholder="https://yourbusiness.com" />
+                  <span v-if="errors.website" class="field-error">{{ errors.website }}</span>
+                </label>
+                <label class="ui-field span-2">
+                  <span class="ui-label">Street address</span>
+                  <input v-model.trim="org.address.street" class="ui-input" autocomplete="street-address" />
+                </label>
+                <div class="span-2 addr">
+                  <label class="ui-field"><span class="ui-label">Suburb / city</span><input v-model.trim="org.address.suburb" class="ui-input" /></label>
+                  <label class="ui-field"><span class="ui-label">State / region</span><input v-model.trim="org.address.state" class="ui-input" /></label>
+                  <label class="ui-field"><span class="ui-label">Postcode</span><input v-model.trim="org.address.postcode" class="ui-input" maxlength="10" /></label>
+                  <label class="ui-field"><span class="ui-label">Country</span><input v-model.trim="org.address.country" class="ui-input" /></label>
+                </div>
+                <label class="ui-field span-2">
+                  <span class="ui-label">About the business</span>
+                  <textarea v-model="org.description" rows="3" class="ui-textarea" maxlength="2000" placeholder="A short description (optional)"></textarea>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section id="regional" class="ui-card">
+            <div class="ui-card__head">
+              <div>
+                <h2>Regional &amp; formats</h2>
+                <p class="sub">Default currency and how dates and times are shown.</p>
+              </div>
+            </div>
+            <div class="ui-card__body">
+              <div v-if="!loaded" class="sk"><div v-for="n in 2" :key="n" class="ui-skeleton" style="height: 38px"></div></div>
+              <div v-else class="form-grid">
+                <label class="ui-field">
+                  <span class="ui-label">Time zone</span>
+                  <select id="st_tz" v-model="settings.timezone" class="ui-select">
+                    <option v-for="z in timezones" :key="z" :value="z">{{ z.replace(/_/g, ' ') }}</option>
+                  </select>
+                  <span class="ui-hint">Now: {{ nowInZone }}</span>
+                </label>
+                <label class="ui-field">
+                  <span class="ui-label">Default currency</span>
+                  <select v-model="settings.currency" class="ui-select">
+                    <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region">
+                      <option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option>
+                    </optgroup>
+                  </select>
+                  <span class="ui-hint">Invoices and pay runs can still use other currencies.</span>
+                </label>
+                <label class="ui-field">
+                  <span class="ui-label">Date format</span>
+                  <select v-model="settings.date_format" class="ui-select">
+                    <option v-for="f in dateFormats" :key="f.value" :value="f.value">{{ f.value }} ({{ f.example }})</option>
+                  </select>
+                </label>
+                <label class="ui-field">
+                  <span class="ui-label">Time format</span>
+                  <select v-model="settings.time_format" class="ui-select">
+                    <option value="24h">24-hour (14:30)</option>
+                    <option value="12h">12-hour (2:30 PM)</option>
+                  </select>
+                </label>
+                <label class="ui-field">
+                  <span class="ui-label">Language</span>
+                  <select v-model="settings.language" class="ui-select">
+                    <option value="en-AU">English (Australia)</option>
+                    <option value="en-GB">English (UK)</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="en-KE">English (Kenya)</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section id="notifications" class="ui-card">
+            <div class="ui-card__head">
+              <div>
+                <h2>Notifications</h2>
+                <p class="sub">Which channels the platform may use to notify customers and staff.</p>
+              </div>
+            </div>
+            <div class="ui-card__body toggles">
+              <label class="toggle">
+                <span><strong>Email notifications</strong><small>Invoices, booking confirmations, meeting invites and reminders.</small></span>
+                <span class="ui-switch"><input v-model="settings.enable_email_notifications" type="checkbox" aria-label="Email notifications" /></span>
+              </label>
+              <label class="toggle">
+                <span><strong>SMS notifications</strong><small>Booking reminders by text message, when an SMS provider is connected in messaging settings.</small></span>
+                <span class="ui-switch"><input v-model="settings.enable_sms_notifications" type="checkbox" aria-label="SMS notifications" /></span>
+              </label>
+            </div>
+          </section>
+        </fieldset>
+
+        <section id="more" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>More settings</h2>
+              <p class="sub">Module settings live next to the module they configure.</p>
+            </div>
+          </div>
+          <div class="links">
+            <router-link v-for="l in links" :key="l.to" :to="l.to" class="link">
+              <span class="link__icon"><i :class="l.icon"></i></span>
+              <span><strong>{{ l.label }}</strong><small>{{ l.hint }}</small></span>
+              <i class="fa-solid fa-chevron-right muted"></i>
+            </router-link>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <div v-if="isLoading" class="loading-state">
-      <div class="loading-spinner"></div>
-      <p>Loading settings...</p>
-    </div>
-
-    <div v-else class="settings-grid">
-      <!-- Organization Information -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>
-            <i class="fas fa-building"></i>
-            Organization Information
-          </h3>
-        </div>
-        <div class="card-content">
-          <form @submit.prevent="saveOrganizationInfo">
-            <div class="form-row">
-              <div class="form-group">
-                <label>Organization Name *</label>
-                <input v-model="organizationForm.name" type="text" required placeholder="Enter organization name" />
-              </div>
-              <div class="form-group">
-                <label>ABN / Registration Number</label>
-                <input v-model="organizationForm.abn" type="text" placeholder="Enter ABN or registration number" />
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label>Address</label>
-              <textarea v-model="organizationForm.address" rows="3" placeholder="Enter full address"></textarea>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label>Phone</label>
-                <input v-model="organizationForm.phone" type="tel" placeholder="Enter phone number" />
-              </div>
-              <div class="form-group">
-                <label>Email</label>
-                <input v-model="organizationForm.email" type="email" placeholder="Enter email address" />
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label>Website</label>
-              <input v-model="organizationForm.website" type="url" placeholder="https://example.com" />
-            </div>
-          </form>
+    <transition name="bar">
+      <div v-if="dirty && canEdit" class="savebar" role="status">
+        <span><i class="fa-solid fa-circle-info"></i> You have unsaved changes</span>
+        <div class="ui-actions">
+          <button class="ui-btn ui-btn--sm" :disabled="saving" @click="reset">Discard</button>
+          <button class="ui-btn ui-btn--sm ui-btn--primary" :disabled="saving" @click="save"><i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> Save changes</button>
         </div>
       </div>
-
-      <!-- System Preferences -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>
-            <i class="fas fa-cog"></i>
-            System Preferences
-          </h3>
-        </div>
-        <div class="card-content">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Timezone</label>
-              <select v-model="systemForm.timezone">
-                <option value="Australia/Melbourne">Australia/Melbourne</option>
-                <option value="Australia/Sydney">Australia/Sydney</option>
-                <option value="Australia/Brisbane">Australia/Brisbane</option>
-                <option value="Australia/Perth">Australia/Perth</option>
-                <option value="Australia/Adelaide">Australia/Adelaide</option>
-                <option value="UTC">UTC</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Currency</label>
-              <select v-model="systemForm.currency">
-                <option value="AUD">AUD - Australian Dollar</option>
-                <option value="USD">USD - US Dollar</option>
-                <option value="EUR">EUR - Euro</option>
-                <option value="GBP">GBP - British Pound</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label>Date Format</label>
-              <select v-model="systemForm.date_format">
-                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                <option value="DD-MM-YYYY">DD-MM-YYYY</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Time Format</label>
-              <select v-model="systemForm.time_format">
-                <option value="24h">24 Hour (14:30)</option>
-                <option value="12h">12 Hour (2:30 PM)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Notification Settings -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>
-            <i class="fas fa-bell"></i>
-            Notification Settings
-          </h3>
-        </div>
-        <div class="card-content">
-          <div class="notification-settings">
-            <div class="setting-item">
-              <div class="setting-info">
-                <strong>Email Notifications</strong>
-                <p>Receive notifications via email for important updates</p>
-              </div>
-              <div class="setting-control">
-                <label class="switch">
-                  <input v-model="notificationForm.email_enabled" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-            
-            <div class="setting-item">
-              <div class="setting-info">
-                <strong>SMS Notifications</strong>
-                <p>Receive urgent notifications via SMS</p>
-              </div>
-              <div class="setting-control">
-                <label class="switch">
-                  <input v-model="notificationForm.sms_enabled" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-            
-            <div class="setting-item">
-              <div class="setting-info">
-                <strong>Push Notifications</strong>
-                <p>Receive push notifications in your browser</p>
-              </div>
-              <div class="setting-control">
-                <label class="switch">
-                  <input v-model="notificationForm.push_enabled" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Billing Settings -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>
-            <i class="fas fa-file-invoice-dollar"></i>
-            Billing Settings
-          </h3>
-        </div>
-        <div class="card-content">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Default Tax Rate (%)</label>
-              <input v-model="billingForm.tax_rate" type="number" step="0.01" min="0" max="100" placeholder="10.00" />
-            </div>
-            <div class="form-group">
-              <label>Payment Terms (Days)</label>
-              <input v-model="billingForm.payment_terms_days" type="number" min="1" max="365" placeholder="30" />
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label>Late Fee Percentage (%)</label>
-            <input v-model="billingForm.late_fee_percentage" type="number" step="0.01" min="0" max="50" placeholder="5.00" />
-            <small class="form-help">Percentage charged on overdue invoices</small>
-          </div>
-        </div>
-      </div>
-
-      <!-- Security Settings -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>
-            <i class="fas fa-shield-alt"></i>
-            Security Settings
-          </h3>
-        </div>
-        <div class="card-content">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Session Timeout (minutes)</label>
-              <input v-model="securityForm.session_timeout" type="number" min="5" max="480" placeholder="30" />
-            </div>
-            <div class="form-group">
-              <label>Minimum Password Length</label>
-              <input v-model="securityForm.password_min_length" type="number" min="4" max="32" placeholder="8" />
-            </div>
-          </div>
-          
-          <div class="security-settings">
-            <div class="setting-item">
-              <div class="setting-info">
-                <strong>Require Two-Factor Authentication</strong>
-                <p>All users must enable 2FA to access the system</p>
-              </div>
-              <div class="setting-control">
-                <label class="switch">
-                  <input v-model="securityForm.require_2fa" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-            
-            <div class="setting-item">
-              <div class="setting-info">
-                <strong>Auto-logout Inactive Users</strong>
-                <p>Automatically log out users after the session timeout period</p>
-              </div>
-              <div class="setting-control">
-                <label class="switch">
-                  <input v-model="securityForm.auto_logout_inactive" type="checkbox" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Data & Privacy -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>
-            <i class="fas fa-database"></i>
-            Data & Privacy
-          </h3>
-        </div>
-        <div class="card-content">
-          <div class="data-actions">
-            <div class="action-item">
-              <div class="action-info">
-                <strong>Export Data</strong>
-                <p>Download all your data in JSON format</p>
-              </div>
-              <button @click="exportData" class="btn btn-outline">
-                <i class="fas fa-download"></i>
-                Export
-              </button>
-            </div>
-            
-            <div class="action-item">
-              <div class="action-info">
-                <strong>Data Backup</strong>
-                <p>Create a backup of all system data</p>
-              </div>
-              <button @click="createBackup" class="btn btn-outline">
-                <i class="fas fa-backup"></i>
-                Backup
-              </button>
-            </div>
-            
-            <div class="action-item warning">
-              <div class="action-info">
-                <strong>Reset System</strong>
-                <p>Reset all settings to default values (irreversible)</p>
-              </div>
-              <button @click="resetSystem" class="btn btn-danger">
-                <i class="fas fa-undo"></i>
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-
-      <!-- System Information -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>
-            <i class="fas fa-info-circle"></i>
-            System Information
-          </h3>
-        </div>
-        <div class="card-content">
-          <div class="system-info">
-            <div class="info-item">
-              <span class="info-label">Application Version:</span>
-              <span class="info-value">1.0.0</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Last Updated:</span>
-              <span class="info-value">{{ formatDate(new Date()) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Database Status:</span>
-              <span class="info-value status-online">
-                <i class="fas fa-circle"></i> Online
-              </span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">API Status:</span>
-              <span class="info-value status-online">
-                <i class="fas fa-circle"></i> Online
-              </span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Total Users:</span>
-              <span class="info-value">{{ systemStats.total_users || 0 }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Total Participants:</span>
-              <span class="info-value">{{ systemStats.total_participants || 0 }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <script>
-import { mapState, mapActions, mapGetters } from 'pinia'
-import { useOrganizationStore } from '../stores/organization'
-import { useAuthStore } from '../stores/auth'
-import { showErrorNotification, showSuccessNotification, showInfoModal } from '../utils/errorHandler'
+import '@/styles/module-page.css'
+import api, { apiErrorMessage } from '@/services/api'
+import { currencyGroups } from '@/utils/currencies'
+import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+
+const FALLBACK_TZ = ['Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Adelaide', 'Australia/Perth', 'Pacific/Auckland', 'Asia/Singapore', 'Asia/Dubai', 'Africa/Nairobi', 'Africa/Lagos', 'Africa/Johannesburg', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'UTC']
+
+function blankOrg() {
+  return { name: '', abn: '', phone: '', email: '', website: '', description: '', address: { street: '', suburb: '', state: '', postcode: '', country: '' } }
+}
 
 export default {
-  name: 'SettingsView',
+  name: 'Settings',
   data() {
     return {
-      isSaving: false,
-      systemStats: {
-        total_users: 0,
-        total_participants: 0
-      },
-      organizationForm: {
-        name: '',
-        address: '',
-        phone: '',
-        email: '',
-        website: '',
-        abn: '',
-        registration_number: ''
-      },
-      systemForm: {
-        timezone: 'Australia/Melbourne',
-        currency: 'AUD',
-        date_format: 'DD/MM/YYYY',
-        time_format: '24h'
-      },
-      notificationForm: {
-        email_enabled: true,
-        sms_enabled: false,
-        push_enabled: true
-      },
-      billingForm: {
-        tax_rate: 10,
-        payment_terms_days: 30,
-        late_fee_percentage: 5
-      },
-      securityForm: {
-        session_timeout: 30,
-        password_min_length: 8,
-        require_2fa: false,
-        auto_logout_inactive: true
-      },
+      org: blankOrg(),
+      settings: { timezone: 'Australia/Sydney', currency: 'AUD', date_format: 'DD/MM/YYYY', time_format: '24h', language: 'en-AU', enable_email_notifications: true, enable_sms_notifications: false },
+      original: '',
+      canEdit: true,
+      loaded: false,
+      loadError: '',
+      saving: false,
+      errors: {},
+      active: 'business',
+      observer: null,
+      currencyGroups: currencyGroups(),
+      sections: [
+        { id: 'business', label: 'Business details', icon: 'fa-regular fa-building' },
+        { id: 'regional', label: 'Regional & formats', icon: 'fa-solid fa-globe' },
+        { id: 'notifications', label: 'Notifications', icon: 'fa-regular fa-bell' },
+        { id: 'more', label: 'More settings', icon: 'fa-solid fa-grip' }
+      ],
+      links: [
+        { to: '/profile', label: 'My profile & password', hint: 'Your name, phone and sign-in password', icon: 'fa-regular fa-user' },
+        { to: '/invoices/settings', label: 'Invoice settings', hint: 'Branding, numbering, tax and payment details', icon: 'fa-solid fa-file-invoice' },
+        { to: '/plan', label: 'Plan & billing', hint: 'Your subscription and included modules', icon: 'fa-solid fa-credit-card' },
+        { to: '/messaging-settings', label: 'Messaging', hint: 'Chat preferences and connected channels', icon: 'fa-regular fa-comments' },
+        { to: '/staff', label: 'Staff', hint: 'Team members who can sign in', icon: 'fa-solid fa-user-group' },
+        { to: '/ecommerce', label: 'Online store', hint: 'Shopify and WooCommerce connections', icon: 'fa-solid fa-store' }
+      ]
     }
   },
   computed: {
-    ...mapState(useOrganizationStore, ['organization', 'isLoading', 'error']),
-    ...mapState(useAuthStore, ['token']),
-    ...mapGetters(useOrganizationStore, [
-      'organizationName', 'organizationEmail', 'organizationPhone', 'organizationAddress',
-      'timezone', 'currency', 'dateFormat', 'timeFormat', 'taxRate', 'paymentTerms',
-      'sessionTimeout', 'passwordMinLength', 'require2FA',
-      'emailNotifications', 'smsNotifications', 'pushNotifications'
-    ])
+    snapshot() {
+      return JSON.stringify({ org: this.org, settings: this.settings })
+    },
+    dirty() {
+      return this.loaded && this.original !== this.snapshot
+    },
+    timezones() {
+      let list = FALLBACK_TZ
+      try {
+        if (typeof Intl.supportedValuesOf === 'function') list = Intl.supportedValuesOf('timeZone')
+      } catch {
+        /* older browsers */
+      }
+      return list.includes(this.settings.timezone) ? list : [this.settings.timezone, ...list]
+    },
+    nowInZone() {
+      try {
+        return new Intl.DateTimeFormat(undefined, { timeZone: this.settings.timezone, weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: this.settings.time_format === '12h' }).format(new Date())
+      } catch {
+        return '—'
+      }
+    },
+    dateFormats() {
+      const d = new Date()
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const y = d.getFullYear()
+      return [
+        { value: 'DD/MM/YYYY', example: `${dd}/${mm}/${y}` },
+        { value: 'MM/DD/YYYY', example: `${mm}/${dd}/${y}` },
+        { value: 'YYYY-MM-DD', example: `${y}-${mm}-${dd}` },
+        { value: 'DD-MM-YYYY', example: `${dd}-${mm}-${y}` }
+      ]
+    }
   },
-  async mounted() {
-    await this.loadSettings()
+  created() {
+    this.load()
+  },
+  mounted() {
+    window.addEventListener('beforeunload', this.beforeUnload)
+    if ('IntersectionObserver' in window) {
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+          if (vis.length) this.active = vis[0].target.id
+        },
+        { rootMargin: '-80px 0px -60% 0px' }
+      )
+      this.$nextTick(() => this.sections.forEach((s) => document.getElementById(s.id) && this.observer.observe(document.getElementById(s.id))))
+    }
+  },
+  beforeUnmount() {
+    window.removeEventListener('beforeunload', this.beforeUnload)
+    if (this.observer) this.observer.disconnect()
+  },
+  async beforeRouteLeave(to, from, next) {
+    if (!this.dirty) return next()
+    next(await confirmDialog({ title: 'Leave without saving?', message: 'Your changes to settings will be lost.', confirmText: 'Discard changes', danger: true }))
   },
   methods: {
-    ...mapActions(useOrganizationStore, [
-      'fetchOrganization', 'updateOrganization', 'updateSettings', 
-      'updateNotificationSettings', 'updateBillingSettings', 'updateSecuritySettings'
-    ]),
-    
-    async loadSettings() {
+    beforeUnload(e) {
+      if (this.dirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    },
+    apply(d) {
+      this.org = { ...blankOrg(), ...d.organization, address: { ...blankOrg().address, ...(d.organization.address || {}) } }
+      this.settings = { ...this.settings, ...d.settings }
+      this.canEdit = !!d.can_edit
+      this.original = this.snapshot
+    },
+    async load() {
+      this.loadError = ''
       try {
-        await this.fetchOrganization()
-        this.populateForms()
-        await this.loadSystemStats()
-      } catch (error) {
-        console.error('Error loading settings:', error)
-        showErrorNotification(error, 'Failed to load settings. Please refresh the page.')
+        const { data } = await api.get('/account/organization')
+        this.apply(data.data)
+        this.loaded = true
+      } catch (e) {
+        this.loadError = apiErrorMessage(e, 'Could not load settings')
       }
     },
-    
-    populateForms() {
-      // Populate organization form
-      let addressString = ''
-      if (this.organization.address && typeof this.organization.address === 'object') {
-        // Convert address object to string
-        const addr = this.organization.address
-        const parts = [
-          addr.street,
-          addr.suburb,
-          addr.state,
-          addr.postcode,
-          addr.country
-        ].filter(part => part && part.trim())
-        addressString = parts.join(', ')
-      } else if (typeof this.organization.address === 'string') {
-        addressString = this.organization.address
-      }
-      
-      this.organizationForm = {
-        name: this.organization.name || '',
-        address: addressString,
-        phone: this.organization.phone || '',
-        email: this.organization.email || '',
-        website: this.organization.website || '',
-        abn: this.organization.abn || '',
-        registration_number: this.organization.registration_number || ''
-      }
-      
-      // Populate system form
-      const settings = this.organization.settings || {}
-      this.systemForm = {
-        timezone: settings.timezone || 'Australia/Melbourne',
-        currency: settings.currency || 'AUD',
-        date_format: settings.date_format || 'DD/MM/YYYY',
-        time_format: settings.time_format || '24h'
-      }
-      
-      // Populate notification form
-      const notifications = settings.notifications || {}
-      this.notificationForm = {
-        email_enabled: notifications.email_enabled !== false,
-        sms_enabled: notifications.sms_enabled || false,
-        push_enabled: notifications.push_enabled !== false
-      }
-      
-      // Populate billing form
-      const billing = settings.billing || {}
-      this.billingForm = {
-        tax_rate: billing.tax_rate || 10,
-        payment_terms_days: billing.payment_terms_days || 30,
-        late_fee_percentage: billing.late_fee_percentage || 5
-      }
-      
-      // Populate security form
-      const security = settings.security || {}
-      this.securityForm = {
-        session_timeout: security.session_timeout || 30,
-        password_min_length: security.password_min_length || 8,
-        require_2fa: security.require_2fa || false,
-        auto_logout_inactive: security.auto_logout_inactive !== false
-      }
+    reset() {
+      const o = JSON.parse(this.original)
+      this.org = o.org
+      this.settings = o.settings
+      this.errors = {}
     },
-    
-    async loadSystemStats() {
-      // This would typically come from an API endpoint
-      this.systemStats = {
-        total_users: 5,
-        total_participants: 12
-      }
+    scrollTo(id) {
+      this.active = id
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     },
-    
-    async saveAllSettings() {
-      if (!this.validateSettingsForm()) {
-        return
-      }
-      
-      this.isSaving = true
+    validate() {
+      const e = {}
+      if (!this.org.name) e.name = 'Business name is required'
+      if (this.org.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.org.email)) e.email = 'Enter a valid email address'
+      if (this.org.website && !/^(https?:\/\/)?[^\s/]+\.[^\s]+$/i.test(this.org.website)) e.website = 'Enter a valid website, e.g. https://example.com'
+      this.errors = e
+      if (Object.keys(e).length) this.scrollTo('business')
+      return !Object.keys(e).length
+    },
+    async save() {
+      if (!this.validate()) return
+      this.saving = true
       try {
-        // Validate and prepare organization data
-        const organizationData = {
-          ...this.organizationForm,
-          name: this.organizationForm.name.trim(),
-          email: this.organizationForm.email.trim(),
-          phone: this.organizationForm.phone.trim(),
-          address: (this.organizationForm.address || '').toString().trim(),
-          website: this.organizationForm.website.trim(),
-          abn: this.organizationForm.abn.trim(),
-          settings: {
-            ...this.systemForm,
-            notifications: this.notificationForm,
-            billing: this.billingForm,
-            security: this.securityForm
-          }
-        }
-        
-        console.log('Saving settings with data:', organizationData)
-        await this.updateOrganization(organizationData)
-        showSuccessNotification('Settings saved successfully!')
-        
-      } catch (error) {
-        console.error('Error saving settings:', error)
-        showErrorNotification(error, 'Error saving settings. Please try again.')
+        const { data } = await api.put('/account/organization', { ...this.org, settings: this.settings })
+        this.apply(data.data)
+        toast.success('Settings saved')
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not save settings'))
       } finally {
-        this.isSaving = false
+        this.saving = false
       }
-    },
-
-    validateSettingsForm() {
-      if (!this.organizationForm.name || !this.organizationForm.name.trim()) {
-        showErrorNotification(new Error('Organization name is required'))
-        return false
-      }
-      if (this.organizationForm.email && !this.isValidEmail(this.organizationForm.email)) {
-        showErrorNotification(new Error('Please enter a valid email address'))
-        return false
-      }
-      if (this.organizationForm.website && !this.isValidUrl(this.organizationForm.website)) {
-        showErrorNotification(new Error('Please enter a valid website URL'))
-        return false
-      }
-      if (this.billingForm.tax_rate < 0 || this.billingForm.tax_rate > 100) {
-        showErrorNotification(new Error('Tax rate must be between 0 and 100'))
-        return false
-      }
-      if (this.billingForm.payment_terms_days < 1 || this.billingForm.payment_terms_days > 365) {
-        showErrorNotification(new Error('Payment terms must be between 1 and 365 days'))
-        return false
-      }
-      if (this.securityForm.session_timeout < 5 || this.securityForm.session_timeout > 480) {
-        showErrorNotification(new Error('Session timeout must be between 5 and 480 minutes'))
-        return false
-      }
-      return true
-    },
-
-    isValidEmail(email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      return emailRegex.test(email.trim())
-    },
-
-    isValidUrl(url) {
-      try {
-        new URL(url)
-        return true
-      } catch {
-        return false
-      }
-    },
-    
-    async saveOrganizationInfo() {
-      try {
-        await this.updateOrganization(this.organizationForm)
-        showSuccessNotification('Organization information updated!')
-      } catch (error) {
-        console.error('Error saving organization info:', error)
-        showErrorNotification(error, 'Error saving organization information.')
-      }
-    },
-    
-    exportData() {
-      showInfoModal('Export data functionality will be available soon! This feature will allow you to export your organization data in various formats.', 'Export Data')
-    },
-    
-    createBackup() {
-      showInfoModal('Create backup functionality will be available soon! This feature will allow you to create secure backups of your data.', 'Create Backup')
-    },
-    
-    resetSystem() {
-      if (confirm('Are you sure you want to reset all settings? This action cannot be undone.')) {
-        showInfoModal('Reset system functionality will be available soon! This feature will allow you to reset all settings to default values.', 'Reset System')
-      }
-},
-    
-    formatDate(date) {
-      return date.toLocaleDateString('en-AU', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      })
-    },
-    
+    }
   }
 }
 </script>
 
 <style scoped>
-.settings-page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 1.5rem;
-  min-height: 100vh;
-}
-
-.page-header {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--card-border);
-  border-radius: 24px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: var(--bs-box-shadow-lg);
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.page-header:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.1);
-}
-
-.page-header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(147, 197, 253, 0.5), transparent);
-}
-
-[data-theme="dark"] .page-header {
-  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.85) 100%);
-  border: 1px solid rgba(75, 85, 99, 0.3);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .page-header::before {
-  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent);
-}
-
-.header-content {
-  flex: 1;
-}
-
-.page-title {
-  font-size: 2.25rem;
-  font-weight: 700;
-  color: var(--bs-body-color);
-  margin: 0 0 0.75rem 0;
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  line-height: 1.3;
-  letter-spacing: -0.025em;
-}
-
-.title-icon {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-}
-
-.title-icon:hover {
-  transform: scale(1.05) translateY(-2px);
-  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.35);
-}
-
-.title-icon i {
-  font-size: 1.75rem;
-  color: white;
-}
-
-.page-description {
-  font-size: 1.125rem;
-  color: var(--bs-secondary);
-  margin: 0;
-  line-height: 1.6;
-  max-width: 640px;
-  font-weight: 400;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-[data-theme="dark"] .page-title {
-  color: #f8fafc;
-}
-
-[data-theme="dark"] .page-description {
-  color: #cbd5e1;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: #374151;
-}
-
-[data-theme="dark"] .loading-state {
-  color: #e5e7eb;
-}
-
-.loading-spinner {
-  border: 4px solid #e5e7eb;
-  border-top: 4px solid #3b82f6;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 2s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-[data-theme="dark"] .loading-spinner {
-  border: 4px solid #374151;
-  border-top: 4px solid #3b82f6;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.settings-grid {
+.layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-  gap: 2rem;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  padding-bottom: 72px;
 }
 
-.settings-card {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--stat-card-shadow);
-  overflow: hidden;
-  transition: all 0.3s ease;
+.side {
+  position: sticky;
+  top: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.settings-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-}
-
-[data-theme="dark"] .settings-card {
-  background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(31, 41, 55, 0.85) 100%);
-  border: 1px solid rgba(75, 85, 99, 0.3);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .settings-card:hover {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-}
-
-.card-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.3);
-  background: rgba(248, 250, 252, 0.8);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-[data-theme="dark"] .card-header {
-  border-bottom: 1px solid rgba(75, 85, 99, 0.3);
-  background: rgba(31, 41, 55, 0.8);
-}
-
-.card-header h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--bs-body-color);
-  margin: 0;
+.side a {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  line-height: 1.4;
-  letter-spacing: -0.01em;
-}
-
-[data-theme="dark"] .card-header h3 {
-  color: #f8fafc;
-}
-
-.card-header i {
-  color: #3b82f6;
-  font-size: 1.2rem;
-}
-
-.card-content {
-  padding: 1.5rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.625rem;
-  font-weight: 500;
-  color: #374151;
-  font-size: 0.875rem;
-  letter-spacing: 0.01em;
-  line-height: 1.4;
-}
-
-[data-theme="dark"] .form-group label {
-  color: #e2e8f0;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 14px 16px;
-  border: 2px solid rgba(226, 232, 240, 0.6);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  font-size: 1rem;
-  color: var(--bs-body-color);
-  line-height: 1.5;
-}
-
-[data-theme="dark"] .form-group input,
-[data-theme="dark"] .form-group select,
-[data-theme="dark"] .form-group textarea {
-  border: 2px solid rgba(75, 85, 99, 0.6);
-  background: rgba(31, 41, 55, 0.9);
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .form-group input::placeholder,
-[data-theme="dark"] .form-group textarea::placeholder {
-  color: #9ca3af;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  transform: translateY(-1px);
-}
-
-[data-theme="dark"] .form-group input:focus,
-[data-theme="dark"] .form-group select:focus,
-[data-theme="dark"] .form-group textarea:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.form-help {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-[data-theme="dark"] .form-help {
-  color: #9ca3af;
-}
-
-.notification-settings > *,
-.security-settings > * {
-  margin-bottom: 1rem;
-}
-
-.notification-settings > *:last-child,
-.security-settings > *:last-child {
-  margin-bottom: 0;
-}
-
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.3);
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  transition: all 0.3s ease;
-}
-
-.setting-item:hover {
-  background: rgba(255, 255, 255, 0.8);
-  transform: translateY(-1px);
-}
-
-[data-theme="dark"] .setting-item {
-  border: 1px solid rgba(75, 85, 99, 0.3);
-  background: rgba(31, 41, 55, 0.5);
-}
-
-[data-theme="dark"] .setting-item:hover {
-  background: rgba(31, 41, 55, 0.8);
-}
-
-.setting-info {
-  flex: 1;
-}
-
-.setting-info strong {
-  display: block;
-  color: #1f2937;
-  margin-bottom: 0.25rem;
-}
-
-[data-theme="dark"] .setting-info strong {
-  color: #f3f4f6;
-}
-
-.setting-info p {
-  font-size: 0.9rem;
-  color: #6b7280;
-  margin: 0;
-}
-
-[data-theme="dark"] .setting-info p {
-  color: #9ca3af;
-}
-
-.setting-control {
-  flex-shrink: 0;
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 24px;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: 0.4s;
-  border-radius: 24px;
-}
-
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.4s;
-  border-radius: 50%;
-}
-
-input:checked + .slider {
-  background-color: var(--primary-color);
-}
-
-input:checked + .slider:before {
-  transform: translateX(26px);
-}
-
-.data-actions > * {
-  margin-bottom: 1rem;
-}
-
-.data-actions > *:last-child {
-  margin-bottom: 0;
-}
-
-.action-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border: 1px solid var(--card-border);
-  border-radius: var(--border-radius-sm);
-  margin-bottom: 1rem;
-}
-
-.action-item.warning {
-  border-color: #fbbf24;
-  background: #fffbeb;
-}
-
-.action-info {
-  flex: 1;
-}
-
-.action-info strong {
-  display: block;
-  color: var(--text-dark);
-  margin-bottom: 0.25rem;
-}
-
-.action-info p {
-  font-size: 0.9rem;
-  color: var(--text-medium);
-  margin: 0;
-}
-
-.system-info > * {
-  margin-bottom: 0.75rem;
-}
-
-.system-info > *:last-child {
-  margin-bottom: 0;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.info-item:last-child {
-  border-bottom: none;
-}
-
-.info-label {
-  font-weight: 500;
-  color: var(--text-medium);
-}
-
-.info-value {
-  font-weight: 600;
-  color: var(--text-dark);
-}
-
-.info-value.status-online {
-  color: #10b981;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.info-value.status-online i {
-  font-size: 0.8rem;
-}
-
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
   text-decoration: none;
+  font-weight: 550;
   font-size: 14px;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  color: white;
-  border: 2px solid transparent;
+.side a i {
+  width: 16px;
+  text-align: center;
+  color: var(--text-3);
 }
 
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+.side a:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
-.btn-primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
+.side a.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
-.btn-outline {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 2px solid rgba(226, 232, 240, 0.6);
-  color: #6b7280;
+.side a.is-active i {
+  color: var(--accent);
 }
 
-[data-theme="dark"] .btn-outline {
-  background: rgba(31, 41, 55, 0.8);
-  border: 2px solid rgba(75, 85, 99, 0.6);
-  color: #9ca3af;
+.stack,
+.plain {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.btn-outline:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
-  transform: translateY(-2px);
+.plain {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
 }
 
-[data-theme="dark"] .btn-outline:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.2);
+.stack > section,
+.plain > section {
+  scroll-margin-top: 88px;
 }
 
-.btn-danger {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  color: white;
-  border: 2px solid transparent;
+.sub {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: 13px;
 }
 
-.btn-danger:hover {
-  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.3);
+.sk {
+  display: grid;
+  gap: 14px;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.addr {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 
+.toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
 
-/* Success and Error notifications */
-:global(.success-notification) {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #10b981;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 10000;
+.toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.toggle:last-child {
+  border-bottom: 0;
+}
+
+.toggle small {
+  display: block;
+  color: var(--text-3);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.links {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.link {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  animation: slideIn 0.3s ease;
+  gap: 14px;
+  padding: 16px 20px;
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  transition: background 0.15s;
 }
 
-:global(.error-notification) {
+.link:hover {
+  background: var(--surface-hover);
+}
+
+.link > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.link small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.link__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.savebar {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #dc2626;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 10000;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 1500;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  animation: slideIn 0.3s ease;
+  gap: 20px;
+  padding: 10px 12px 10px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  font-size: 13.5px;
+  color: var(--text-2);
+  max-width: calc(100vw - 32px);
 }
 
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
+.bar-enter-active,
+.bar-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.bar-enter-from,
+.bar-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 12px);
+}
+
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: 1fr;
   }
-  to {
-    transform: translateX(0);
-    opacity: 1;
+  .side {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+  }
+  .side a {
+    white-space: nowrap;
+    border: 1px solid var(--border);
+  }
+  .addr {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-
-  .settings-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
-  .setting-item,
-  .action-item {
+@media (max-width: 520px) {
+  .savebar {
+    left: 16px;
+    right: 16px;
+    transform: none;
     flex-direction: column;
     align-items: stretch;
-    gap: 1rem;
-    text-align: center;
+    gap: 8px;
   }
-
-  .info-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-    text-align: center;
+  .bar-enter-from,
+  .bar-leave-to {
+    transform: translateY(12px);
   }
 }
 </style>

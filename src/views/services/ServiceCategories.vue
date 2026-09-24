@@ -1,359 +1,202 @@
 <template>
-  <div class="service-categories-page">
-    <!-- Action Buttons Section -->
-    <div class="page-actions d-flex justify-content-end mb-4">
-      <button @click="showAddCategoryModal = true" class="btn btn-primary">
-        <i class="fas fa-plus me-2"></i>
-        Add Category
-      </button>
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow"><router-link to="/services" class="crumb">Services</router-link></div>
+        <h1>Service categories</h1>
+        <p>How your services are grouped. Categories are created when you add a service.</p>
+      </div>
+      <div class="ui-actions">
+        <router-link to="/services" class="ui-btn"><i class="fa-solid fa-list"></i> All services</router-link>
+        <button class="ui-btn ui-btn--primary" @click="openCreate('')"><i class="fa-solid fa-plus"></i> New service</button>
+      </div>
+    </header>
+
+    <div v-if="error" class="ui-alert ui-alert--danger" style="margin-bottom: 20px">
+      <i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span>
     </div>
 
-    <!-- Categories Grid -->
-    <div class="categories-grid">
-      <div 
-        v-for="category in categories" 
-        :key="category.id" 
-        class="category-card"
-        @click="goToCategory(category.slug)"
-      >
-        <div class="category-header">
-          <div class="category-icon" :style="{ backgroundColor: category.color }">
-            <i :class="category.icon"></i>
-          </div>
-          <div class="category-actions" @click.stop>
-            <button @click="editCategory(category)" class="btn-icon">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button @click="deleteCategory(category)" class="btn-icon btn-danger">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-        </div>
-        
-        <div class="category-content">
-          <h3 class="category-name">{{ category.name }}</h3>
-          <p class="category-description">{{ category.description }}</p>
-          
-          <div class="category-stats">
-            <div class="stat-item">
-              <span class="stat-value">{{ category.serviceCount || 0 }}</span>
-              <span class="stat-label">Services</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">${{ category.avgPrice || '0' }}</span>
-              <span class="stat-label">Avg Price</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ category.avgDuration || 0 }}m</span>
-              <span class="stat-label">Avg Duration</span>
-            </div>
-          </div>
-
-          <div class="category-preview">
-            <div class="preview-services">
-              <span 
-                v-for="service in category.sampleServices?.slice(0, 3)" 
-                :key="service.id" 
-                class="service-tag"
-              >
-                {{ service.name }}
-              </span>
-              <span 
-                v-if="category.serviceCount > 3" 
-                class="service-tag more"
-              >
-                +{{ category.serviceCount - 3 }} more
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="category-footer">
-          <span class="status-badge" :class="category.isActive ? 'active' : 'inactive'">
-            {{ category.isActive ? 'Active' : 'Inactive' }}
-          </span>
-          <span class="view-link">
-            View Services
-            <i class="fas fa-arrow-right"></i>
-          </span>
-        </div>
+    <section v-if="loading && !loaded" class="cat-grid">
+      <div v-for="n in 6" :key="n" class="ui-card sk-tile">
+        <div class="ui-skeleton" style="width: 40px; height: 40px; border-radius: 12px"></div>
+        <div class="ui-skeleton" style="width: 60%; height: 16px; margin-top: 16px"></div>
+        <div class="ui-skeleton" style="width: 40%; margin-top: 10px"></div>
       </div>
+    </section>
 
-      <!-- Add Category Card -->
-      <div class="category-card add-category-card" @click="showAddCategoryModal = true">
-        <div class="add-category-content">
-          <i class="fas fa-plus add-icon"></i>
-          <h3>Add New Category</h3>
-          <p>Create a new service category</p>
-        </div>
+    <section v-else-if="loaded && !categories.length" class="ui-card">
+      <div class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-layer-group"></i></div>
+        <h3>No categories yet</h3>
+        <p>Add your first service and give it a category, like “Hair”, “Massage” or “Logbook service”.</p>
+        <button class="ui-btn ui-btn--primary" style="margin-top: 14px" @click="openCreate('')"><i class="fa-solid fa-plus"></i> New service</button>
       </div>
-    </div>
+    </section>
 
-    <!-- Add/Edit Category Modal -->
-    <div v-if="showAddCategoryModal || showEditCategoryModal" class="modal-overlay" @click="closeCategoryModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-header">
-          <h3>{{ isEditingCategory ? 'Edit Category' : 'Add New Category' }}</h3>
-          <button @click="closeCategoryModal" class="btn-icon">
-            <i class="fas fa-times"></i>
+    <template v-else-if="loaded">
+      <section class="cat-grid">
+        <article v-for="c in categories" :key="c.name" class="ui-card tile">
+          <div class="tile__top">
+            <span class="tile__icon"><i :class="c.icon"></i></span>
+            <div class="tile__menu">
+              <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Rename category" :aria-label="`Rename ${c.name}`" @click="openRename(c)"><i class="fa-regular fa-pen-to-square"></i></button>
+              <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Add a service to this category" :aria-label="`Add service to ${c.name}`" @click="openCreate(c.name)"><i class="fa-solid fa-plus"></i></button>
+            </div>
+          </div>
+          <router-link :to="{ path: '/services', query: { category: c.name } }" class="tile__link">
+            <h2>{{ c.name }}</h2>
+            <p class="tile__count">{{ c.count }} service{{ c.count === 1 ? '' : 's' }}<template v-if="c.inactive"> · {{ c.inactive }} inactive</template></p>
+            <dl class="tile__facts">
+              <div>
+                <dt>Price</dt>
+                <dd>{{ c.min === c.max ? money(c.min) : `${money(c.min)} – ${money(c.max)}` }}</dd>
+              </div>
+              <div>
+                <dt>Avg. duration</dt>
+                <dd>{{ duration(c.avgDuration) }}</dd>
+              </div>
+            </dl>
+            <ul class="tile__names">
+              <li v-for="n in c.names.slice(0, 3)" :key="n">{{ n }}</li>
+              <li v-if="c.names.length > 3" class="more">+{{ c.names.length - 3 }} more</li>
+            </ul>
+            <span class="tile__cta">View services <i class="fa-solid fa-arrow-right"></i></span>
+          </router-link>
+        </article>
+      </section>
+
+      <section class="ui-card views">
+        <div class="ui-card__head">
+          <h2>Industry views</h2>
+          <span class="muted">Shortcut lists that match services by keyword</span>
+        </div>
+        <div class="views__grid">
+          <router-link v-for="g in groups" :key="g.slug" :to="g.path" class="view">
+            <span class="view__icon"><i :class="g.icon"></i></span>
+            <span class="view__text">
+              <strong>{{ g.title }}</strong>
+              <small>{{ g.count ? `${g.count} matching service${g.count === 1 ? '' : 's'}` : 'No matching services' }}</small>
+            </span>
+            <i class="fa-solid fa-chevron-right view__chev"></i>
+          </router-link>
+        </div>
+      </section>
+    </template>
+
+    <ServiceFormModal :show="formOpen" :service="null" :categories="categories.map((c) => c.name)" :preset-category="presetCategory" @close="formOpen = false" @saved="onSaved" />
+
+    <div v-if="renaming" class="ui-modal-backdrop" @mousedown.self="renaming = null">
+      <form class="ui-modal" role="dialog" aria-modal="true" aria-label="Rename category" @submit.prevent="rename">
+        <div class="ui-modal__head">
+          <h2>Rename category</h2>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" @click="renaming = null"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <div class="ui-field">
+            <label for="rn">New name for “{{ renaming.name }}”</label>
+            <input id="rn" ref="rn" v-model.trim="newName" class="ui-input" maxlength="100" />
+            <span class="ui-hint">Updates all {{ renaming.count }} service{{ renaming.count === 1 ? '' : 's' }} in this category.</span>
+          </div>
+        </div>
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn" @click="renaming = null">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving || !newName || newName === renaming.name">
+            <i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> Rename
           </button>
         </div>
-        
-        <form @submit.prevent="saveCategory" class="modal-form">
-          <div class="form-group">
-            <label for="categoryName">Category Name</label>
-            <input 
-              id="categoryName"
-              v-model="categoryForm.name" 
-              type="text" 
-              required 
-              placeholder="e.g., Automotive Repair"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="categoryDescription">Description</label>
-            <textarea 
-              id="categoryDescription"
-              v-model="categoryForm.description" 
-              rows="3" 
-              placeholder="Describe this service category..."
-            ></textarea>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="categoryIcon">Icon</label>
-              <select id="categoryIcon" v-model="categoryForm.icon">
-                <option value="fas fa-wrench">🔧 Wrench (Repair)</option>
-                <option value="fas fa-car">🚗 Car (Automotive)</option>
-                <option value="fas fa-cut">✂️ Scissors (Hair)</option>
-                <option value="fas fa-spa">💆 Spa (Beauty)</option>
-                <option value="fas fa-hammer">🔨 Hammer (Maintenance)</option>
-                <option value="fas fa-paintbrush">🎨 Paint (Styling)</option>
-                <option value="fas fa-heart">💗 Heart (Wellness)</option>
-                <option value="fas fa-medkit">🏥 Medical (Healthcare)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="categoryColor">Color</label>
-              <select id="categoryColor" v-model="categoryForm.color">
-                <option value="#667eea">🔵 Blue</option>
-                <option value="#fa709a">🌸 Pink</option>
-                <option value="#43e97b">🍃 Green</option>
-                <option value="#4facfe">🌊 Light Blue</option>
-                <option value="#f093fb">💜 Purple</option>
-                <option value="#feca57">🌟 Yellow</option>
-                <option value="#ff6b6b">❤️ Red</option>
-                <option value="#48dbfb">🐬 Cyan</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input 
-                type="checkbox" 
-                v-model="categoryForm.isActive"
-              />
-              <span class="checkmark"></span>
-              Active Category
-            </label>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" @click="closeCategoryModal" class="btn btn-outline">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary">
-              {{ isEditingCategory ? 'Update Category' : 'Create Category' }}
-            </button>
-          </div>
-        </form>
-      </div>
+      </form>
     </div>
   </div>
 </template>
 
 <script>
+import ServiceFormModal from '@/components/services/ServiceFormModal.vue'
+import { serviceService, formatDuration, SERVICE_GROUPS, groupForCategory } from '@/services/serviceService'
+import { apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+import { formatMoney } from '@/utils/format'
+
 export default {
   name: 'ServiceCategories',
+  components: { ServiceFormModal },
   data() {
-    return {
-      showAddCategoryModal: false,
-      showEditCategoryModal: false,
-      editingCategory: null,
-      categoryForm: {
-        name: '',
-        description: '',
-        icon: 'fas fa-wrench',
-        color: '#667eea',
-        isActive: true
-      },
-      categories: [
-        {
-          id: 1,
-          name: 'Automotive Repair',
-          slug: 'automotive-repair',
-          description: 'Professional automotive repair and diagnostic services',
-          icon: 'fas fa-wrench',
-          color: '#667eea',
-          isActive: true,
-          serviceCount: 8,
-          avgPrice: '125.50',
-          avgDuration: 75,
-          sampleServices: [
-            { id: 1, name: 'Brake Service' },
-            { id: 2, name: 'Engine Diagnostic' },
-            { id: 3, name: 'Transmission Repair' }
-          ]
-        },
-        {
-          id: 2,
-          name: 'Automotive Maintenance',
-          slug: 'automotive-maintenance',
-          description: 'Regular maintenance services to keep your vehicle running smoothly',
-          icon: 'fas fa-car',
-          color: '#43e97b',
-          isActive: true,
-          serviceCount: 6,
-          avgPrice: '75.00',
-          avgDuration: 45,
-          sampleServices: [
-            { id: 4, name: 'Oil Change' },
-            { id: 5, name: 'Tire Rotation' },
-            { id: 6, name: 'Filter Replacement' }
-          ]
-        },
-        {
-          id: 3,
-          name: 'Hair Services',
-          slug: 'hair-services',
-          description: 'Professional hair cutting, styling, and coloring services',
-          icon: 'fas fa-cut',
-          color: '#fa709a',
-          isActive: true,
-          serviceCount: 12,
-          avgPrice: '85.00',
-          avgDuration: 90,
-          sampleServices: [
-            { id: 7, name: 'Haircut & Style' },
-            { id: 8, name: 'Hair Coloring' },
-            { id: 9, name: 'Hair Treatment' }
-          ]
-        },
-        {
-          id: 4,
-          name: 'Beauty & Spa',
-          slug: 'beauty-spa',
-          description: 'Relaxing beauty treatments and spa services',
-          icon: 'fas fa-spa',
-          color: '#4facfe',
-          isActive: true,
-          serviceCount: 10,
-          avgPrice: '95.00',
-          avgDuration: 60,
-          sampleServices: [
-            { id: 10, name: 'Facial Treatment' },
-            { id: 11, name: 'Manicure' },
-            { id: 12, name: 'Massage' }
-          ]
-        },
-        {
-          id: 5,
-          name: 'Nail Services',
-          slug: 'nail-services',
-          description: 'Professional nail care and nail art services',
-          icon: 'fas fa-hand-paper',
-          color: '#f093fb',
-          isActive: true,
-          serviceCount: 7,
-          avgPrice: '42.00',
-          avgDuration: 35,
-          sampleServices: [
-            { id: 13, name: 'Manicure' },
-            { id: 14, name: 'Pedicure' },
-            { id: 15, name: 'Nail Art' }
-          ]
-        },
-        {
-          id: 6,
-          name: 'Diagnostic Services',
-          slug: 'diagnostic-services',
-          description: 'Advanced diagnostic and inspection services',
-          icon: 'fas fa-search',
-          color: '#feca57',
-          isActive: true,
-          serviceCount: 4,
-          avgPrice: '110.00',
-          avgDuration: 60,
-          sampleServices: [
-            { id: 16, name: 'Engine Diagnostic' },
-            { id: 17, name: 'Pre-Purchase Inspection' },
-            { id: 18, name: 'Safety Check' }
-          ]
-        }
-      ]
-    }
+    return { services: [], loaded: false, loading: false, error: '', formOpen: false, presetCategory: '', renaming: null, newName: '', saving: false }
   },
   computed: {
-    isEditingCategory() {
-      return !!this.editingCategory
+    categories() {
+      const map = new Map()
+      for (const s of this.services) {
+        const key = s.category || 'Uncategorised'
+        if (!map.has(key)) map.set(key, [])
+        map.get(key).push(s)
+      }
+      return [...map.entries()]
+        .map(([name, list]) => {
+          const prices = list.map((s) => Number(s.price) || 0)
+          return {
+            name,
+            count: list.length,
+            inactive: list.filter((s) => !s.is_active).length,
+            min: Math.min(...prices),
+            max: Math.max(...prices),
+            avgDuration: Math.round(list.reduce((t, s) => t + (Number(s.duration) || 0), 0) / list.length),
+            names: list.map((s) => s.name).sort(),
+            icon: groupForCategory(name)?.icon || 'fa-solid fa-layer-group',
+            ids: list.map((s) => s.id)
+          }
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+    groups() {
+      return SERVICE_GROUPS.map((g) => ({
+        ...g,
+        count: this.services.filter((s) => g.match.some((k) => `${s.category} ${s.name}`.toLowerCase().includes(k))).length
+      }))
     }
   },
+  created() {
+    this.load()
+  },
   methods: {
-    goToCategory(categorySlug) {
-      this.$router.push(`/services/${categorySlug}`)
-    },
-    
-    editCategory(category) {
-      this.editingCategory = category
-      this.categoryForm = { ...category }
-      this.showEditCategoryModal = true
-    },
-    
-    deleteCategory(category) {
-      if (confirm(`Are you sure you want to delete the "${category.name}" category?`)) {
-        const index = this.categories.findIndex(c => c.id === category.id)
-        if (index !== -1) {
-          this.categories.splice(index, 1)
-        }
+    money: (v) => formatMoney(v),
+    duration: formatDuration,
+    async load() {
+      this.loading = true
+      this.error = ''
+      try {
+        this.services = await serviceService.list()
+        this.loaded = true
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load services')
+      } finally {
+        this.loading = false
       }
     },
-    
-    saveCategory() {
-      if (this.isEditingCategory) {
-        const index = this.categories.findIndex(c => c.id === this.editingCategory.id)
-        if (index !== -1) {
-          this.categories[index] = { ...this.categories[index], ...this.categoryForm }
-        }
-      } else {
-        const newCategory = {
-          id: Date.now(),
-          slug: this.categoryForm.name.toLowerCase().replace(/\s+/g, '-'),
-          serviceCount: 0,
-          avgPrice: '0.00',
-          avgDuration: 0,
-          sampleServices: [],
-          ...this.categoryForm
-        }
-        this.categories.push(newCategory)
-      }
-      
-      this.closeCategoryModal()
+    openCreate(cat) {
+      this.presetCategory = cat
+      this.formOpen = true
     },
-    
-    closeCategoryModal() {
-      this.showAddCategoryModal = false
-      this.showEditCategoryModal = false
-      this.editingCategory = null
-      this.categoryForm = {
-        name: '',
-        description: '',
-        icon: 'fas fa-wrench',
-        color: '#667eea',
-        isActive: true
+    async onSaved() {
+      this.formOpen = false
+      await this.load()
+    },
+    openRename(c) {
+      this.renaming = c
+      this.newName = c.name
+      this.$nextTick(() => this.$refs.rn?.select())
+    },
+    async rename() {
+      this.saving = true
+      try {
+        for (const id of this.renaming.ids) await serviceService.update(id, { category: this.newName })
+        toast.success(`Renamed to “${this.newName}”`)
+        this.renaming = null
+        await this.load()
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not rename the category'))
+        await this.load()
+      } finally {
+        this.saving = false
       }
     }
   }
@@ -361,420 +204,190 @@ export default {
 </script>
 
 <style scoped>
-.service-categories-page {
-  padding: 2rem;
-  width: 100%;
-  background: var(--bs-body-bg);
-  min-height: 100vh;
+.crumb {
+  color: var(--text-3);
+  text-decoration: none;
 }
 
-/* Header Styles */
-.page-header {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--card-border);
-  border-radius: 24px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: var(--bs-box-shadow-lg);
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+.crumb:hover {
+  color: var(--accent);
 }
 
-.page-title {
-  font-size: 2.25rem;
-  font-weight: 700;
-  color: var(--bs-body-color);
-  margin: 0 0 0.75rem 0;
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
+.crumb::after {
+  content: ' /';
 }
 
-.title-icon {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.25);
-  flex-shrink: 0;
+.muted {
+  color: var(--text-3);
+  font-size: 13px;
 }
 
-.title-icon i {
-  font-size: 1.75rem;
-  color: white;
-}
-
-.page-description {
-  font-size: 1.125rem;
-  color: var(--bs-secondary);
-  margin: 0;
-  line-height: 1.6;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-}
-
-/* Categories Grid */
-.categories-grid {
+.cat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
-.category-card {
-  background: var(--card-bg);
-  border-radius: 20px;
-  padding: 1.5rem;
-  box-shadow: var(--stat-card-shadow);
-  transition: all 0.3s ease;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
+.sk-tile {
+  padding: 20px;
 }
 
-.category-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-}
-
-.category-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.category-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  color: white;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-.category-actions {
-  display: flex;
-  gap: 0.5rem;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.category-card:hover .category-actions {
-  opacity: 1;
-}
-
-.btn-icon {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: var(--bs-secondary);
-}
-
-.btn-icon:hover {
-  background: var(--card-bg);
-  transform: scale(1.1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.btn-danger {
-  color: #ef4444;
-}
-
-.category-name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--bs-body-color);
-  margin: 0 0 0.5rem 0;
-}
-
-.category-description {
-  color: var(--bs-secondary);
-  line-height: 1.6;
-  margin-bottom: 1.5rem;
-}
-
-.category-stats {
-  display: flex;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.stat-item {
+.tile {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  padding: 18px 20px 16px;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
-.stat-value {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--bs-body-color);
+.tile:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
 }
 
-.stat-label {
-  font-size: 0.8rem;
-  color: var(--bs-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.category-preview {
-  margin-bottom: 1rem;
-}
-
-.preview-services {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.service-tag {
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-  color: var(--bs-secondary);
-  padding: 0.25rem 0.75rem;
-  border-radius: 16px;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.service-tag.more {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.category-footer {
+.tile__top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--card-border);
+  align-items: flex-start;
 }
 
-.status-badge {
-  padding: 0.25rem 0.75rem;
+.tile__icon {
+  width: 42px;
+  height: 42px;
   border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 17px;
 }
 
-.status-badge.active {
-  background: rgba(34, 197, 94, 0.1);
-  color: #22c55e;
-}
-
-.status-badge.inactive {
-  background: rgba(148, 163, 184, 0.1);
-  color: #94a3b8;
-}
-
-.view-link {
-  color: #667eea;
-  font-weight: 600;
+.tile__menu {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
+  gap: 2px;
 }
 
-/* Add Category Card */
-.add-category-card {
-  border: 2px dashed #cbd5e1;
-  background: var(--bs-body-bg);
+.tile__link {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
+  flex-direction: column;
+  flex: 1;
+  color: var(--text);
+  text-decoration: none;
+  margin-top: 14px;
 }
 
-.add-category-card:hover {
-  border-color: #667eea;
-  background: #f0f4ff;
-}
-
-.add-category-content {
-  text-align: center;
-  color: var(--bs-secondary);
-}
-
-.add-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  color: #cbd5e1;
-}
-
-.add-category-card:hover .add-icon {
-  color: #667eea;
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-container {
-  background: var(--card-bg);
-  border-radius: 16px;
-  max-width: 500px;
-  width: 90vw;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--card-border);
-}
-
-.modal-header h3 {
+.tile h2 {
+  font-size: 17px;
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.modal-form {
-  padding: 1.5rem;
+.tile__count {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-3);
 }
 
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-row {
+.tile__facts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
-.form-group label {
-  display: block;
+.tile__facts dt {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tile__facts dd {
+  margin: 2px 0 0;
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #374151;
+  font-variant-numeric: tabular-nums;
 }
 
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: border-color 0.2s ease;
+.tile__names {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  align-content: flex-start;
 }
 
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.tile__names li {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
 }
 
-.checkbox-label {
+.tile__names .more {
+  color: var(--text-3);
+}
+
+.tile__cta {
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.views__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  margin: 0 -1px -1px 0;
+}
+
+.view {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--surface);
+  box-shadow: inset 0 -1px 0 var(--border), inset -1px 0 0 var(--border);
+  color: var(--text);
+  text-decoration: none;
 }
 
-.checkmark {
-  position: relative;
+.view:hover {
+  background: var(--surface-hover);
 }
 
-.form-actions {
+.view__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.view__text {
+  flex: 1;
   display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
+  flex-direction: column;
 }
 
-.btn {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.view__text small {
+  color: var(--text-3);
+  font-size: 12.5px;
 }
 
-.btn-outline {
-  background: var(--card-bg);
-  color: var(--bs-secondary);
-  border: 2px solid #e2e8f0;
+.view__chev {
+  color: var(--text-3);
+  font-size: 12px;
 }
 
-.btn-outline:hover {
-  background: var(--bs-body-bg);
-  border-color: #cbd5e1;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .service-categories-page {
-    padding: 1rem;
-  }
-  
-  .categories-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .category-stats {
-    gap: 1rem;
-  }
-  
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+.views {
+  overflow: hidden;
 }
 </style>

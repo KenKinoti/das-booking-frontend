@@ -1,816 +1,510 @@
 <template>
-  <div class="audit-logs">
+  <div class="ui-page ui-page--wide">
+    <header class="ui-page-head">
+      <div>
+        <div class="ui-eyebrow">Platform admin</div>
+        <h1>Audit log</h1>
+        <p>Who changed what, across platform administration, accounting and invoicing.</p>
+      </div>
+      <div class="ui-actions">
+        <button class="ui-btn" :disabled="exporting || !total" @click="exportCsv">
+          <i :class="exporting ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-download'"></i> Export
+        </button>
+        <button class="ui-btn" :disabled="loading" @click="load"><i :class="loading ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-rotate'"></i> Refresh</button>
+      </div>
+    </header>
 
-    <!-- Filters Section -->
-    <div class="filters-section">
-      <div class="filter-row">
-        <div class="search-box">
-          <i class="fas fa-search"></i>
-          <input 
-            type="text" 
-            placeholder="Search logs..." 
-            v-model="searchTerm"
-            @input="filterLogs"
-          >
-        </div>
-        <div class="date-filters">
-          <input 
-            type="date" 
-            v-model="startDate"
-            @change="filterLogs"
-            class="date-input"
-          >
-          <span class="date-separator">to</span>
-          <input 
-            type="date" 
-            v-model="endDate"
-            @change="filterLogs"
-            class="date-input"
-          >
-        </div>
-      </div>
-      
-      <div class="filter-row">
-        <select v-model="selectedAction" @change="filterLogs" class="filter-select">
-          <option value="">All Actions</option>
-          <option value="login">Login</option>
-          <option value="logout">Logout</option>
-          <option value="create">Create</option>
-          <option value="update">Update</option>
-          <option value="delete">Delete</option>
-          <option value="export">Export</option>
-          <option value="backup">Backup</option>
-        </select>
-        
-        <select v-model="selectedUser" @change="filterLogs" class="filter-select">
-          <option value="">All Users</option>
-          <option v-for="user in uniqueUsers" :key="user" :value="user">
-            {{ user }}
-          </option>
-        </select>
-        
-        <select v-model="selectedOrganization" @change="filterLogs" class="filter-select">
-          <option value="">All Organizations</option>
-          <option v-for="org in uniqueOrganizations" :key="org" :value="org">
-            {{ org }}
-          </option>
-        </select>
-        
-        <select v-model="selectedSeverity" @change="filterLogs" class="filter-select">
-          <option value="">All Levels</option>
-          <option value="info">Info</option>
-          <option value="warning">Warning</option>
-          <option value="error">Error</option>
-          <option value="critical">Critical</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Quick Stats -->
-    <div class="stats-bar">
-      <div class="stat-item">
-        <span class="stat-value">{{ filteredLogs.length }}</span>
-        <span class="stat-label">Total Entries</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value">{{ todayLogsCount }}</span>
-        <span class="stat-label">Today</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value">{{ errorLogsCount }}</span>
-        <span class="stat-label">Errors</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value">{{ uniqueUsersCount }}</span>
-        <span class="stat-label">Active Users</span>
-      </div>
-    </div>
-
-    <!-- Logs Table -->
-    <div class="logs-container">
-      <table class="logs-table">
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>User</th>
-            <th>Organization</th>
-            <th>Action</th>
-            <th>Resource</th>
-            <th>Level</th>
-            <th>IP Address</th>
-            <th>Details</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="log in paginatedLogs" :key="log.id" :class="log.severity">
-            <td>
-              <div class="timestamp">
-                <div class="date">{{ formatDate(log.timestamp) }}</div>
-                <div class="time">{{ formatTime(log.timestamp) }}</div>
-              </div>
-            </td>
-            <td>
-              <div class="user-info">
-                <div class="user-name">{{ log.user }}</div>
-                <div class="user-role">{{ log.userRole }}</div>
-              </div>
-            </td>
-            <td>{{ log.organization }}</td>
-            <td>
-              <span class="action-badge" :class="log.action">
-                <i :class="getActionIcon(log.action)"></i>
-                {{ log.action }}
-              </span>
-            </td>
-            <td>{{ log.resource }}</td>
-            <td>
-              <span class="severity-badge" :class="log.severity">
-                {{ log.severity }}
-              </span>
-            </td>
-            <td class="ip-address">{{ log.ipAddress }}</td>
-            <td>
-              <button class="details-btn" @click="showDetails(log)">
-                <i class="fas fa-eye"></i>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Pagination -->
-    <div class="pagination">
-      <button 
-        class="page-btn" 
-        :disabled="currentPage === 1"
-        @click="currentPage--"
-      >
-        <i class="fas fa-chevron-left"></i>
-        Previous
-      </button>
-      
-      <div class="page-info">
-        <span>Page {{ currentPage }} of {{ totalPages }}</span>
-        <select v-model="pageSize" @change="currentPage = 1" class="page-size-select">
-          <option value="25">25 per page</option>
-          <option value="50">50 per page</option>
-          <option value="100">100 per page</option>
-        </select>
-      </div>
-      
-      <button 
-        class="page-btn" 
-        :disabled="currentPage === totalPages"
-        @click="currentPage++"
-      >
-        Next
-        <i class="fas fa-chevron-right"></i>
-      </button>
-    </div>
-
-    <!-- Details Modal -->
-    <div v-if="showDetailsModal" class="modal-overlay" @click="closeDetailsModal">
-      <div class="modal" @click.stop>
-        <div class="modal-header">
-          <h3>Log Details</h3>
-          <button class="close-btn" @click="closeDetailsModal">
-            <i class="fas fa-times"></i>
+    <section class="ui-card">
+      <div class="pf-toolbar">
+        <div class="ui-tabs" role="tablist">
+          <button v-for="t in tabs" :key="t.value" class="ui-tab" :class="{ 'is-active': source === t.value }" role="tab" :aria-selected="source === t.value" @click="setSource(t.value)">
+            {{ t.label }}<span v-if="counts && t.value" class="count">{{ counts[t.value] || 0 }}</span>
           </button>
         </div>
-        <div class="modal-content">
-          <div class="detail-group">
-            <label>Timestamp</label>
-            <span>{{ selectedLog?.timestamp }}</span>
-          </div>
-          <div class="detail-group">
-            <label>User</label>
-            <span>{{ selectedLog?.user }} ({{ selectedLog?.userRole }})</span>
-          </div>
-          <div class="detail-group">
-            <label>Organization</label>
-            <span>{{ selectedLog?.organization }}</span>
-          </div>
-          <div class="detail-group">
-            <label>Action</label>
-            <span>{{ selectedLog?.action }}</span>
-          </div>
-          <div class="detail-group">
-            <label>Resource</label>
-            <span>{{ selectedLog?.resource }}</span>
-          </div>
-          <div class="detail-group">
-            <label>IP Address</label>
-            <span>{{ selectedLog?.ipAddress }}</span>
-          </div>
-          <div class="detail-group">
-            <label>User Agent</label>
-            <span>{{ selectedLog?.userAgent }}</span>
-          </div>
-          <div class="detail-group">
-            <label>Description</label>
-            <span>{{ selectedLog?.description }}</span>
-          </div>
-          <div v-if="selectedLog?.metadata" class="detail-group">
-            <label>Additional Data</label>
-            <pre class="metadata">{{ JSON.stringify(selectedLog.metadata, null, 2) }}</pre>
+        <div class="pf-toolbar__right">
+          <div class="ui-input-group pf-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input v-model="q" class="ui-input" type="search" placeholder="Search action, user, organisation…" aria-label="Search audit log" @input="debouncedLoad" />
           </div>
         </div>
       </div>
-    </div>
+      <div class="filters">
+        <select v-model="orgFilter" class="ui-select" aria-label="Organisation" @change="reload">
+          <option value="">All organisations</option>
+          <option v-for="o in orgs" :key="o.id" :value="o.id">{{ o.name }}</option>
+        </select>
+        <select v-model="action" class="ui-select" aria-label="Action type" @change="reload">
+          <option value="">All actions</option>
+          <option value="organization.">Organisations</option>
+          <option value="user.">Users</option>
+          <option value="settings.">Settings</option>
+          <option value="database.">Database</option>
+          <option value="ledger.">Ledger entries</option>
+          <option value="invoice.">Invoices</option>
+        </select>
+        <label class="date"><span>From</span><input v-model="from" class="ui-input" type="date" aria-label="From date" @change="reload" /></label>
+        <label class="date"><span>To</span><input v-model="to" class="ui-input" type="date" aria-label="To date" @change="reload" /></label>
+        <button v-if="filtered" class="ui-btn ui-btn--ghost ui-btn--sm" @click="clearFilters"><i class="fa-solid fa-xmark"></i> Clear filters</button>
+      </div>
 
-    <!-- Export Options -->
-    <div class="export-section">
-      <button class="btn secondary" @click="exportLogs('csv')">
-        <i class="fas fa-file-csv"></i>
-        Export CSV
-      </button>
-      <button class="btn secondary" @click="exportLogs('json')">
-        <i class="fas fa-file-code"></i>
-        Export JSON
-      </button>
-    </div>
+      <div v-if="error" class="ui-card__body">
+        <div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span></div>
+      </div>
+
+      <div v-else-if="loading && !rows.length" class="ui-card__body">
+        <div v-for="n in 8" :key="n" class="pf-sk-row">
+          <div class="ui-skeleton" style="width: 130px"></div>
+          <div class="ui-skeleton" style="width: 140px"></div>
+          <div class="ui-skeleton" style="flex: 1"></div>
+        </div>
+      </div>
+
+      <div v-else-if="!rows.length" class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+        <h3>{{ filtered ? 'No entries match your filters' : 'Nothing recorded yet' }}</h3>
+        <p v-if="filtered">Try a different search, source or date range.</p>
+        <p v-else class="empty-explain">
+          Entries appear here when platform admins create, edit, suspend or delete organisations, manage users, reset passwords or change settings,
+          when journal entries are posted in accounting, and when invoices are created, sent or paid. Individual sign-ins are not logged — see each user's last sign-in on the Users page.
+        </p>
+      </div>
+
+      <div v-else class="ui-table-wrap" :class="{ 'pf-is-loading': loading }">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Action</th>
+              <th class="pf-hide-sm">User</th>
+              <th class="pf-hide-md">Organisation</th>
+              <th class="pf-hide-sm">Details</th>
+              <th style="width: 40px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="r in rows" :key="r.source + r.id">
+              <tr class="is-clickable" :class="{ 'is-open': open === r.source + r.id }" @click="toggle(r)">
+                <td class="pf-nowrap">
+                  <div>{{ formatDateTime(r.created_at) }}</div>
+                  <small class="pf-muted">{{ timeAgo(r.created_at) }}</small>
+                </td>
+                <td>
+                  <span class="act" :class="`act--${tone(r.action)}`"><i :class="icon(r)"></i> {{ actionLabel(r.action) }}</span>
+                  <small class="src pf-muted">{{ sourceLabel(r.source) }}</small>
+                </td>
+                <td class="pf-hide-sm">
+                  <div class="pf-cell__title user">{{ r.user_name || r.user_email || (r.user_id ? 'Unknown user' : 'System') }}</div>
+                  <small v-if="r.user_name && r.user_email" class="pf-muted">{{ r.user_email }}</small>
+                </td>
+                <td class="pf-hide-md">
+                  <router-link v-if="r.organization_id && r.organization_name" :to="`/organizations?open=${r.organization_id}`" class="org-link" @click.stop>{{ r.organization_name }}</router-link>
+                  <span v-else class="pf-muted">{{ r.organization_id ? 'Deleted organisation' : '—' }}</span>
+                </td>
+                <td class="pf-hide-sm details">{{ describe(r) }}</td>
+                <td><i class="fa-solid fa-chevron-down chev" :class="{ 'is-open': open === r.source + r.id }"></i></td>
+              </tr>
+              <tr v-if="open === r.source + r.id" class="detail-row">
+                <td colspan="6">
+                  <div class="detail">
+                    <dl class="pf-kv">
+                      <dt>Action</dt><dd class="pf-mono">{{ r.action }}</dd>
+                      <dt>Entity</dt><dd>{{ r.entity_type || '—' }} <span v-if="r.entity_id" class="pf-mono pf-muted">{{ r.entity_id }}</span></dd>
+                      <dt>User</dt><dd>{{ r.user_name || r.user_email || r.user_id || 'System' }}</dd>
+                      <dt>Organisation</dt><dd>{{ r.organization_name || r.organization_id || '—' }}</dd>
+                      <dt v-if="r.ip_address">IP address</dt><dd v-if="r.ip_address" class="pf-mono">{{ r.ip_address }}</dd>
+                      <dt v-if="r.summary">Summary</dt><dd v-if="r.summary">{{ r.summary }}</dd>
+                    </dl>
+                    <div v-if="changes(r).length" class="changes">
+                      <table class="ui-table compact">
+                        <thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead>
+                        <tbody>
+                          <tr v-for="c in changes(r)" :key="c.key">
+                            <td class="pf-mono">{{ c.key }}</td>
+                            <td class="before">{{ c.before }}</td>
+                            <td class="after">{{ c.after }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <footer v-if="total > perPage" class="pf-pager">
+        <span class="pf-muted">{{ (page - 1) * perPage + 1 }}–{{ Math.min(page * perPage, total) }} of {{ total }}</span>
+        <div class="ui-actions">
+          <button class="ui-btn ui-btn--sm" :disabled="page <= 1" @click="go(page - 1)"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+          <button class="ui-btn ui-btn--sm" :disabled="page * perPage >= total" @click="go(page + 1)">Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </footer>
+    </section>
   </div>
 </template>
 
 <script>
+import '@/components/platform/platform.css'
+import { apiErrorMessage } from '@/services/api'
+import { toast } from '@/composables/useToast'
+import { formatDateTime, downloadBlob } from '@/utils/format'
+import { platformAPI, timeAgo, ensurePlatformSession, auditActionLabel } from '@/services/platform'
+
+
 export default {
   name: 'AuditLogs',
   data() {
+    const q = this.$route.query
     return {
-      searchTerm: '',
-      startDate: '',
-      endDate: '',
-      selectedAction: '',
-      selectedUser: '',
-      selectedOrganization: '',
-      selectedSeverity: '',
-      currentPage: 1,
-      pageSize: 25,
-      showDetailsModal: false,
-      selectedLog: null,
-      logs: [
-        {
-          id: 1,
-          timestamp: '2024-01-15T14:30:25Z',
-          user: 'John Doe',
-          userRole: 'Admin',
-          organization: 'AutoCare Plus',
-          action: 'login',
-          resource: 'Authentication',
-          severity: 'info',
-          ipAddress: '192.168.1.105',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          description: 'User successfully logged in',
-          metadata: { loginMethod: 'password', remember: true }
-        },
-        {
-          id: 2,
-          timestamp: '2024-01-15T14:25:12Z',
-          user: 'Jane Smith',
-          userRole: 'Manager',
-          organization: 'Elegant Salon',
-          action: 'create',
-          resource: 'Booking',
-          severity: 'info',
-          ipAddress: '192.168.1.108',
-          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-          description: 'New booking created for customer Sarah Wilson',
-          metadata: { bookingId: 'BK-2024-001', customerId: 'CUST-456' }
-        },
-        {
-          id: 3,
-          timestamp: '2024-01-15T14:20:45Z',
-          user: 'System',
-          userRole: 'System',
-          organization: 'Platform',
-          action: 'backup',
-          resource: 'Database',
-          severity: 'info',
-          ipAddress: '127.0.0.1',
-          userAgent: 'System/1.0',
-          description: 'Automated database backup completed',
-          metadata: { backupSize: '2.5GB', duration: '45s' }
-        },
-        {
-          id: 4,
-          timestamp: '2024-01-15T13:45:18Z',
-          user: 'Mike Johnson',
-          userRole: 'Staff',
-          organization: 'Quick Fix Garage',
-          action: 'update',
-          resource: 'Customer',
-          severity: 'info',
-          ipAddress: '192.168.1.112',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          description: 'Customer information updated',
-          metadata: { customerId: 'CUST-789', changes: ['phone', 'email'] }
-        },
-        {
-          id: 5,
-          timestamp: '2024-01-15T13:30:05Z',
-          user: 'Anonymous',
-          userRole: 'Guest',
-          organization: 'Unknown',
-          action: 'login',
-          resource: 'Authentication',
-          severity: 'warning',
-          ipAddress: '203.45.67.89',
-          userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-          description: 'Failed login attempt - invalid credentials',
-          metadata: { attempts: 3, blocked: false }
-        },
-        {
-          id: 6,
-          timestamp: '2024-01-15T12:15:33Z',
-          user: 'Admin',
-          userRole: 'Super Admin',
-          organization: 'Platform',
-          action: 'delete',
-          resource: 'User',
-          severity: 'warning',
-          ipAddress: '192.168.1.100',
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          description: 'User account deleted by admin',
-          metadata: { deletedUserId: 'USER-123', reason: 'Policy violation' }
-        }
-      ],
-      filteredLogs: []
+      rows: [],
+      total: 0,
+      counts: null,
+      page: 1,
+      perPage: 50,
+      q: q.search || '',
+      source: ['platform', 'accounting', 'invoicing'].includes(q.source) ? q.source : '',
+      orgFilter: q.organization_id || '',
+      action: '',
+      from: '',
+      to: '',
+      orgs: [],
+      loading: false,
+      exporting: false,
+      error: '',
+      open: null,
+      timer: null,
+      tabs: [
+        { value: '', label: 'All' },
+        { value: 'platform', label: 'Platform admin' },
+        { value: 'accounting', label: 'Accounting' },
+        { value: 'invoicing', label: 'Invoicing' }
+      ]
     }
   },
   computed: {
-    uniqueUsers() {
-      return [...new Set(this.logs.map(log => log.user))].sort()
-    },
-    uniqueOrganizations() {
-      return [...new Set(this.logs.map(log => log.organization))].sort()
-    },
-    todayLogsCount() {
-      const today = new Date().toDateString()
-      return this.filteredLogs.filter(log => 
-        new Date(log.timestamp).toDateString() === today
-      ).length
-    },
-    errorLogsCount() {
-      return this.filteredLogs.filter(log => 
-        ['error', 'critical'].includes(log.severity)
-      ).length
-    },
-    uniqueUsersCount() {
-      return new Set(this.filteredLogs.map(log => log.user)).size
-    },
-    totalPages() {
-      return Math.ceil(this.filteredLogs.length / this.pageSize)
-    },
-    paginatedLogs() {
-      const start = (this.currentPage - 1) * this.pageSize
-      return this.filteredLogs.slice(start, start + parseInt(this.pageSize))
+    filtered() {
+      return !!(this.q || this.source || this.orgFilter || this.action || this.from || this.to)
     }
   },
-  mounted() {
-    this.filteredLogs = [...this.logs]
+  created() {
+    if (ensurePlatformSession()) {
+      window.location.reload()
+      return
+    }
+    this.load()
+    this.loadOrgs()
+  },
+  beforeUnmount() {
+    clearTimeout(this.timer)
   },
   methods: {
-    filterLogs() {
-      this.filteredLogs = this.logs.filter(log => {
-        const matchesSearch = log.description.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-                            log.user.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-                            log.resource.toLowerCase().includes(this.searchTerm.toLowerCase())
-        
-        const logDate = new Date(log.timestamp).toISOString().split('T')[0]
-        const matchesDateRange = (!this.startDate || logDate >= this.startDate) &&
-                               (!this.endDate || logDate <= this.endDate)
-        
-        const matchesAction = !this.selectedAction || log.action === this.selectedAction
-        const matchesUser = !this.selectedUser || log.user === this.selectedUser
-        const matchesOrg = !this.selectedOrganization || log.organization === this.selectedOrganization
-        const matchesSeverity = !this.selectedSeverity || log.severity === this.selectedSeverity
-        
-        return matchesSearch && matchesDateRange && matchesAction && matchesUser && matchesOrg && matchesSeverity
-      })
-      
-      this.currentPage = 1
-    },
-    showDetails(log) {
-      this.selectedLog = log
-      this.showDetailsModal = true
-    },
-    closeDetailsModal() {
-      this.showDetailsModal = false
-      this.selectedLog = null
-    },
-    getActionIcon(action) {
-      const icons = {
-        login: 'fas fa-sign-in-alt',
-        logout: 'fas fa-sign-out-alt',
-        create: 'fas fa-plus',
-        update: 'fas fa-edit',
-        delete: 'fas fa-trash',
-        export: 'fas fa-download',
-        backup: 'fas fa-database'
+    formatDateTime,
+    timeAgo,
+    params(extra = {}) {
+      return {
+        page: this.page,
+        limit: this.perPage,
+        search: this.q || undefined,
+        source: this.source || undefined,
+        organization_id: this.orgFilter || undefined,
+        action: this.action || undefined,
+        from: this.from || undefined,
+        to: this.to || undefined,
+        ...extra
       }
-      return icons[action] || 'fas fa-circle'
     },
-    formatDate(timestamp) {
-      return new Date(timestamp).toLocaleDateString()
+    async load() {
+      if (this.from && this.to && this.from > this.to) {
+        toast.warning('The start date is after the end date')
+        return
+      }
+      this.loading = true
+      this.error = ''
+      try {
+        const res = await platformAPI.audit(this.params())
+        this.rows = res.entries || []
+        this.total = res.total || 0
+        this.counts = res.source_counts || null
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load the audit log')
+      } finally {
+        this.loading = false
+      }
     },
-    formatTime(timestamp) {
-      return new Date(timestamp).toLocaleTimeString()
+    async loadOrgs() {
+      try {
+        const res = await platformAPI.organizations({ limit: 200, sort: 'name' })
+        this.orgs = res.organizations || []
+      } catch {
+        this.orgs = []
+      }
     },
-    exportLogs(format) {
-      alert(`Exporting audit logs as ${format.toUpperCase()}...`)
+    reload() {
+      this.page = 1
+      this.open = null
+      this.load()
+    },
+    debouncedLoad() {
+      clearTimeout(this.timer)
+      this.timer = setTimeout(this.reload, 300)
+    },
+    setSource(s) {
+      this.source = s
+      this.reload()
+    },
+    clearFilters() {
+      Object.assign(this, { q: '', source: '', orgFilter: '', action: '', from: '', to: '' })
+      this.reload()
+    },
+    go(p) {
+      this.page = p
+      this.open = null
+      this.load()
+    },
+    toggle(r) {
+      const k = r.source + r.id
+      this.open = this.open === k ? null : k
+    },
+    actionLabel: auditActionLabel,
+    sourceLabel(s) {
+      return { platform: 'Platform admin', accounting: 'Accounting', invoicing: 'Invoicing' }[s] || s
+    },
+    tone(a) {
+      if (/delete|suspend|deactivate|void|reset_password/.test(a)) return 'danger'
+      if (/create|activate|paid|payment/.test(a)) return 'success'
+      if (/impersonate/.test(a)) return 'warning'
+      return 'neutral'
+    },
+    icon(r) {
+      const a = r.action || ''
+      if (a.startsWith('organization.')) return 'fa-solid fa-building'
+      if (a.startsWith('user.')) return 'fa-solid fa-user'
+      if (a.startsWith('database.')) return 'fa-solid fa-database'
+      if (a.startsWith('settings.')) return 'fa-solid fa-gear'
+      if (r.source === 'accounting') return 'fa-solid fa-scale-balanced'
+      if (r.source === 'invoicing') return 'fa-solid fa-file-invoice'
+      return 'fa-solid fa-circle-dot'
+    },
+    parse(v) {
+      if (!v) return null
+      try {
+        const o = JSON.parse(v)
+        return o && typeof o === 'object' ? o : { value: o }
+      } catch {
+        return { value: v }
+      }
+    },
+    fmt(v) {
+      if (v === undefined) return '—'
+      if (v === null || v === '') return '(empty)'
+      if (typeof v === 'object') return JSON.stringify(v)
+      return String(v)
+    },
+    changes(r) {
+      const before = this.parse(r.old_values) || {}
+      const after = this.parse(r.new_values) || {}
+      const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+      return keys.map((k) => ({ key: k, before: this.fmt(before[k]), after: this.fmt(after[k]) })).filter((c) => c.before !== c.after || !Object.keys(before).length)
+    },
+    describe(r) {
+      if (r.summary) return r.summary
+      const after = this.parse(r.new_values) || {}
+      const before = this.parse(r.old_values) || {}
+      const parts = []
+      if (after.name) parts.push(after.name)
+      else if (before.name) parts.push(before.name)
+      if (after.email) parts.push(after.email)
+      if (after.reason) parts.push(`Reason: ${after.reason}`)
+      if (after.users_deactivated != null) parts.push(`${after.users_deactivated} users signed out`)
+      if (after.users_restored != null) parts.push(`${after.users_restored} users restored`)
+      if (after.role && before.role && after.role !== before.role) parts.push(`${before.role} → ${after.role}`)
+      if (after.sections) parts.push(after.sections.map((s) => s.replace('_settings', '')).join(', '))
+      if (after.tables != null) parts.push(`${after.tables} tables`)
+      if (after.organization) parts.push(after.organization)
+      return parts.join(' · ') || r.entity_type || '—'
+    },
+    async exportCsv() {
+      this.exporting = true
+      try {
+        const all = []
+        let page = 1
+        for (;;) {
+          const res = await platformAPI.audit(this.params({ page, limit: 200 }))
+          all.push(...(res.entries || []))
+          if (all.length >= res.total || !(res.entries || []).length || all.length >= 10000) break
+          page++
+        }
+        const cols = ['created_at', 'source', 'action', 'user_name', 'user_email', 'organization_name', 'entity_type', 'entity_id', 'summary', 'old_values', 'new_values', 'ip_address']
+        const esc = (v) => {
+          const s = v == null ? '' : String(v)
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+        }
+        const csv = [cols.join(','), ...all.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n')
+        downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `audit-log-${new Date().toISOString().slice(0, 10)}.csv`)
+        toast.success(`Exported ${all.length} entr${all.length === 1 ? 'y' : 'ies'}`)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Export failed'))
+      } finally {
+        this.exporting = false
+      }
     }
   }
 }
 </script>
 
 <style scoped>
-.audit-logs {
-  padding: 2rem;
-  max-width: 1600px;
-  margin: 0 auto;
-}
-
-.page-header {
-  margin-bottom: 2rem;
-}
-
-.page-title {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--bs-body-color);
-  margin-bottom: 0.5rem;
-}
-
-.page-title i {
-  color: #667eea;
-  margin-right: 0.75rem;
-}
-
-.page-subtitle {
-  color: var(--bs-secondary);
-  font-size: 1.1rem;
-}
-
-.filters-section {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.filter-row {
+.filters {
   display: flex;
-  gap: 1rem;
-  align-items: center;
-  margin-bottom: 1rem;
+  gap: 8px;
   flex-wrap: wrap;
-}
-
-.filter-row:last-child {
-  margin-bottom: 0;
-}
-
-.search-box {
-  position: relative;
-  flex: 1;
-  min-width: 250px;
-}
-
-.search-box i {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--bs-secondary);
-}
-
-.search-box input {
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border: 2px solid var(--card-border);
-  border-radius: 8px;
-  font-size: 1rem;
-}
-
-.date-filters {
-  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
-.date-input {
-  padding: 0.75rem;
-  border: 2px solid var(--card-border);
-  border-radius: 8px;
+.filters .ui-select {
+  width: auto;
+  min-width: 180px;
 }
 
-.date-separator {
-  color: var(--bs-secondary);
-  font-weight: 500;
+.date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-3);
+  margin: 0;
 }
 
-.filter-select {
-  padding: 0.75rem;
-  border: 2px solid var(--card-border);
-  border-radius: 8px;
-  min-width: 150px;
+.date .ui-input {
+  width: 160px;
 }
 
-.stats-bar {
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-}
-
-.stat-item {
-  text-align: center;
-}
-
-.stat-value {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--bs-body-color);
-}
-
-.stat-label {
-  color: var(--bs-secondary);
-  font-size: 0.9rem;
-}
-
-.logs-container {
-  background: var(--card-bg);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  margin-bottom: 2rem;
-}
-
-.logs-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.logs-table th {
-  background: var(--bs-tertiary-bg);
-  padding: 1rem 0.75rem;
-  text-align: left;
+.act {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-weight: 600;
-  color: var(--bs-body-color);
-  border-bottom: 2px solid #e9ecef;
+  font-size: 13.5px;
   white-space: nowrap;
 }
 
-.logs-table td {
-  padding: 1rem 0.75rem;
-  border-bottom: 1px solid #f1f3f4;
+.act i {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  background: var(--neutral-soft);
+  color: var(--text-2);
+}
+
+.act--danger i { background: var(--danger-soft); color: var(--danger); }
+.act--success i { background: var(--success-soft); color: var(--success); }
+.act--warning i { background: var(--warning-soft); color: var(--warning); }
+
+.src {
+  display: block;
+  font-size: 11.5px;
+  margin: 2px 0 0 31px;
+}
+
+.user {
+  max-width: 180px;
+}
+
+.ui-table td {
   vertical-align: top;
 }
 
-.logs-table tr.warning {
-  background: #fff8e1;
+.org-link {
+  color: var(--text);
+  text-decoration: none;
 }
 
-.logs-table tr.error,
-.logs-table tr.critical {
-  background: #ffebee;
+.org-link:hover {
+  color: var(--accent);
 }
 
-.timestamp {
+.details {
+  color: var(--text-2);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.timestamp .date {
-  font-weight: 600;
-  color: var(--bs-body-color);
+.chev {
+  color: var(--text-3);
+  transition: transform 0.15s;
 }
 
-.timestamp .time {
-  color: var(--bs-secondary);
-  font-size: 0.9rem;
+.chev.is-open {
+  transform: rotate(180deg);
 }
 
-.user-info .user-name {
-  font-weight: 600;
-  color: var(--bs-body-color);
+tr.is-open td {
+  background: var(--surface-hover);
 }
 
-.user-info .user-role {
-  color: var(--bs-secondary);
-  font-size: 0.85rem;
+.detail-row td {
+  background: var(--surface-2);
+  padding: 16px 20px 20px;
 }
 
-.action-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.action-badge.login { background: #e3f2fd; color: #1976d2; }
-.action-badge.logout { background: #f3e5f5; color: #7b1fa2; }
-.action-badge.create { background: #e8f5e8; color: #2e7d32; }
-.action-badge.update { background: #fff3e0; color: #f57c00; }
-.action-badge.delete { background: #ffebee; color: #d32f2f; }
-.action-badge.export { background: #e0f2f1; color: #00796b; }
-.action-badge.backup { background: #fce4ec; color: #c2185b; }
-
-.severity-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.severity-badge.info { background: #e3f2fd; color: #1976d2; }
-.severity-badge.warning { background: #fff8e1; color: #f57c00; }
-.severity-badge.error { background: #ffebee; color: #d32f2f; }
-.severity-badge.critical { background: #f3e5f5; color: #7b1fa2; }
-
-.ip-address {
-  font-family: monospace;
-  font-size: 0.9rem;
-}
-
-.details-btn {
-  background: var(--bs-tertiary-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  padding: 0.5rem;
-  cursor: pointer;
-  color: #667eea;
-}
-
-.details-btn:hover {
-  background: #e9ecef;
-}
-
-.pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.page-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: var(--card-bg);
-  border: 2px solid var(--card-border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.page-btn:hover:not(:disabled) {
-  border-color: #667eea;
-  color: #667eea;
-}
-
-.page-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.page-size-select {
-  padding: 0.5rem;
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: var(--card-bg);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid #e9ecef;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-content {
-  padding: 1.5rem;
-}
-
-.detail-group {
+.detail {
   display: grid;
-  grid-template-columns: 150px 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 20px;
 }
 
-.detail-group label {
-  font-weight: 600;
-  color: var(--bs-body-color);
+.changes {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
 }
 
-.metadata {
-  background: var(--bs-tertiary-bg);
-  padding: 1rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  overflow-x: auto;
+.ui-table.compact th,
+.ui-table.compact td {
+  padding: 8px 12px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--bs-secondary);
+.before {
+  color: var(--danger);
 }
 
-.export-section {
-  display: flex;
-  gap: 1rem;
+.after {
+  color: var(--success);
 }
 
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.empty-explain {
+  max-width: 620px;
+  margin: 0 auto;
+  line-height: 1.6;
 }
 
-.btn.secondary {
-  background: var(--bs-tertiary-bg);
-  color: var(--bs-secondary);
-  border: 2px solid var(--card-border);
-}
-
-.btn.secondary:hover {
-  background: #e9ecef;
-}
-
-@media (max-width: 1200px) {
-  .logs-table {
-    font-size: 0.9rem;
-  }
-  
-  .logs-table th,
-  .logs-table td {
-    padding: 0.75rem 0.5rem;
+@media (max-width: 900px) {
+  .detail {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 768px) {
-  .audit-logs {
-    padding: 1rem;
+@media (max-width: 720px) {
+  .filters .ui-select,
+  .date,
+  .date .ui-input {
+    width: 100%;
   }
-  
-  .filter-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .stats-bar {
-    gap: 1rem;
-  }
-  
-  .pagination {
-    flex-direction: column;
-    gap: 1rem;
+
+  .date .ui-input {
+    flex: 1;
   }
 }
 </style>

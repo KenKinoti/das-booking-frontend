@@ -1,407 +1,370 @@
 <template>
-  <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">
-            <i :class="getPaymentIcon(paymentMethod)"></i>
-            {{ getPaymentTitle(paymentMethod) }}
-          </h5>
-          <button type="button" class="btn-close" @click="$emit('close')"></button>
-        </div>
-        <div class="modal-body">
-          <div class="row">
-            <div class="col-md-6">
-              <!-- Payment Amount -->
-              <div class="mb-3">
-                <label class="form-label">Payment Amount</label>
-                <div class="input-group">
-                  <span class="input-group-text">$</span>
-                  <input
-                    type="number"
-                    class="form-control form-control-lg"
-                    v-model.number="paymentAmount"
-                    :max="remainingAmount"
-                    min="0.01"
-                    step="0.01"
-                    ref="amountInput"
-                  >
-                </div>
-                <small class="text-muted">
-                  Remaining: ${{ formatCurrency(remainingAmount) }}
-                </small>
-              </div>
-
-              <!-- Payment Method Specific Fields -->
-              <div v-if="paymentMethod === 'cash'">
-                <div class="mb-3">
-                  <label class="form-label">Cash Received</label>
-                  <div class="input-group">
-                    <span class="input-group-text">$</span>
-                    <input
-                      type="number"
-                      class="form-control"
-                      v-model.number="cashReceived"
-                      :min="paymentAmount"
-                      step="0.01"
-                    >
-                  </div>
-                  <div v-if="cashReceived > paymentAmount" class="mt-2">
-                    <span class="badge bg-success">
-                      Change: ${{ formatCurrency(cashReceived - paymentAmount) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else-if="paymentMethod === 'card'">
-                <div class="mb-3">
-                  <label class="form-label">Card Type</label>
-                  <select class="form-select" v-model="cardType">
-                    <option value="credit">Credit Card</option>
-                    <option value="debit">Debit Card</option>
-                    <option value="eftpos">EFTPOS</option>
-                  </select>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Last 4 Digits</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    v-model="cardLast4"
-                    maxlength="4"
-                    placeholder="1234"
-                  >
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Authorization Code</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    v-model="authCode"
-                    placeholder="AUTH123456"
-                  >
-                </div>
-              </div>
-
-              <div v-else-if="paymentMethod === 'gift_card'">
-                <div class="mb-3">
-                  <label class="form-label">Gift Card Number</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    v-model="giftCardNumber"
-                    placeholder="Enter gift card number"
-                  >
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Gift Card Balance</label>
-                  <div class="input-group">
-                    <span class="input-group-text">$</span>
-                    <input
-                      type="number"
-                      class="form-control"
-                      v-model.number="giftCardBalance"
-                      min="0"
-                      step="0.01"
-                      readonly
-                    >
-                    <button class="btn btn-outline-secondary" @click="checkGiftCardBalance">
-                      Check Balance
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else-if="paymentMethod === 'mobile_wallet'">
-                <div class="mb-3">
-                  <label class="form-label">Wallet Type</label>
-                  <select class="form-select" v-model="walletType">
-                    <option value="apple_pay">Apple Pay</option>
-                    <option value="google_pay">Google Pay</option>
-                    <option value="samsung_pay">Samsung Pay</option>
-                  </select>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Transaction ID</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    v-model="walletTransactionId"
-                    placeholder="Transaction ID from device"
-                  >
-                </div>
-              </div>
-
-              <div v-else-if="paymentMethod === 'layby'">
-                <div class="alert alert-info">
-                  <i class="bi bi-info-circle me-2"></i>
-                  This will create a layby order. Customer can make partial payments over time.
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Initial Deposit</label>
-                  <div class="input-group">
-                    <span class="input-group-text">$</span>
-                    <input
-                      type="number"
-                      class="form-control"
-                      v-model.number="laybyDeposit"
-                      :min="remainingAmount * 0.1"
-                      :max="remainingAmount"
-                      step="0.01"
-                    >
-                  </div>
-                  <small class="text-muted">
-                    Minimum 10%: ${{ formatCurrency(remainingAmount * 0.1) }}
-                  </small>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <!-- Quick Amount Buttons -->
-              <div class="mb-3">
-                <label class="form-label">Quick Amounts</label>
-                <div class="d-grid gap-2">
-                  <button
-                    v-for="quickAmount in quickAmounts"
-                    :key="quickAmount"
-                    class="btn btn-outline-primary"
-                    @click="paymentAmount = quickAmount"
-                    :disabled="quickAmount > remainingAmount"
-                  >
-                    ${{ quickAmount }}
-                  </button>
-                  <button
-                    class="btn btn-outline-success"
-                    @click="paymentAmount = remainingAmount"
-                  >
-                    Exact Amount (${{ formatCurrency(remainingAmount) }})
-                  </button>
-                </div>
-              </div>
-
-              <!-- Payment Summary -->
-              <div class="card">
-                <div class="card-header">
-                  <h6 class="card-title mb-0">Payment Summary</h6>
-                </div>
-                <div class="card-body">
-                  <div class="d-flex justify-content-between mb-2">
-                    <span>Amount:</span>
-                    <span class="fw-bold">${{ formatCurrency(paymentAmount) }}</span>
-                  </div>
-                  <div v-if="paymentMethod === 'cash' && cashReceived > paymentAmount" class="d-flex justify-content-between mb-2">
-                    <span>Cash Received:</span>
-                    <span>${{ formatCurrency(cashReceived) }}</span>
-                  </div>
-                  <div v-if="paymentMethod === 'cash' && cashReceived > paymentAmount" class="d-flex justify-content-between mb-2">
-                    <span>Change:</span>
-                    <span class="text-success">${{ formatCurrency(cashReceived - paymentAmount) }}</span>
-                  </div>
-                  <hr>
-                  <div class="d-flex justify-content-between">
-                    <span>After Payment:</span>
-                    <span class="fw-bold">${{ formatCurrency(remainingAmount - paymentAmount) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+  <div class="ui-modal-backdrop" @mousedown.self="!busy && $emit('close')">
+    <div class="ui-modal pay" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+      <div class="ui-modal__head">
+        <div>
+          <h2 id="pay-title">Take payment</h2>
+          <div class="due">
+            <span>Amount due</span>
+            <strong>{{ money(total) }}</strong>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" @click="$emit('close')">
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="btn btn-primary"
-            @click="processPayment"
-            :disabled="!canProcessPayment"
-          >
-            <i class="bi bi-check-circle me-2"></i>
-            Add Payment
+        <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" aria-label="Close" :disabled="busy" @click="$emit('close')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="ui-modal__body">
+        <div class="methods" role="tablist" aria-label="Payment method">
+          <button v-for="m in modes" :key="m.value" type="button" class="method" :class="{ 'is-active': mode === m.value }" role="tab" :aria-selected="mode === m.value" @click="setMode(m.value)">
+            <i :class="m.icon"></i>
+            <span>{{ m.label }}</span>
           </button>
         </div>
+
+        <!-- Cash -->
+        <div v-if="mode === 'cash'" class="pane">
+          <div class="ui-field">
+            <label for="tendered">Cash received</label>
+            <div class="ui-input-group big-input">
+              <i class="fa-solid fa-money-bill-wave"></i>
+              <input id="tendered" ref="tendered" v-model="tendered" class="ui-input" type="number" inputmode="decimal" min="0" step="0.05" @keydown.enter.prevent="submit" />
+            </div>
+          </div>
+          <div class="quick">
+            <button v-for="q in quickCash" :key="q" type="button" class="ui-btn ui-btn--sm" @click="tendered = q.toFixed(2)">{{ q === total ? 'Exact' : money(q, true) }}</button>
+          </div>
+          <div class="result" :class="cashShort > 0 ? 'is-short' : 'is-ok'">
+            <span>{{ cashShort > 0 ? 'Still owing' : 'Change' }}</span>
+            <strong>{{ money(cashShort > 0 ? cashShort : cashChange) }}</strong>
+          </div>
+        </div>
+
+        <!-- Card -->
+        <div v-else-if="mode === 'card'" class="pane">
+          <div class="seg">
+            <button type="button" :class="{ 'is-active': cardMethod === 'card' }" @click="cardMethod = 'card'">Credit / debit</button>
+            <button type="button" :class="{ 'is-active': cardMethod === 'eftpos' }" @click="cardMethod = 'eftpos'">EFTPOS</button>
+          </div>
+          <div class="ui-field">
+            <label for="card-ref">Terminal reference <span class="opt">(optional)</span></label>
+            <input id="card-ref" ref="cardRef" v-model="reference" class="ui-input" maxlength="100" placeholder="e.g. last 4 digits or approval code" @keydown.enter.prevent="submit" />
+          </div>
+          <p class="ui-hint">Charge {{ money(total) }} on the card terminal, then confirm here once it's approved.</p>
+        </div>
+
+        <!-- Other -->
+        <div v-else-if="mode === 'other'" class="pane">
+          <div class="ui-field">
+            <label for="other-method">Method</label>
+            <select id="other-method" v-model="otherMethod" class="ui-select">
+              <option value="bank_transfer">Bank transfer</option>
+              <option value="voucher">Gift voucher</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="ui-field">
+            <label for="other-ref">Reference <span class="opt">(optional)</span></label>
+            <input id="other-ref" v-model="reference" class="ui-input" maxlength="100" @keydown.enter.prevent="submit" />
+          </div>
+        </div>
+
+        <!-- Split -->
+        <div v-else class="pane">
+          <div v-for="(p, i) in splits" :key="i" class="split-row">
+            <select v-model="p.method" class="ui-select" :aria-label="`Payment ${i + 1} method`">
+              <option v-for="(label, key) in splitMethods" :key="key" :value="key">{{ label }}</option>
+            </select>
+            <input v-model="p.amount" class="ui-input" type="number" inputmode="decimal" min="0" step="0.01" :aria-label="`Payment ${i + 1} amount`" @keydown.enter.prevent="submit" />
+            <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" :disabled="splits.length <= 2" aria-label="Remove payment" @click="splits.splice(i, 1)"><i class="fa-regular fa-trash-can"></i></button>
+          </div>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm add" @click="addSplit"><i class="fa-solid fa-plus"></i> Add payment</button>
+          <div class="result" :class="splitRemaining > 0.004 ? 'is-short' : 'is-ok'">
+            <span>{{ splitRemaining > 0.004 ? 'Remaining' : splitChange > 0 ? 'Change (cash)' : 'Fully paid' }}</span>
+            <strong>{{ money(splitRemaining > 0.004 ? splitRemaining : splitChange) }}</strong>
+          </div>
+        </div>
+
+        <div v-if="error" class="ui-alert ui-alert--danger err"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
+      </div>
+
+      <div class="ui-modal__foot">
+        <button class="ui-btn" :disabled="busy" @click="$emit('close')">Cancel</button>
+        <button class="ui-btn ui-btn--primary ui-btn--lg" :disabled="busy || !valid" @click="submit">
+          <i :class="busy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i>
+          Complete sale
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import { formatMoney } from '@/utils/format'
+
+const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
+
 export default {
   name: 'PaymentModal',
   props: {
-    paymentMethod: {
-      type: String,
-      required: true
-    },
-    amount: {
-      type: Number,
-      default: 0
-    },
-    remainingAmount: {
-      type: Number,
-      required: true
-    }
+    total: { type: Number, required: true },
+    currency: { type: String, default: 'AUD' },
+    busy: { type: Boolean, default: false },
+    error: { type: String, default: '' }
   },
-  emits: ['close', 'payment-added'],
+  emits: ['close', 'confirm'],
   data() {
     return {
-      // Payment amount
-      paymentAmount: this.amount || this.remainingAmount,
-
-      // Cash payment
-      cashReceived: 0,
-
-      // Card payment
-      cardType: 'credit',
-      cardLast4: '',
-      authCode: '',
-
-      // Gift card
-      giftCardNumber: '',
-      giftCardBalance: 0,
-
-      // Mobile wallet
-      walletType: 'apple_pay',
-      walletTransactionId: '',
-
-      // Layby
-      laybyDeposit: 0,
-
-      // Quick amounts
-      quickAmounts: [5, 10, 20, 50, 100]
+      mode: 'cash',
+      modes: [
+        { value: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave' },
+        { value: 'card', label: 'Card', icon: 'fa-regular fa-credit-card' },
+        { value: 'split', label: 'Split', icon: 'fa-solid fa-code-fork' },
+        { value: 'other', label: 'Other', icon: 'fa-solid fa-ellipsis' }
+      ],
+      tendered: this.total.toFixed(2),
+      cardMethod: 'card',
+      otherMethod: 'bank_transfer',
+      reference: '',
+      splits: [
+        { method: 'cash', amount: '' },
+        { method: 'card', amount: '' }
+      ],
+      splitMethods: { cash: 'Cash', card: 'Card', eftpos: 'EFTPOS', bank_transfer: 'Bank transfer', voucher: 'Gift voucher', other: 'Other' }
     }
   },
   computed: {
-    canProcessPayment() {
-      if (this.paymentAmount <= 0 || this.paymentAmount > this.remainingAmount) return false
-
-      switch (this.paymentMethod) {
-        case 'cash':
-          return this.cashReceived >= this.paymentAmount
-        case 'card':
-          return this.cardLast4.length === 4 && this.authCode.length > 0
-        case 'gift_card':
-          return this.giftCardNumber.length > 0 && this.giftCardBalance >= this.paymentAmount
-        case 'mobile_wallet':
-          return this.walletTransactionId.length > 0
-        case 'layby':
-          return this.laybyDeposit >= this.remainingAmount * 0.1
-        default:
-          return true
+    quickCash() {
+      const t = this.total
+      const set = new Set([r2(t)])
+      for (const step of [5, 10, 20, 50, 100]) {
+        const v = Math.ceil(t / step) * step
+        if (v > t) set.add(v)
       }
+      return [...set].sort((a, b) => a - b).slice(0, 5)
+    },
+    cashShort() {
+      return Math.max(0, r2(this.total - (Number(this.tendered) || 0)))
+    },
+    cashChange() {
+      return Math.max(0, r2((Number(this.tendered) || 0) - this.total))
+    },
+    splitPaid() {
+      return r2(this.splits.reduce((s, p) => s + (Number(p.amount) || 0), 0))
+    },
+    splitRemaining() {
+      return Math.max(0, r2(this.total - this.splitPaid))
+    },
+    splitCash() {
+      return r2(this.splits.filter((p) => p.method === 'cash').reduce((s, p) => s + (Number(p.amount) || 0), 0))
+    },
+    splitChange() {
+      return Math.max(0, r2(this.splitPaid - this.total))
+    },
+    valid() {
+      if (this.mode === 'cash') return this.cashShort <= 0
+      if (this.mode === 'split') return this.splitRemaining <= 0.004 && this.splitChange <= this.splitCash + 0.004 && this.splits.some((p) => Number(p.amount) > 0)
+      return true
     }
   },
   mounted() {
-    this.$refs.amountInput?.focus()
-
-    // Set initial values
-    this.cashReceived = this.paymentAmount
-    this.laybyDeposit = Math.max(this.remainingAmount * 0.1, 10)
+    this.focusMode()
+    document.addEventListener('keydown', this.onKey)
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKey)
   },
   methods: {
-    getPaymentIcon(method) {
-      const icons = {
-        cash: 'bi bi-cash-stack text-success',
-        card: 'bi bi-credit-card text-primary',
-        eftpos: 'bi bi-phone text-info',
-        gift_card: 'bi bi-gift text-warning',
-        mobile_wallet: 'bi bi-wallet2 text-secondary',
-        layby: 'bi bi-clock text-dark'
-      }
-      return icons[method] || 'bi bi-currency-dollar'
+    money(v, compact) {
+      return formatMoney(v, this.currency, { compact: compact && Number.isInteger(v) })
     },
-
-    getPaymentTitle(method) {
-      const titles = {
-        cash: 'Cash Payment',
-        card: 'Card Payment',
-        eftpos: 'EFTPOS Payment',
-        gift_card: 'Gift Card Payment',
-        mobile_wallet: 'Mobile Wallet Payment',
-        layby: 'Layby Payment'
-      }
-      return titles[method] || 'Payment'
+    onKey(e) {
+      if (e.key === 'Escape' && !this.busy) this.$emit('close')
     },
-
-    async checkGiftCardBalance() {
-      try {
-        // Simulate gift card balance check
-        this.giftCardBalance = Math.random() * 500
-        this.$toast.success(`Gift card balance: $${this.formatCurrency(this.giftCardBalance)}`)
-      } catch {
-        this.$toast.error('Failed to check gift card balance')
+    setMode(m) {
+      this.mode = m
+      this.reference = ''
+      if (m === 'split' && !this.splits.some((p) => Number(p.amount) > 0)) {
+        this.splits[0].amount = ''
+        this.splits[1].amount = this.total.toFixed(2)
       }
+      this.focusMode()
     },
-
-    processPayment() {
-      if (!this.canProcessPayment) return
-
-      const payment = {
-        method: this.paymentMethod,
-        amount: this.paymentAmount
-      }
-
-      // Add method-specific data
-      switch (this.paymentMethod) {
-        case 'cash':
-          payment.cash_received = this.cashReceived
-          payment.change_amount = this.cashReceived - this.paymentAmount
-          break
-        case 'card':
-          payment.card_type = this.cardType
-          payment.card_last4 = this.cardLast4
-          payment.auth_code = this.authCode
-          break
-        case 'gift_card':
-          payment.gift_card_number = this.giftCardNumber
-          payment.gift_card_balance = this.giftCardBalance
-          break
-        case 'mobile_wallet':
-          payment.wallet_type = this.walletType
-          payment.transaction_id = this.walletTransactionId
-          break
-        case 'layby':
-          payment.deposit_amount = this.laybyDeposit
-          payment.total_amount = this.remainingAmount
-          break
-      }
-
-      this.$emit('payment-added', payment)
+    focusMode() {
+      this.$nextTick(() => {
+        const el = this.mode === 'cash' ? this.$refs.tendered : this.mode === 'card' ? this.$refs.cardRef : null
+        if (el) {
+          el.focus()
+          el.select?.()
+        }
+      })
     },
-
-    formatCurrency(amount) {
-      return new Intl.NumberFormat('en-AU', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(amount || 0)
+    addSplit() {
+      this.splits.push({ method: 'other', amount: this.splitRemaining > 0 ? this.splitRemaining.toFixed(2) : '' })
+    },
+    submit() {
+      if (!this.valid || this.busy) return
+      let payments
+      if (this.mode === 'cash') payments = [{ method: 'cash', amount: r2(this.tendered) }]
+      else if (this.mode === 'card') payments = [{ method: this.cardMethod, amount: r2(this.total), reference: this.reference }]
+      else if (this.mode === 'other') payments = [{ method: this.otherMethod, amount: r2(this.total), reference: this.reference }]
+      else payments = this.splits.filter((p) => Number(p.amount) > 0).map((p) => ({ method: p.method, amount: r2(p.amount) }))
+      this.$emit('confirm', payments)
     }
   }
 }
 </script>
 
 <style scoped>
-.modal-dialog {
-  max-width: 800px;
+.pay {
+  max-width: 480px;
 }
-
-.form-control-lg {
-  font-size: 1.5rem;
-  font-weight: bold;
+.due {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 13px;
 }
-
-.quick-amounts .btn {
-  margin-bottom: 0.5rem;
+.due strong {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
-
-.card {
-  border: 1px solid #dee2e6;
+.methods {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
 }
-
-.card-header {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+.method {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.method i {
+  font-size: 18px;
+}
+.method:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+.method.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.big-input .ui-input {
+  font-size: 22px;
+  height: 52px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick .ui-btn {
+  flex: 1;
+  min-width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+.result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+.result strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.result.is-ok {
+  background: var(--success-soft);
+}
+.result.is-ok strong {
+  color: var(--success);
+}
+.result.is-short {
+  background: var(--warning-soft);
+}
+.result.is-short strong {
+  color: var(--warning);
+}
+.seg {
+  display: flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+.seg button {
+  flex: 1;
+  border: 0;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.seg button.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+.opt {
+  font-weight: 400;
+  color: var(--text-3);
+}
+.split-row {
+  display: grid;
+  grid-template-columns: 1fr 130px auto;
+  gap: 8px;
+  align-items: center;
+}
+.split-row .ui-input {
+  font-variant-numeric: tabular-nums;
+}
+.add {
+  align-self: flex-start;
+}
+.err {
+  margin-top: 14px;
+}
+.ui-btn--lg {
+  height: 44px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+@media (max-width: 480px) {
+  .methods {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .split-row {
+    grid-template-columns: 1fr 100px auto;
+  }
 }
 </style>

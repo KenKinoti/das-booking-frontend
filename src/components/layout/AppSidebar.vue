@@ -48,6 +48,15 @@
       </section>
     </nav>
 
+    <router-link v-if="plan && !rail" to="/plan" class="sb__plan" @click="$emit('navigate')">
+      <span class="sb__plan-icon"><i class="fa-solid fa-gem"></i></span>
+      <span class="sb__plan-text">
+        <strong>{{ plan.name }} plan</strong>
+        <small>{{ plan.hint }}</small>
+      </span>
+      <span v-if="plan.upgrade" class="sb__plan-cta">Upgrade</span>
+    </router-link>
+
     <div class="sb__foot">
       <button v-if="!rail" class="sb__foot-btn" @click="toggleAll">
         <i :class="allOpen ? 'fa-solid fa-compress' : 'fa-solid fa-expand'"></i>
@@ -64,6 +73,7 @@
 import { visibleGroups, isItemActive } from '@/navigation'
 import { useAuthStore } from '@/stores/auth'
 import { APP_NAME } from '@/config'
+import { entitlements } from '@/composables/useEntitlements'
 
 const STORAGE_KEY = 'nav.openGroups'
 
@@ -97,6 +107,16 @@ export default {
     orgName() {
       const u = this.auth.user || {}
       return u.organization?.name || u.organization_name || (this.auth.isSuperAdmin ? 'Platform admin' : 'Workspace')
+    },
+    plan() {
+      const p = entitlements.plan
+      if (!p || !p.tier || this.auth.isSuperAdmin) return null
+      const sub = p.subscription || {}
+      let hint = p.industry?.name || ''
+      if (p.trial?.active) hint = `Trial · ${p.trial.days_left} day${p.trial.days_left === 1 ? '' : 's'} left`
+      else if (p.trial?.expired) hint = 'Trial ended'
+      else if (sub.status === 'past_due') hint = 'Payment past due'
+      return { name: p.tier.name, hint, upgrade: sub.tier !== 'large' }
     },
     allOpen() {
       return this.groups.every((g) => this.openGroups.includes(g.id))
@@ -412,6 +432,65 @@ export default {
   width: 2px;
   border-radius: 2px;
   background: var(--accent);
+}
+
+.sb__plan {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 14px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sb__plan:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.sb__plan-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.sb__plan-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+
+.sb__plan-text strong {
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.sb__plan-text small {
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb__plan-cta {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .sb__foot {
