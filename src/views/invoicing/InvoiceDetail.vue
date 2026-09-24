@@ -102,6 +102,7 @@
                 <span class="dot" :class="`t-${a.type}`"></span>
                 <span>
                   <span class="t-msg">{{ a.message }}</span>
+                  <span v-if="a.recipients && a.recipients.cc && a.recipients.cc.length" class="t-cc"><i class="fa-regular fa-envelope"></i> {{ a.recipients.cc.length }} CC</span>
                   <small>{{ dt(a.created_at) }}</small>
                 </span>
               </li>
@@ -124,10 +125,10 @@
         <div class="ui-modal__body grid-form">
           <div class="ui-field">
             <label for="p_amount">Amount ({{ doc.currency }})</label>
-            <input id="p_amount" ref="payAmount" v-model.number="pay.amount" type="number" step="0.01" min="0.01" :max="doc.balance_due" class="ui-input" required />
+            <input id="p_amount" ref="payAmount" v-model.number="pay.amount" type="number" :step="step" :min="step" :max="doc.balance_due" class="ui-input" required />
             <div class="chips">
               <button type="button" class="chip" @click="pay.amount = doc.balance_due">Full balance</button>
-              <button type="button" class="chip" @click="pay.amount = Math.round(doc.balance_due * 50) / 100">50%</button>
+              <button type="button" class="chip" @click="pay.amount = half">50%</button>
             </div>
           </div>
           <div class="ui-field">
@@ -162,15 +163,30 @@
       <form class="ui-modal wide" @submit.prevent="submitSend">
         <div class="ui-modal__head">
           <div>
-            <h2>Send {{ isQuote ? 'quote' : 'invoice' }}</h2>
-            <p class="muted small m0">{{ emailEnabled ? 'We’ll email it with a secure link to view online.' : 'Your email app will open with the message ready to send.' }}</p>
+            <h2>{{ sendKind === 'reminder' ? 'Send payment reminder' : `Send ${isQuote ? 'quote' : 'invoice'}` }}</h2>
+            <p class="muted small m0">{{ doc.number }} · {{ money(isQuote ? doc.total : doc.balance_due) }}{{ sendKind === 'reminder' ? ' outstanding' : '' }}</p>
           </div>
           <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" @click="sendOpen = false" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="ui-modal__body grid-form">
+          <div v-if="!emailEnabled" class="ui-alert ui-alert--warning span smtp-note">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>
+              <strong>Email sending isn’t set up on this server.</strong>
+              “Open in email app” drafts this message in your own email app with the To and CC recipients below, and marks the {{ isQuote ? 'quote' : 'invoice' }} as sent. An administrator can enable direct sending by configuring SMTP.
+            </span>
+          </div>
           <div class="ui-field span">
             <label for="s_to">To</label>
-            <input id="s_to" v-model.trim="send.to" type="email" class="ui-input" placeholder="client@email.com" :required="emailEnabled" />
+            <div v-if="recipientsLoading" class="ui-skeleton" style="height: 40px"></div>
+            <EmailChips v-else id="s_to" v-model="send.to" :names="recipientNames" :max="1" primary icon="fa-solid fa-user" placeholder="client@email.com" aria-label="To email address" />
+            <span v-if="toNote" class="ui-hint">{{ toNote }}</span>
+          </div>
+          <div class="ui-field span">
+            <label for="s_cc">CC <span class="muted small">— removable for this send; add extra addresses if needed</span></label>
+            <div v-if="recipientsLoading" class="ui-skeleton" style="height: 40px"></div>
+            <EmailChips v-else id="s_cc" v-model="send.cc" :names="recipientNames" :exclude="send.to" icon="fa-regular fa-user" placeholder="Add CC email addresses" aria-label="CC email addresses" />
+            <span v-if="ccNote" class="ui-hint">{{ ccNote }}</span>
           </div>
           <div class="ui-field span">
             <label for="s_subject">Subject</label>
@@ -183,9 +199,9 @@
           <div v-if="sendError" class="ui-alert ui-alert--danger span"><i class="fa-solid fa-circle-exclamation"></i><span>{{ sendError }}</span></div>
         </div>
         <div class="ui-modal__foot">
-          <button type="button" class="ui-btn ui-btn--ghost" @click="markSentOnly" :disabled="busy">Just mark as sent</button>
+          <button v-if="sendKind !== 'reminder'" type="button" class="ui-btn ui-btn--ghost" @click="markSentOnly" :disabled="busy">Just mark as sent</button>
           <button type="button" class="ui-btn" @click="sendOpen = false">Cancel</button>
-          <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy"><i :class="busy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-paper-plane'"></i> {{ emailEnabled ? 'Send email' : 'Open in email app' }}</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy || recipientsLoading"><i :class="busy ? 'fa-solid fa-circle-notch spin' : emailEnabled ? 'fa-solid fa-paper-plane' : 'fa-solid fa-arrow-up-right-from-square'"></i> {{ emailEnabled ? (sendKind === 'reminder' ? 'Send reminder' : 'Send email') : 'Open in email app' }}</button>
         </div>
       </form>
     </div>
@@ -196,14 +212,16 @@
 import InvoiceDocument from '@/components/invoicing/InvoiceDocument.vue'
 import { invoicingApi, STATUS_LABELS, PAYMENT_METHODS, RECURRENCE } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
-import { formatMoney, formatDate, formatDateTime, relativeDays, isoDate } from '@/utils/format'
+import { formatDate, formatDateTime, relativeDays, isoDate } from '@/utils/format'
+import { formatCurrency, currencyStep, currencyDecimals } from '@/utils/currencies'
+import EmailChips from '@/components/invoicing/EmailChips.vue'
 import { renderTemplate } from '@/utils/invoiceMath'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 
 export default {
   name: 'InvoiceDetail',
-  components: { InvoiceDocument },
+  components: { InvoiceDocument, EmailChips },
   props: { id: { type: String, required: true } },
   data() {
     return {
@@ -218,7 +236,11 @@ export default {
       payError: null,
       sendOpen: false,
       send: {},
+      sendKind: 'invoice',
       sendError: null,
+      recipientsLoading: false,
+      recipientNames: {},
+      suggested: { to: null, cc: [] },
       methods: PAYMENT_METHODS
     }
   },
@@ -245,12 +267,34 @@ export default {
       if (!this.doc.total) return 0
       return Math.min(100, Math.round((this.doc.amount_paid / this.doc.total) * 100))
     },
+    step() {
+      return currencyStep(this.doc?.currency)
+    },
+    half() {
+      const p = 10 ** currencyDecimals(this.doc.currency)
+      return Math.round((this.doc.balance_due / 2) * p) / p
+    },
+    canRemind() {
+      return !this.isQuote && ['sent', 'partial'].includes(this.doc.status) && this.doc.balance_due > 0
+    },
+    toNote() {
+      const t = this.suggested.to
+      const cur = this.send.to?.[0]
+      if (!t || cur !== t.email) return cur ? '' : 'Add the address this should go to.'
+      return t.source === 'primary_billing' ? `Primary billing contact${t.name ? ' — ' + t.name : ''}.` : 'The client’s email on this document.'
+    },
+    ccNote() {
+      const fromContacts = this.suggested.cc.filter((r) => r.source === 'contact' && this.send.cc?.includes(r.email)).length
+      const what = this.sendKind === 'reminder' ? 'reminders' : this.isQuote ? 'quotes' : 'invoices'
+      if (fromContacts) return `${fromContacts} customer contact${fromContacts > 1 ? 's are' : ' is'} copied on ${what} automatically. Changes here are remembered for this ${this.isQuote ? 'quote' : 'invoice'}.`
+      return this.send.cc?.length ? 'These addresses are remembered for future emails about this document.' : ''
+    },
     publicUrl() {
       return `${window.location.origin}/i/${this.doc.public_token}`
     },
     primary() {
       const d = this.doc
-      if (d.status === 'draft') return { label: 'Send', icon: 'fa-solid fa-paper-plane', run: this.openSend }
+      if (d.status === 'draft') return { label: 'Send', icon: 'fa-solid fa-paper-plane', run: () => this.openSend() }
       if (!this.isQuote && this.canPay) return { label: 'Record payment', icon: 'fa-solid fa-hand-holding-dollar', run: this.openPayment }
       if (this.isQuote && ['sent', 'accepted'].includes(d.status)) return { label: 'Convert to invoice', icon: 'fa-solid fa-file-invoice-dollar', run: this.convert }
       return null
@@ -258,7 +302,8 @@ export default {
     moreActions() {
       const d = this.doc
       const a = []
-      if (d.status !== 'draft' && d.status !== 'void' && d.status !== 'converted') a.push({ label: 'Resend', icon: 'fa-solid fa-paper-plane', run: this.openSend })
+      if (this.canRemind) a.push({ label: 'Send payment reminder', icon: 'fa-regular fa-bell', run: () => this.openSend('reminder') })
+      if (d.status !== 'draft' && d.status !== 'void' && d.status !== 'converted') a.push({ label: 'Resend', icon: 'fa-solid fa-paper-plane', run: () => this.openSend() })
       if (d.status === 'draft') a.push({ label: 'Mark as sent', icon: 'fa-solid fa-check', run: this.markSentOnly })
       if (this.isQuote && d.status === 'sent') {
         a.push({ label: 'Mark accepted', icon: 'fa-solid fa-thumbs-up', run: () => this.simple('accept', 'Quote marked as accepted') })
@@ -289,7 +334,7 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.doc?.currency)
+      return formatCurrency(v, this.doc?.currency)
     },
     date: formatDate,
     dt: formatDateTime,
@@ -376,35 +421,67 @@ export default {
         link: this.publicUrl
       }
     },
-    openSend() {
+    async openSend(kind = 'invoice') {
+      this.sendKind = kind === 'reminder' && this.canRemind ? 'reminder' : 'invoice'
       const v = this.templateVars()
       const s = this.settings
+      const reminder = this.sendKind === 'reminder'
       this.send = {
-        to: this.doc.client_email || '',
-        subject: renderTemplate(s.email_subject || '{{type}} {{number}} from {{business}}', v),
-        message: renderTemplate(
-          s.email_message || 'Hi {{client}},\n\nPlease find {{type_lower}} {{number}} for {{total}}, due {{due_date}}.\n\nView it online: {{link}}\n\nThank you,\n{{business}}',
-          v
-        )
+        to: this.doc.client_email ? [this.doc.client_email.toLowerCase()] : [],
+        cc: [...(this.doc.cc_emails || [])],
+        subject: reminder
+          ? renderTemplate('Reminder: {{type}} {{number}} from {{business}}', v)
+          : renderTemplate(s.email_subject || '{{type}} {{number}} from {{business}}', v),
+        message: reminder
+          ? renderTemplate(
+              `Hi {{client}},\n\nThis is a friendly reminder that {{type_lower}} {{number}} for {{total}} ${this.doc.display_status === 'overdue' ? 'was due on' : 'is due on'} {{due_date}}.\n\nView and pay it online: {{link}}\n\nIf you've already paid, please ignore this message.\n\nThank you,\n{{business}}`,
+              v
+            )
+          : renderTemplate(
+              s.email_message || 'Hi {{client}},\n\nPlease find {{type_lower}} {{number}} for {{total}}, due {{due_date}}.\n\nView it online: {{link}}\n\nThank you,\n{{business}}',
+              v
+            )
       }
       this.sendError = null
       this.sendOpen = true
+      this.recipientsLoading = true
+      this.suggested = { to: null, cc: [] }
+      try {
+        const r = await invoicingApi.recipients(this.doc.id, this.sendKind === 'reminder' ? 'reminder' : this.isQuote ? 'quote' : 'invoice')
+        this.suggested = { to: r.to || null, cc: r.cc || [] }
+        const names = {}
+        for (const x of [r.to, ...(r.cc || [])]) if (x?.name) names[x.email] = x.name
+        this.recipientNames = names
+        if (r.to?.email) this.send.to = [r.to.email]
+        this.send.cc = (r.cc || []).map((x) => x.email)
+        if (typeof r.email_enabled === 'boolean') this.emailEnabled = r.email_enabled
+      } catch (e) {
+        this.sendError = apiErrorMessage(e, 'Could not load the recipients — you can still add them below.')
+      } finally {
+        this.recipientsLoading = false
+      }
     },
     async submitSend() {
       this.sendError = null
-      if (this.send.to && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.send.to)) return (this.sendError = 'Enter a valid email address.')
+      const to = this.send.to[0] || ''
+      if (this.emailEnabled && !to) return (this.sendError = 'Add the email address to send this to.')
       this.busy = true
       try {
-        const res = await invoicingApi.send(this.doc.id, this.send)
+        const payload = { to, cc: this.send.cc, subject: this.send.subject, message: this.send.message, kind: this.sendKind, mode: this.emailEnabled ? 'email' : 'mailto' }
+        const res = await invoicingApi.send(this.doc.id, payload)
         this.doc = res.invoice
         this.sendOpen = false
+        const ccText = res.cc?.length ? ` (CC ${res.cc.length})` : ''
         if (res.emailed) {
-          toast.success(`Emailed to ${this.send.to}`)
+          toast.success(`${this.sendKind === 'reminder' ? 'Reminder emailed' : 'Emailed'} to ${res.to}${ccText}`)
         } else {
-          const href = `mailto:${encodeURIComponent(this.send.to)}?subject=${encodeURIComponent(this.send.subject)}&body=${encodeURIComponent(this.send.message)}`
-          window.location.href = href
-          toast.success(`${this.doc.number} marked as sent`)
+          const q = []
+          if (res.cc?.length) q.push(`cc=${encodeURIComponent(res.cc.join(','))}`)
+          q.push(`subject=${encodeURIComponent(this.send.subject)}`, `body=${encodeURIComponent(this.send.message)}`)
+          window.location.href = `mailto:${encodeURIComponent(res.to || to)}?${q.join('&')}`
+          toast.success(this.sendKind === 'reminder' ? 'Reminder recorded — finish sending it in your email app' : `${this.doc.number} marked as sent`)
         }
+        if (res.skipped?.length) toast.warning(`Skipped invalid address${res.skipped.length > 1 ? 'es' : ''}: ${res.skipped.join(', ')}`)
       } catch (e) {
         this.sendError = apiErrorMessage(e, 'Could not send')
       } finally {
@@ -699,6 +776,20 @@ export default {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+}
+
+.smtp-note {
+  margin: 0;
+  font-size: 13px;
+}
+
+.t-cc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--text-3);
 }
 
 .grid-form .span {

@@ -17,7 +17,7 @@
       <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'all' && !role }" @click="setFilter('all', '')">
         <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-users"></i></span>Team members</div>
         <div class="ui-kpi__value"><span v-if="!loaded" class="ui-skeleton sk-val"></span><template v-else>{{ summary.total || 0 }}</template></div>
-        <div class="ui-kpi__meta">In your organisation</div>
+        <div class="ui-kpi__meta">{{ allOrgs ? "Across all organisations" : "In your organisation" }}</div>
       </button>
       <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'active' && !role }" @click="setFilter('active', '')">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-user-check"></i></span>Active</div>

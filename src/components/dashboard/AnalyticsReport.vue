@@ -40,6 +40,14 @@
       <KpiCard label="New customers" icon="fa-solid fa-user-plus" tone="warning" :loading="!data" :value="num(k.new_customers?.value)" meta="Added in this period" :delta="k.new_customers?.delta_pct" :show-delta="compare" :show-new="compare" :spark="k.new_customers?.spark" />
     </div>
 
+    <div v-if="otherCurrencies.length" class="ui-alert cur-note mb" role="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <span>
+        Amounts are in {{ currency }}. Not included:
+        <template v-for="(o, i) in otherCurrencies" :key="o.currency">{{ i ? '; ' : '' }}{{ o.invoices }} invoice{{ o.invoices === 1 ? '' : 's' }} issued in {{ o.currency }} this period ({{ fmtCur(o.invoiced, o.currency) }}), {{ fmtCur(o.outstanding, o.currency) }} outstanding</template>.
+      </span>
+    </div>
+
     <section class="ui-card mb">
       <div class="ui-card__head wrap">
         <div>
@@ -98,7 +106,7 @@
         <div class="ui-card__body">
           <div v-if="!data" class="ui-skeleton" style="height: 150px"></div>
           <p v-else-if="!statusSegments.length" class="none">No invoices issued in this period.</p>
-          <DonutChart v-else :segments="statusSegments" :center-value="num(k.invoice_count?.value)" center-label="invoices" :format-value="(v) => money(v, true)" aria-label="Invoices by status" />
+          <DonutChart v-else :segments="statusSegments" :center-value="num(statusCount)" center-label="invoices" :format-value="(v) => money(v, true)" aria-label="Invoices by status" />
         </div>
       </section>
     </div>
@@ -256,6 +264,13 @@ export default {
     methodSegments() {
       return (this.data?.payment_methods || []).map((m) => ({ name: titleCase(m.name), value: m.amount, color: METHOD_COLORS[m.name] || 'var(--text-3)' }))
     },
+    // Every invoice in the donut (drafts and voids included), so the centre matches the segments.
+    statusCount() {
+      return (this.data?.invoice_status || []).reduce((a, s) => a + s.count, 0)
+    },
+    otherCurrencies() {
+      return this.data?.other_currencies || []
+    },
     methodCount() {
       return (this.data?.payment_methods || []).reduce((a, m) => a + m.count, 0)
     },
@@ -321,6 +336,11 @@ export default {
     num,
     money(v, compact = false) {
       return money(v, this.currency, compact)
+    },
+    // Other-currency amounts are written with the ISO code ("USD 1,100.00") so
+    // they can't be mistaken for the organisation's own currency.
+    fmtCur(v, cur) {
+      return `${cur} ${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     },
     persist() {
       savePref(PREF, { period: this.period, interval: this.interval, metric: this.metricKey, tab: this.tab })
@@ -394,7 +414,8 @@ export default {
           { label: 'Total', num: true, fmt: m },
           { label: 'Balance due', num: true, fmt: m }
         ]
-        const rows = d.invoice_status.map((s) => ({ cells: [s.name, s.count, s.amount, s.extra || 0], to: `/invoices?status=${s.name}` }))
+        // Drill-down keeps the period so the list shows exactly these invoices.
+        const rows = d.invoice_status.map((s) => ({ cells: [s.name, s.count, s.amount, s.extra || 0], to: `/invoices?status=${s.name}&from=${d.range.from}&to=${d.range.to}` }))
         return { cols, rows, total: ['Total', sum(rows, 1), sum(rows, 2), sum(rows, 3)] }
       }
       if (key === 'payments') {
@@ -414,7 +435,7 @@ export default {
       // aging
       const cols = [{ label: 'Age', sort: false }, { label: 'Invoices', num: true, fmt: n }, { label: 'Amount', num: true, fmt: m }, { label: 'Share', num: true, fmt: (v) => `${v}%` }]
       const out = d.kpis.outstanding.value || 0
-      const rows = d.aging.map((a) => ({ cells: [a.key === 'current' ? a.label : `${a.label} overdue`, a.count, a.amount, out ? Math.round((a.amount / out) * 1000) / 10 : 0], to: a.key === 'current' ? '/invoices?status=unpaid' : '/invoices?status=overdue' }))
+      const rows = d.aging.map((a) => ({ cells: [a.key === 'current' ? a.label : `${a.label} overdue`, a.count, a.amount, out ? Math.round((a.amount / out) * 1000) / 10 : 0], to: a.key === 'current' ? '/invoices?status=due' : '/invoices?status=overdue' }))
       return { cols, rows: out ? rows : [], total: ['Total', sum(rows, 1), sum(rows, 2), out ? 100 : 0] }
     },
     csvRows(key, sorted = false) {
@@ -459,6 +480,15 @@ export default {
 </script>
 
 <style scoped>
+.cur-note {
+  background: var(--info-soft);
+  color: var(--text);
+}
+
+.cur-note > i {
+  color: var(--info);
+}
+
 .head-actions {
   flex-wrap: wrap;
 }

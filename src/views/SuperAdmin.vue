@@ -67,8 +67,8 @@
               <th>Organisation</th>
               <th class="pf-hide-md">Type</th>
               <th class="pf-hide-md">Plan</th>
-              <th class="num">Users</th>
-              <th class="num pf-hide-md">Invoices</th>
+              <th class="num" title="Active users / all users">Active / users</th>
+              <th class="num pf-hide-md" title="Invoices of every status, drafts included">Invoices</th>
               <th class="pf-hide-sm">Last active</th>
               <th class="pf-hide-md">Created</th>
               <th>Status</th>
@@ -158,7 +158,7 @@
             <div class="pf-section">
               <h3 class="pf-section__title">Usage</h3>
               <div class="pf-stat-grid">
-                <div class="pf-stat"><small>Users</small><strong>{{ drawerOrg.active_users }}</strong><span class="pf-muted pf-small"> / {{ drawerOrg.users }} active</span></div>
+                <div class="pf-stat"><small>Users</small><strong>{{ drawerOrg.users }}</strong><span class="pf-muted pf-small"> · {{ drawerOrg.active_users }} active</span></div>
                 <div v-for="u in drawer.detail.usage" :key="u.key" class="pf-stat"><small>{{ u.label }}</small><strong>{{ u.count }}</strong></div>
               </div>
             </div>

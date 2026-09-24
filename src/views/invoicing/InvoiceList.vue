@@ -20,22 +20,22 @@
       <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'unpaid' }" @click="setStatus('unpaid')">
         <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-hourglass-half"></i></span>Outstanding</div>
         <div class="ui-kpi__value">{{ money(stats.outstanding, stats.currency) }}</div>
-        <div class="ui-kpi__meta">Sent and part-paid invoices</div>
+        <div class="ui-kpi__meta">{{ stats.outstanding_count }} sent and part-paid invoice{{ stats.outstanding_count === 1 ? '' : 's' }}<template v-if="otherNote"> · {{ otherNote }}</template></div>
       </button>
       <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'overdue' }" @click="setStatus('overdue')">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-danger"><i class="fa-solid fa-triangle-exclamation"></i></span>Overdue</div>
         <div class="ui-kpi__value" :class="{ 'txt-danger': stats.overdue > 0 }">{{ money(stats.overdue, stats.currency) }}</div>
-        <div class="ui-kpi__meta">Past their due date</div>
+        <div class="ui-kpi__meta">{{ stats.overdue_count }} past their due date</div>
       </button>
-      <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'paid' }" @click="setStatus('paid')">
+      <div class="ui-kpi">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-circle-check"></i></span>Paid this month</div>
         <div class="ui-kpi__value">{{ money(stats.paid_this_month, stats.currency) }}</div>
-        <div class="ui-kpi__meta">Payments received</div>
-      </button>
+        <div class="ui-kpi__meta">Payments received since the 1st (incl. part payments)</div>
+      </div>
       <button class="ui-kpi kpi-btn" :class="{ 'is-selected': status === 'draft' }" @click="setStatus('draft')">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-neutral"><i class="fa-solid fa-pen-ruler"></i></span>Drafts</div>
         <div class="ui-kpi__value">{{ money(stats.drafts, stats.currency) }}</div>
-        <div class="ui-kpi__meta">Not yet sent</div>
+        <div class="ui-kpi__meta">{{ stats.drafts_count }} not yet sent</div>
       </button>
     </div>
 
@@ -43,7 +43,7 @@
       <div class="toolbar">
         <div class="ui-tabs" role="tablist">
           <button v-for="t in tabs" :key="t.value" class="ui-tab" :class="{ 'is-active': status === t.value }" role="tab" :aria-selected="status === t.value" @click="setStatus(t.value)">
-            {{ t.label }}
+            {{ t.label }}<span v-if="countOf(t.value) !== null" class="tab-count">{{ countOf(t.value) }}</span>
           </button>
         </div>
         <div class="toolbar__right">
@@ -59,6 +59,13 @@
             <option value="client">Client</option>
           </select>
         </div>
+      </div>
+
+      <div v-if="extraFilter" class="filter-chips">
+        <span class="chip">
+          <i class="fa-solid fa-filter"></i> {{ extraFilter }} · {{ total }} {{ isQuote ? 'quote' : 'invoice' }}{{ total === 1 ? '' : 's' }}
+          <button type="button" class="chip__x" aria-label="Clear filter" @click="clearExtra"><i class="fa-solid fa-xmark"></i></button>
+        </span>
       </div>
 
       <div v-if="error" class="ui-card__body">
@@ -144,7 +151,8 @@
 <script>
 import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
-import { formatMoney, formatDate, downloadBlob, isoDate } from '@/utils/format'
+import { formatDate, downloadBlob, isoDate } from '@/utils/format'
+import { formatCurrency, currencyDecimals } from '@/utils/currencies'
 import { toast } from '@/composables/useToast'
 
 export default {
@@ -158,6 +166,9 @@ export default {
       perPage: 25,
       status: this.$route.query.status || 'all',
       q: this.$route.query.q || '',
+      // Optional issue-date range (e.g. from an analytics drill-down).
+      from: this.$route.query.from || '',
+      to: this.$route.query.to || '',
       sort: '',
       loading: false,
       exporting: false,
@@ -170,6 +181,19 @@ export default {
     isQuote() {
       return this.docType === 'quote'
     },
+    extraFilter() {
+      const parts = []
+      const extraStatus = { due: 'Unpaid, not yet due', open: 'Open', sent: 'Sent', partial: 'Partially paid', accepted: 'Accepted', converted: 'Invoiced', expired: 'Expired', declined: 'Declined', void: 'Void' }
+      if (!this.tabs.some((t) => t.value === this.status)) parts.push(extraStatus[this.status] || this.status)
+      if (this.from || this.to) parts.push(`Issued ${this.from ? formatDate(this.from) : '…'} – ${this.to ? formatDate(this.to) : '…'}`)
+      return parts.join(' · ')
+    },
+    otherNote() {
+      const o = this.stats?.other_currencies || []
+      if (!o.length) return ''
+      const amt = (v, c) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: currencyDecimals(c), maximumFractionDigits: currencyDecimals(c) })
+      return 'excl. ' + o.map((x) => `${x.currency} ${amt(x.outstanding, x.currency)}`).join(', ')
+    },
     basePath() {
       return this.isQuote ? '/quotes' : '/invoices'
     },
@@ -177,6 +201,7 @@ export default {
       return this.isQuote
         ? [
             { value: 'all', label: 'All' },
+            { value: 'open', label: 'Open' },
             { value: 'draft', label: 'Draft' },
             { value: 'sent', label: 'Sent' },
             { value: 'accepted', label: 'Accepted' },
@@ -197,14 +222,33 @@ export default {
   },
   created() {
     this.load()
-    if (!this.isQuote) this.loadStats()
+    this.loadStats()
   },
   beforeUnmount() {
     clearTimeout(this.timer)
   },
   methods: {
-    money: formatMoney,
+    money: formatCurrency,
     date: formatDate,
+    /** Number of documents behind a tab, from the server-side stats (null = unknown). */
+    countOf(tab) {
+      const c = this.stats?.counts
+      if (!c) return null
+      const t = this.docType
+      const n = (k) => c[`${t}:${k}`] || 0
+      switch (tab) {
+        case 'all':
+          return Object.keys(c).filter((k) => k.startsWith(`${t}:`)).reduce((sum, k) => sum + c[k], 0)
+        case 'unpaid':
+          return n('sent') + n('partial') + n('overdue')
+        case 'open':
+          return n('sent') + n('accepted')
+        case 'recurring':
+          return null
+        default:
+          return n(tab)
+      }
+    },
     label(s) {
       return STATUS_LABELS[s] || s
     },
@@ -221,7 +265,7 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const data = await invoicingApi.list({ type: this.docType, status: this.status, q: this.q || undefined, sort: this.sort || undefined, page: this.page, per_page: this.perPage })
+        const data = await invoicingApi.list({ type: this.docType, status: this.status, q: this.q || undefined, sort: this.sort || undefined, from: this.from || undefined, to: this.to || undefined, page: this.page, per_page: this.perPage })
         this.rows = data.invoices || []
         this.total = data.total || 0
       } catch (e) {
@@ -245,6 +289,14 @@ export default {
         this.load()
       }, 280)
     },
+    clearExtra() {
+      if (!this.tabs.some((t) => t.value === this.status)) this.status = 'all'
+      this.from = ''
+      this.to = ''
+      this.page = 1
+      this.syncQuery()
+      this.load()
+    },
     setStatus(s) {
       this.status = this.status === s && s !== 'all' ? 'all' : s
       this.page = 1
@@ -255,6 +307,8 @@ export default {
       const query = {}
       if (this.status !== 'all') query.status = this.status
       if (this.q) query.q = this.q
+      if (this.from) query.from = this.from
+      if (this.to) query.to = this.to
       this.$router.replace({ query })
     },
     go(p) {
@@ -280,6 +334,44 @@ export default {
 </script>
 
 <style scoped>
+.filter-chips {
+  padding: 10px 16px 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.chip__x {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.chip__x:hover {
+  background: var(--surface-hover);
+}
+
+.tab-count {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .kpi-btn {
   text-align: left;
   font: inherit;

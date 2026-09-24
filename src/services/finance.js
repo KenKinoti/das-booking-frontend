@@ -4,7 +4,8 @@ const base = '/finance'
 const unwrap = (r) => r.data?.data
 
 export const financeApi = {
-  summary: () => api.get(`${base}/summary`).then(unwrap),
+  // tz: overdue / this month follow the user's calendar
+  summary: () => api.get(`${base}/summary`, { params: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone } }).then(unwrap),
 
   // Chart of accounts
   accounts: () => api.get(`${base}/chart-of-accounts`).then(unwrap),
@@ -28,7 +29,7 @@ export const financeApi = {
   generalLedger: (params) => api.get(`${base}/reports/general-ledger`, { params }).then(unwrap),
 
   // Bills & vendors
-  bills: (params) => api.get(`${base}/bills`, { params }).then(unwrap),
+  bills: (params) => api.get(`${base}/bills`, { params: { ...params, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } }).then(unwrap),
   bill: (id) => api.get(`${base}/bills/${id}`).then(unwrap),
   createBill: (p) => api.post(`${base}/bills`, p).then(unwrap),
   updateBill: (id, p) => api.put(`${base}/bills/${id}`, p).then(unwrap),

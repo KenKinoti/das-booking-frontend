@@ -487,7 +487,7 @@ export default {
         upcoming: upcoming.length,
         upcomingValue: upcoming.reduce((t, b) => t + Number(b.total_price || 0), 0),
         completed: completed.length,
-        completedMeta: monthLive.length ? `of ${monthLive.length} booking${monthLive.length === 1 ? '' : 's'} this month` : 'No bookings this month yet',
+        completedMeta: monthLive.length ? `of ${monthLive.length} booking${monthLive.length === 1 ? '' : 's'} this month (excl. cancelled & no-shows)` : 'No bookings this month yet',
         revenue: completed.reduce((t, b) => t + Number(b.total_price || 0), 0),
         pipeline: month.filter((b) => ACTIVE_STATUSES.includes(b.status)).reduce((t, b) => t + Number(b.total_price || 0), 0)
       }

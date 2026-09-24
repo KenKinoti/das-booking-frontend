@@ -22,7 +22,7 @@
         <div class="ui-kpi">
           <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-ticket"></i></span>Registered</div>
           <div class="ui-kpi__value">{{ sum.tickets || 0 }}<small v-if="sum.capacity" class="of">/ {{ sum.capacity }}</small></div>
-          <div class="ui-kpi__meta">{{ sum.registrations || 0 }} bookings{{ sum.waitlisted ? ` · ${sum.waitlisted} waitlisted` : '' }}</div>
+          <div class="ui-kpi__meta">{{ sum.registrations || 0 }} registration{{ sum.registrations === 1 ? '' : 's' }}{{ sum.waitlisted ? ` · ${sum.waitlisted} waitlisted` : '' }}</div>
         </div>
         <div class="ui-kpi">
           <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-user-check"></i></span>Checked in</div>

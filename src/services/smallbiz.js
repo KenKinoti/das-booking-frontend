@@ -2,6 +2,8 @@ import api from './api'
 
 const base = '/smallbiz'
 const unwrap = (r) => r.data?.data
+// Periods ("this month", due reminders) follow the user's calendar.
+const withTz = (params) => ({ ...(params || {}), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
 
 export const smallbizApi = {
   settings: () => api.get(`${base}/settings`).then(unwrap),
@@ -10,18 +12,18 @@ export const smallbizApi = {
   createCategory: (payload) => api.post(`${base}/categories`, payload).then(unwrap),
   updateCategory: (id, payload) => api.put(`${base}/categories/${id}`, payload).then(unwrap),
   deleteCategory: (id) => api.delete(`${base}/categories/${id}`).then(unwrap),
-  entries: (params) => api.get(`${base}/entries`, { params }).then(unwrap),
+  entries: (params) => api.get(`${base}/entries`, { params: withTz(params) }).then(unwrap),
   entry: (id) => api.get(`${base}/entries/${id}`).then(unwrap),
   createEntry: (payload) => api.post(`${base}/entries`, payload).then(unwrap),
   updateEntry: (id, payload) => api.put(`${base}/entries/${id}`, payload).then(unwrap),
   deleteEntry: (id) => api.delete(`${base}/entries/${id}`).then(unwrap),
-  exportEntries: (params) => api.get(`${base}/export`, { params, responseType: 'blob' }),
-  overview: (params) => api.get(`${base}/overview`, { params }).then(unwrap),
-  pnl: (params) => api.get(`${base}/reports/pnl`, { params }).then(unwrap),
-  pnlCsv: (params) => api.get(`${base}/reports/pnl`, { params: { ...params, format: 'csv' }, responseType: 'blob' }),
-  tax: (params) => api.get(`${base}/reports/tax`, { params }).then(unwrap),
-  taxCsv: (params) => api.get(`${base}/reports/tax`, { params: { ...params, format: 'csv' }, responseType: 'blob' }),
-  reminders: (params) => api.get(`${base}/reminders`, { params }).then(unwrap).then((d) => d?.reminders || []),
+  exportEntries: (params) => api.get(`${base}/export`, { params: withTz(params), responseType: 'blob' }),
+  overview: (params) => api.get(`${base}/overview`, { params: withTz(params) }).then(unwrap),
+  pnl: (params) => api.get(`${base}/reports/pnl`, { params: withTz(params) }).then(unwrap),
+  pnlCsv: (params) => api.get(`${base}/reports/pnl`, { params: withTz({ ...params, format: 'csv' }), responseType: 'blob' }),
+  tax: (params) => api.get(`${base}/reports/tax`, { params: withTz(params) }).then(unwrap),
+  taxCsv: (params) => api.get(`${base}/reports/tax`, { params: withTz({ ...params, format: 'csv' }), responseType: 'blob' }),
+  reminders: (params) => api.get(`${base}/reminders`, { params: withTz(params) }).then(unwrap).then((d) => d?.reminders || []),
   createReminder: (payload) => api.post(`${base}/reminders`, payload).then(unwrap),
   updateReminder: (id, payload) => api.put(`${base}/reminders/${id}`, payload).then(unwrap),
   deleteReminder: (id) => api.delete(`${base}/reminders/${id}`).then(unwrap),

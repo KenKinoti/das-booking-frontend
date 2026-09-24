@@ -1,6 +1,75 @@
 # Changelog
 
-All notable changes to the Vue.js NDIS CRM Application are documented in this file.
+All notable changes to DASYIN ERP are documented in this file. The release
+number lives in `package.json` (`version`) and is shown across the app: the
+sidebar footer, the account menu, the sign-in page, Help → About and Settings →
+About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
+grew out of.
+
+## [2.0.0] - 2026-09-24
+
+### DASYIN ERP 2.0 — the all-in-one release
+
+The biggest release so far: a new design system and a full set of business
+modules, every one scoped per organisation and working in light and dark mode,
+on desktop and on phones.
+
+#### Design & experience
+- **Redesign** — new design system (`ui-*` primitives, Inter, light/dark tokens),
+  collapsible sidebar with grouped navigation, command palette (Ctrl/⌘ K),
+  toasts and confirm dialogs instead of browser pop-ups.
+- **Mobile** — off-canvas navigation drawer with backdrop and scroll lock,
+  compact top bar with no sideways overflow, 40px+ tap targets, safe-area
+  padding for notched phones, bottom-sheet modals with sticky action bars,
+  two-up KPI cards, full-width primary actions, tables that scroll inside their
+  card with a pinned first column, 16px form fields (no iOS zoom) and no
+  horizontal page scroll on any route at 390px.
+- **Brand & version** — new DASYIN ERP mark as the favicon (SVG + PNG + ICO),
+  Apple touch icon, installable web app manifest, theme-colour that follows
+  the app theme, a version pill in the sidebar, account menu and sign-in page,
+  an About card (app version, build date, server version and status) and a
+  dismissible "What's new in v2.0" notice.
+
+#### Sales
+- **Invoicing** — invoices and quotes with numbering, taxes, discounts,
+  recurring invoices, payments and part-payments, public share links, PDF-ready
+  documents and invoice settings.
+- **Point of sale** — product grid with barcode/SKU search, parked sales, cash
+  drawer sessions, receipts and a POS transactions log.
+- **E-commerce import** — connect a store and import products and orders.
+
+#### Operations
+- **Bookings** — list, week and day views, staff and status filters, booking
+  drawer and "turn finished work into an invoice".
+- **Events** — events with ticketing and registrations.
+- **Suppliers & inventory** — suppliers, products, stock levels, low-stock
+  alerts and purchase flows.
+- **Manufacturing** — bills of materials and production orders.
+- **Meetings** — scheduling with invitations and built-in video calls.
+- **Projects** — Jira-style projects, boards and issues.
+
+#### Finance & people
+- **Finance** — bills, bank accounts and reconciliation.
+- **Multi-currency** — every money field carries its currency, grouped
+  currency pickers and consistent formatting.
+- **Business hub** — a simple home for small businesses: quick sale, quick
+  expense, cash book, reminders and reports.
+- **HR** — employees, pay rates and pay runs.
+
+#### Insight
+- **Analytics & market** — live dashboard with period comparison, sparklines,
+  cash-flow and collection rate, plus market insights.
+- **Numbers audit** — every figure on every dashboard was checked against the
+  database; totals, counts and currency handling now match.
+
+#### Platform
+- **Plans & tiers** — plans with module entitlements, trials and an upgrade
+  path; locked modules route to Plan & billing.
+- **Platform admin** — super-admin console for organisations, users, plans &
+  pricing, modules, audit logs and database health.
+- **Server** — `/health` now reports the release (`APP_VERSION`, default
+  `2.0.0`).
+
 
 ## [2.1.0] - 2025-08-30
 

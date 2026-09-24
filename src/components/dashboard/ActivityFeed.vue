@@ -8,7 +8,7 @@
           <small>{{ detail(a) }}</small>
         </div>
         <div class="feed__side">
-          <span v-if="a.amount" class="feed__amt">{{ money(a.amount) }}</span>
+          <span v-if="a.amount" class="feed__amt">{{ money(a.amount, a.currency) }}</span>
           <time :datetime="a.at" :title="full(a.at)">{{ ago(a.at) }}</time>
         </div>
       </component>
@@ -44,8 +44,8 @@ export default {
     full(t) {
       return formatDateTime(t)
     },
-    money(v) {
-      return money(v, this.currency)
+    money(v, cur) {
+      return money(v, cur || this.currency)
     },
     detail(a) {
       if (a.kind === 'booking' && a.ref_time) return `${a.detail} · ${formatDateTime(a.ref_time)}`

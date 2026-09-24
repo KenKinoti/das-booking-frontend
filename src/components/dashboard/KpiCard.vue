@@ -147,4 +147,28 @@ export default {
   background: var(--danger-soft);
   color: var(--danger);
 }
+
+@media (max-width: 520px) {
+  /* Two-up on phones: let the supporting line wrap instead of truncating */
+  .kmeta {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 4px 8px;
+  }
+
+  .ui-kpi__meta {
+    white-space: normal;
+    line-height: 1.35;
+  }
+
+  .kspark {
+    margin-top: 8px;
+    height: 24px;
+  }
+
+  .sk {
+    width: 90px;
+    height: 20px;
+  }
+}
 </style>

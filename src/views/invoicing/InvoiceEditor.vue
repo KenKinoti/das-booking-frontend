@@ -72,7 +72,10 @@
                       <strong>{{ c.name }}</strong>
                       <small>{{ [c.email, c.phone].filter(Boolean).join(' · ') || 'No contact details' }}</small>
                     </span>
-                    <span class="ui-badge" :class="c.source === 'customers' ? 'ui-badge--info' : 'ui-badge--draft'">{{ c.source === 'customers' ? 'Customer' : 'Previous client' }}</span>
+                    <span class="suggest__meta">
+                      <span v-if="c.currency" class="suggest__cur" :title="clientCurrencyTitle(c)">{{ c.country_code ? flag(c.country_code) + ' ' : '' }}{{ c.currency }}</span>
+                      <span class="ui-badge" :class="c.source === 'customers' ? 'ui-badge--info' : 'ui-badge--draft'">{{ c.source === 'customers' ? 'Customer' : 'Previous client' }}</span>
+                    </span>
                   </button>
                   <div v-if="!clientMatches.length" class="suggest__empty">No saved clients match “{{ doc.client_name.trim() }}”.</div>
                   <button v-if="canCreateCustomer" type="button" class="suggest__row suggest__new" @mousedown.prevent="openNewClient">
@@ -107,6 +110,11 @@
                   <input id="client_tax" v-model="doc.client_tax_number" class="ui-input" />
                 </div>
               </div>
+              <div class="ui-field span-2">
+                <label for="cc_emails">CC <span class="muted">— copied whenever this {{ isQuote ? 'quote' : 'invoice' }} is emailed</span></label>
+                <EmailChips id="cc_emails" v-model="doc.cc_emails" :names="ccNames" :exclude="[doc.client_email]" icon="fa-regular fa-user" placeholder="Add people to keep in the loop (optional)" aria-label="CC email addresses" />
+                <p v-if="ccFromCustomer" class="ui-hint"><i class="fa-regular fa-address-card"></i> {{ ccFromCustomer }}</p>
+              </div>
             </div>
           </div>
         </section>
@@ -128,9 +136,10 @@
               </div>
               <div class="ui-field">
                 <label for="currency">Currency</label>
-                <select id="currency" v-model="doc.currency" class="ui-select">
+                <select id="currency" v-model="doc.currency" class="ui-select" @change="onCurrencyManual">
                   <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region"><option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option></optgroup>
                 </select>
+                <p v-if="currencyHint" class="cur-hint" role="status"><i class="fa-solid fa-earth-africa"></i> {{ currencyHint }}</p>
               </div>
               <div class="ui-field">
                 <label for="reference">Reference / PO</label>
@@ -185,7 +194,7 @@
                 </div>
                 <div class="item__price">
                   <label class="m-label">Price</label>
-                  <input v-model.number="it.unit_price" type="number" step="0.01" class="ui-input r" :aria-label="`Item ${i + 1} price`" />
+                  <input v-model.number="it.unit_price" type="number" :step="step" class="ui-input r" :aria-label="`Item ${i + 1} price`" />
                 </div>
                 <div class="item__disc">
                   <label class="m-label">Disc %</label>
@@ -283,7 +292,7 @@
               <div v-if="calc.docDiscount > 0" class="sub"><dt></dt><dd>−{{ money(calc.docDiscount) }}</dd></div>
               <div>
                 <dt>Shipping / other</dt>
-                <dd><input v-model.number="doc.shipping_amount" type="number" min="0" step="0.01" class="ui-input mini r" aria-label="Shipping" /></dd>
+                <dd><input v-model.number="doc.shipping_amount" type="number" min="0" :step="step" class="ui-input mini r" aria-label="Shipping" /></dd>
               </div>
               <div v-for="(v, k) in calc.taxByRate" :key="k"><dt>{{ k }}{{ doc.prices_include_tax ? ' (incl.)' : '' }}</dt><dd>{{ money(v) }}</dd></div>
               <div v-if="!Object.keys(calc.taxByRate).length"><dt>Tax</dt><dd>{{ money(0) }}</dd></div>
@@ -316,8 +325,17 @@
             <div class="ui-field"><label for="nc_email">Email</label><input id="nc_email" v-model="newClient.email" type="email" class="ui-input" /></div>
             <div class="ui-field"><label for="nc_phone">Phone</label><input id="nc_phone" v-model="newClient.phone" class="ui-input" /></div>
           </div>
-          <div class="ui-field"><label for="nc_street">Address</label><input id="nc_street" v-model="newClient.street" class="ui-input" placeholder="Street address" /></div>
-          <p class="ui-hint">An email or phone number is required.</p>
+          <div class="ui-grid-2">
+            <div class="ui-field"><label for="nc_street">Address</label><input id="nc_street" v-model="newClient.street" class="ui-input" placeholder="Street address" /></div>
+            <div class="ui-field">
+              <label for="nc_country">Country</label>
+              <CountryPicker id="nc_country" v-model="newClient.country_code" />
+            </div>
+          </div>
+          <p class="ui-hint">
+            An email or phone number is required.
+            <template v-if="newClient.country_code"> Invoices for this customer will use <strong>{{ newClientCurrency.currency }}</strong>{{ newClientCurrency.source === 'country' ? ` (${countryName(newClient.country_code)})` : ' (your default — this country’s currency isn’t supported)' }}.</template>
+          </p>
         </div>
         <div class="ui-modal__foot">
           <button type="button" class="ui-btn ui-btn--ghost" @click="newClient = null">Cancel</button>
@@ -331,11 +349,14 @@
 </template>
 
 <script>
-import { currencyGroups } from '@/utils/currencies'
+import { currencyGroups, currencyLabel, countryFlag, countryName, customerCurrency, formatCurrency, currencyStep } from '@/utils/currencies'
+import CountryPicker from '@/components/customers/CountryPicker.vue'
+import EmailChips from '@/components/invoicing/EmailChips.vue'
 import { invoicingApi, STATUS_LABELS, RECURRENCE } from '@/services/invoicing'
+import { CURRENCY_CODES } from '@/utils/currencies'
 import api, { apiErrorMessage } from '@/services/api'
 import { calculate } from '@/utils/invoiceMath'
-import { formatMoney, isoDate, addDays } from '@/utils/format'
+import { isoDate, addDays } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 
@@ -344,6 +365,7 @@ const blankItem = (tax) => ({ _key: ++keySeq, description: '', quantity: 1, unit
 
 export default {
   name: 'InvoiceEditor',
+  components: { CountryPicker, EmailChips },
   props: {
     id: { type: String, default: null },
     docType: { type: String, default: 'invoice' }
@@ -367,6 +389,10 @@ export default {
       catalogOpen: false,
       catalogQ: '',
       termDays: null,
+      currencyTouched: false,
+      currencyHint: '',
+      ccNames: {},
+      ccFromCustomer: '',
       snapshot: '',
       doc: this.emptyDoc(),
       recurrence: RECURRENCE,
@@ -445,6 +471,12 @@ export default {
     },
     dirty() {
       return this.snapshot && this.snapshot !== this.serialize()
+    },
+    step() {
+      return currencyStep(this.doc.currency)
+    },
+    newClientCurrency() {
+      return customerCurrency({ country_code: this.newClient?.country_code }, this.settings.currency || 'AUD')
     }
   },
   watch: {
@@ -474,7 +506,74 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.doc.currency)
+      return formatCurrency(v, this.doc.currency)
+    },
+    flag: countryFlag,
+    countryName,
+    clientCurrencyTitle(c) {
+      const why = { customer: 'set on the customer', country: `from ${c.country_name || 'their country'}`, default: 'your default currency', last_used: 'last used for this client' }[c.currency_source]
+      return `${currencyLabel(c.currency)}${why ? ' — ' + why : ''}`
+    },
+    onCurrencyManual() {
+      this.currencyTouched = true
+      this.currencyHint = ''
+    },
+    /**
+     * Switch the document to the client's currency. Asks first when the user
+     * already picked a currency by hand; line amounts are kept (they're entered
+     * in the document currency).
+     */
+    async applyClientCurrency(c) {
+      const target = String(c?.currency || '').toUpperCase()
+      if (!target) return
+      const hint = this.currencyHintFor(c, target)
+      if (target === this.doc.currency) {
+        this.currencyHint = hint
+        return
+      }
+      if (this.currencyTouched) {
+        const ok = await confirmDialog({
+          title: `Switch to ${target}?`,
+          message: `${c.name} is usually invoiced in ${currencyLabel(target)} (${hint.replace(/^Currency set /, '').replace(/\.$/, '')}). This ${this.isQuote ? 'quote' : 'invoice'} is currently in ${this.doc.currency}, which you chose. Line amounts stay as entered.`,
+          confirmText: `Use ${target}`
+        })
+        if (!ok) return
+      }
+      this.doc.currency = target
+      this.currencyTouched = false
+      this.currencyHint = hint
+    },
+    currencyHintFor(c, target) {
+      switch (c.currency_source) {
+        case 'country':
+          return `Currency set from customer's country (${c.country_name || countryName(c.country_code)} → ${target}).`
+        case 'customer':
+          return `Currency set from ${c.name}'s customer record (${target}).`
+        case 'last_used':
+          return `Currency set to ${target}, last used for ${c.name}.`
+        default:
+          return c.country_name ? `${c.country_name}'s currency isn't supported, so your default (${target}) is used.` : `Currency set to your default (${target}).`
+      }
+    },
+    /** Pull currency, CC contacts and address from the customer record. */
+    async loadCustomerDefaults(customerId) {
+      try {
+        const d = await invoicingApi.customerDefaults(customerId, this.isQuote ? 'quote' : 'invoice')
+        if (!d || this.doc.customer_id !== customerId) return null
+        this.applyCC(d)
+        return d
+      } catch {
+        return null
+      }
+    },
+    applyCC(d) {
+      const names = { ...this.ccNames }
+      for (const r of d.cc || []) if (r.name) names[r.email] = r.name
+      this.ccNames = names
+      this.doc.cc_emails = [...(d.cc_emails || [])]
+      const n = this.doc.cc_emails.length
+      this.ccFromCustomer = n ? `${n} contact${n > 1 ? 's' : ''} from ${d.name}'s customer record ${n > 1 ? 'are' : 'is'} copied. Manage them on the customer's Contacts tab.` : ''
+      if (d.to?.source === 'primary_billing') this.ccFromCustomer = `${this.ccFromCustomer} Emails go to ${d.to.name || d.to.email} (primary billing contact).`.trim()
     },
     emptyDoc() {
       const today = isoDate()
@@ -502,6 +601,7 @@ export default {
         next_recurrence_date: '',
         recurrence_end_date: '',
         amount_paid: 0,
+        cc_emails: [],
         items: [blankItem()]
       }
     },
@@ -527,8 +627,21 @@ export default {
           const qy = this.$route.query
           if (qy.client_name) d.client_name = String(qy.client_name)
           if (qy.client_email) d.client_email = String(qy.client_email)
+          if (qy.currency && CURRENCY_CODES.includes(String(qy.currency).toUpperCase())) d.currency = String(qy.currency).toUpperCase()
           if (qy.customer_id) d.customer_id = String(qy.customer_id)
           this.doc = d
+          if (d.customer_id) {
+            // Everything else comes from the customer record (server-side).
+            const cd = await this.loadCustomerDefaults(d.customer_id)
+            if (cd) {
+              d.client_name = cd.name || d.client_name
+              d.client_email = cd.email || d.client_email
+              d.client_phone = cd.phone || ''
+              d.client_address = cd.address || ''
+              d.currency = cd.currency || d.currency
+              this.currencyHint = this.currencyHintFor(cd, d.currency)
+            }
+          }
         } else {
           const inv = await invoicingApi.get(this.id)
           if (['void', 'converted'].includes(inv.status)) {
@@ -542,8 +655,11 @@ export default {
             next_recurrence_date: inv.next_recurrence_date ? isoDate(inv.next_recurrence_date) : '',
             recurrence_end_date: inv.recurrence_end_date ? isoDate(inv.recurrence_end_date) : '',
             recurrence_interval: inv.recurrence_interval || 'monthly',
+            cc_emails: inv.cc_emails || [],
             items: (inv.items || []).map((i) => ({ ...i, _key: ++keySeq }))
           }
+          // An existing document's currency was chosen deliberately.
+          this.currencyTouched = true
           if (!this.doc.items.length) this.doc.items = [blankItem(this.defaultTax)]
         }
         this.loadCatalog()
@@ -588,7 +704,8 @@ export default {
         last_name: parts.length > 1 ? parts[parts.length - 1] : '',
         email: this.doc.client_email || '',
         phone: this.doc.client_phone || '',
-        street: ''
+        street: '',
+        country_code: ''
       }
       this.clientOpen = false
     },
@@ -604,17 +721,24 @@ export default {
           last_name: n.last_name.trim(),
           email: n.email.trim(),
           phone: n.phone.trim(),
-          address: { street: n.street.trim() }
+          country_code: n.country_code || '',
+          address: { street: n.street.trim(), country: countryName(n.country_code) }
         })
         const cu = res.data?.customer || res.data?.data || res.data || {}
+        const cur = cu.billing_currency ? { currency: cu.billing_currency, source: cu.currency_source } : customerCurrency({ country_code: n.country_code }, this.settings.currency)
         const client = {
           customer_id: cu.id || null,
           name: `${n.first_name} ${n.last_name}`.trim(),
           email: n.email.trim(),
           phone: n.phone.trim(),
-          address: n.street.trim(),
+          address: [n.street.trim(), n.country_code && n.country_code !== 'AU' ? countryName(n.country_code) : ''].filter(Boolean).join('\n'),
           tax_number: '',
-          source: 'customers'
+          source: 'customers',
+          currency: cur.currency,
+          currency_source: cur.source,
+          country_code: n.country_code,
+          country_name: countryName(n.country_code),
+          cc_emails: []
         }
         this.clients.unshift(client)
         this.pickClient(client)
@@ -629,7 +753,7 @@ export default {
     closeClients() {
       setTimeout(() => (this.clientOpen = false), 120)
     },
-    pickClient(c) {
+    async pickClient(c) {
       this.doc.client_name = c.name
       this.doc.client_email = c.email || this.doc.client_email
       this.doc.client_phone = c.phone || this.doc.client_phone
@@ -637,6 +761,12 @@ export default {
       this.doc.client_tax_number = c.tax_number || this.doc.client_tax_number
       this.doc.customer_id = c.customer_id || null
       this.clientOpen = false
+      if (c.customer_id) this.loadCustomerDefaults(c.customer_id)
+      else {
+        this.ccFromCustomer = ''
+        if (!this.doc.cc_emails.length && c.cc_emails?.length) this.doc.cc_emails = [...c.cc_emails]
+      }
+      await this.applyClientCurrency(c)
     },
     applyTerms(days) {
       if (days === null || days === undefined) return
@@ -718,6 +848,7 @@ export default {
         recurrence_interval: d.recurrence_interval,
         next_recurrence_date: d.next_recurrence_date || '',
         recurrence_end_date: d.recurrence_end_date || '',
+        cc_emails: d.cc_emails || [],
         items: d.items
           .filter((i) => i.description.trim() || Number(i.unit_price))
           .map((i) => ({
@@ -940,6 +1071,31 @@ export default {
   font-size: 12px;
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.cur-hint {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--info);
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  line-height: 1.4;
+}
+
+.suggest__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.suggest__cur {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .chips {

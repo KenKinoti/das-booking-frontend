@@ -38,7 +38,7 @@
       <div class="ui-kpi">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-regular fa-clock"></i></span>Average duration</div>
         <div class="ui-kpi__value"><span v-if="loading && !loaded" class="ui-skeleton sk-val"></span><template v-else>{{ duration(avgDuration) }}</template></div>
-        <div class="ui-kpi__meta">Per appointment</div>
+        <div class="ui-kpi__meta">Across active services</div>
       </div>
     </div>
 

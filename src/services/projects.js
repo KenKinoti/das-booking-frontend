@@ -3,12 +3,14 @@ import api from './api'
 // Projects module + Jira Cloud sync (backend: /api/v1/pm)
 const base = '/pm'
 const unwrap = (r) => r.data?.data
+// Overdue / "this month" follow the user's calendar.
+const withTz = (params) => ({ ...(params || {}), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
 
 export const pmApi = {
-  stats: () => api.get(`${base}/stats`).then(unwrap),
+  stats: () => api.get(`${base}/stats`, { params: withTz() }).then(unwrap),
 
-  listProjects: (params) => api.get(`${base}/projects`, { params }).then(unwrap),
-  getProject: (id) => api.get(`${base}/projects/${id}`).then(unwrap),
+  listProjects: (params) => api.get(`${base}/projects`, { params: withTz(params) }).then(unwrap),
+  getProject: (id) => api.get(`${base}/projects/${id}`, { params: withTz() }).then(unwrap),
   createProject: (payload) => api.post(`${base}/projects`, payload).then(unwrap),
   updateProject: (id, payload) => api.put(`${base}/projects/${id}`, payload).then(unwrap),
   deleteProject: (id) => api.delete(`${base}/projects/${id}`).then(unwrap),

@@ -64,6 +64,11 @@
             <router-link to="/faq" class="tb__menu-item tb__menu-item--compact" @click="userOpen = false"><i class="fa-solid fa-circle-question"></i> Help</router-link>
             <div class="tb__menu-sep"></div>
             <button class="tb__menu-item tb__menu-item--compact tb__danger" @click="logout"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign out</button>
+            <router-link to="/faq#about" class="tb__menu-ver" @click="userOpen = false" :title="`About ${appName} ${versionLabel}`">
+              <span>{{ appName }}</span>
+              <span class="tb__ver-pill">{{ versionLabel }}</span>
+              <span class="tb__menu-ver-link">What’s new <i class="fa-solid fa-arrow-right"></i></span>
+            </router-link>
           </div>
         </transition>
       </div>
@@ -76,6 +81,8 @@ import { useAuthStore } from '@/stores/auth'
 import { globalTheme } from '@/composables/useTheme'
 import { findNav } from '@/navigation'
 import { entitlements, hasModule } from '@/composables/useEntitlements'
+import { APP_NAME } from '@/config'
+import { VERSION_LABEL } from '@/version'
 
 export default {
   name: 'AppTopbar',
@@ -84,6 +91,8 @@ export default {
     return {
       newOpen: false,
       userOpen: false,
+      appName: APP_NAME,
+      versionLabel: VERSION_LABEL,
       createActions: [
         { label: 'Invoice', hint: 'Bill a customer', to: '/invoices/new', icon: 'fa-solid fa-file-invoice-dollar', module: 'invoicing' },
         { label: 'Quote', hint: 'Send an estimate', to: '/quotes/new', icon: 'fa-solid fa-file-signature', module: 'invoicing' },
@@ -213,7 +222,8 @@ export default {
   position: sticky;
   top: 0;
   z-index: 1020;
-  height: var(--topbar-h);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top) !important;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -231,6 +241,14 @@ export default {
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+.tb__left {
+  flex: 1 1 auto;
+}
+
+.tb__right {
+  flex: 0 0 auto;
 }
 
 .tb__btn {
@@ -261,6 +279,7 @@ export default {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1 1 auto;
   font-size: 14px;
 }
 
@@ -275,6 +294,7 @@ export default {
 }
 
 .tb__crumb-page {
+  min-width: 0;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -448,6 +468,45 @@ export default {
   color: var(--danger) !important;
 }
 
+.tb__menu-ver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px -6px -6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 14px 14px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.tb__menu-ver:hover {
+  color: var(--text-2);
+  background: var(--surface-hover);
+}
+
+.tb__ver-pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tb__menu-ver-link {
+  margin-left: auto;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.tb__menu-ver-link i {
+  font-size: 10px;
+}
+
 .pop-enter-active,
 .pop-leave-active {
   transition: opacity 0.14s, transform 0.14s var(--ease);
@@ -461,7 +520,7 @@ export default {
 
 @media (max-width: 991px) {
   .tb {
-    padding: 0 14px;
+    padding: 0 max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
   }
   .tb__menu {
     display: grid;
@@ -476,16 +535,65 @@ export default {
 }
 
 @media (max-width: 640px) {
+  .tb {
+    gap: 8px;
+    padding: 0 max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  }
+  .tb__left,
+  .tb__right {
+    gap: 6px;
+  }
+  .tb__left {
+    gap: 10px;
+  }
   .tb__hide-sm,
   .tb__search span {
     display: none;
   }
-  .tb__avatar-btn {
-    padding: 0 4px;
+  .tb__crumb-page {
+    font-size: 15px;
   }
-  .tb__menu-pop {
-    left: auto;
-    right: -60px;
+  .tb__btn,
+  .tb__search,
+  .tb__new > .ui-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 11px;
+  }
+  .tb__avatar-btn {
+    height: 40px;
+    padding: 0 3px;
+  }
+  /* Menus become full-width sheets under the top bar */
+  .tb__new,
+  .tb__user {
+    position: static;
+  }
+  .tb__menu-pop,
+  .tb__menu-pop--right {
+    position: fixed;
+    top: calc(var(--topbar-h) + env(safe-area-inset-top) + 6px);
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 0;
+    max-height: calc(100dvh - var(--topbar-h) - 24px);
+    overflow-y: auto;
+  }
+  .tb__menu-item {
+    min-height: 46px;
+    font-size: 15px;
+  }
+  .tb__menu-ver {
+    min-height: 46px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 360px) {
+  .tb__search {
+    display: none;
   }
 }
 </style>

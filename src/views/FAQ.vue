@@ -46,6 +46,7 @@
       </div>
 
       <aside class="side">
+        <AboutCard class="side__about" />
         <div class="ui-card side__card">
           <h3>Still stuck?</h3>
           <p class="muted">Message a teammate or book a quick call — both are built in.</p>
@@ -73,6 +74,7 @@
 
 <script>
 import '@/styles/module-page.css'
+import AboutCard from '@/components/layout/AboutCard.vue'
 
 const TOPICS = [
   { id: 'start', label: 'Getting started', icon: 'fa-solid fa-rocket', to: '/dashboard' },
@@ -151,6 +153,7 @@ const ARTICLES = [
 
 export default {
   name: 'FAQ',
+  components: { AboutCard },
   data() {
     return {
       q: this.$route.query.q || '',
@@ -179,6 +182,9 @@ export default {
     }
   },
   watch: {
+    '$route.hash'(h) {
+      if (h === '#about') this.showAbout()
+    },
     terms(t) {
       // Open matching answers while searching.
       if (t.length) this.open = Object.fromEntries(this.results.slice(0, 6).map((a) => [a.id, true]))
@@ -188,6 +194,7 @@ export default {
     window.addEventListener('keydown', this.onKey)
     const hash = (this.$route.hash || '').slice(1)
     if (hash && ARTICLES.some((a) => a.id === hash)) this.jump(hash)
+    else if (hash === 'about') this.showAbout()
   },
   beforeUnmount() {
     window.removeEventListener('keydown', this.onKey)
@@ -216,6 +223,12 @@ export default {
       if (this.q) query.q = this.q
       if (this.topic) query.topic = this.topic
       this.$router.replace({ query })
+    },
+    showAbout() {
+      this.$nextTick(() => {
+        const el = document.getElementById('about')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
     },
     jump(id) {
       this.q = ''

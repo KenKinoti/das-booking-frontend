@@ -577,7 +577,7 @@ export default {
     },
     async loadDash() {
       try {
-        const r = await api.get('/crm/dashboard')
+        const r = await api.get('/crm/dashboard', { params: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone } })
         this.dash = r.data?.data || {}
       } catch {
         this.dash = {}

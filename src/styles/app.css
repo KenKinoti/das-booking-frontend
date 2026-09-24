@@ -1184,3 +1184,415 @@ a {
   --transition-fast: all 0.15s ease;
   --transition-smooth: all 0.25s var(--ease);
 }
+
+/* ==========================================================================
+   Mobile & touch layer (v2.0)
+   Phone-first refinements for every page that uses the ui- primitives or the
+   Bootstrap harmonisation above. Breakpoints: ≤991 drawer nav, ≤640 phone.
+   ========================================================================== */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+img,
+video {
+  max-width: 100%;
+}
+
+/* Scrolling tables stay inside their card (and keep absolutely positioned
+   helpers such as .sr-only from leaking out of the scroll box) */
+.ui-table-wrap,
+.table-responsive {
+  position: relative;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.ui-tabs {
+  max-width: 100%;
+}
+
+/* Release badge helper, usable anywhere: <span class="ui-version">v2.0.0</span> */
+.ui-version {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@keyframes ui-sheet {
+  from {
+    transform: translateY(24px);
+    opacity: 0.4;
+  }
+}
+
+@media (max-width: 991px) {
+  /* Tables: first column sticks while the rest scrolls sideways */
+  .ui-table-wrap .ui-table th:first-child,
+  .ui-table-wrap .ui-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    box-shadow: inset -1px 0 0 var(--border);
+  }
+
+  .ui-table-wrap .ui-table th:first-child {
+    background: var(--surface-2);
+    z-index: 2;
+  }
+
+  .ui-table-wrap .ui-table tbody tr.is-clickable:hover td:first-child {
+    background: var(--surface-hover);
+  }
+
+  .ui-table-wrap .ui-table td:first-child[colspan] {
+    position: static;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Page header: title block, then actions spanning the full width */
+  .ui-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .ui-page-head > .ui-actions,
+  .ui-page-head > div > .ui-actions {
+    width: 100%;
+  }
+
+  /* The primary action fills the row; secondary actions keep their size */
+  .ui-page-head .ui-actions > .ui-btn--primary:not(.ui-btn--icon) {
+    flex: 1 1 auto;
+  }
+
+  .ui-page-head .ui-actions > .ui-btn {
+    flex-shrink: 0;
+  }
+
+  .ui-page-head p {
+    font-size: 13.5px;
+  }
+
+  .ui-actions {
+    gap: 8px;
+  }
+
+  /* KPI rows: two up */
+  .ui-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .ui-kpi {
+    padding: 14px;
+    border-radius: var(--radius);
+    min-width: 0;
+  }
+
+  .ui-kpi__label {
+    font-size: 12px;
+    gap: 6px;
+    line-height: 1.3;
+  }
+
+  .ui-kpi__icon {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    font-size: 11px;
+    border-radius: 7px;
+  }
+
+  .ui-kpi__value {
+    font-size: 20px;
+    margin-top: 8px;
+    overflow-wrap: anywhere;
+  }
+
+  .ui-kpi__meta {
+    font-size: 11.5px;
+  }
+
+  /* Cards */
+  .ui-card__head {
+    padding: 14px 16px;
+    flex-wrap: wrap;
+  }
+
+  .ui-card__body {
+    padding: 16px;
+  }
+
+  .card-body {
+    padding: 16px;
+  }
+
+  .card-header {
+    padding: 14px 16px;
+  }
+
+  /* Tabs scroll sideways instead of wrapping or overflowing */
+  .ui-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .ui-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ui-tab {
+    flex: 0 0 auto;
+    height: 36px;
+    white-space: nowrap;
+  }
+
+  .nav-tabs,
+  .nav-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .nav-tabs .nav-link,
+  .nav-pills .nav-link {
+    white-space: nowrap;
+  }
+
+  /* Tap targets ≥ 40px */
+  .ui-btn {
+    height: 42px;
+  }
+
+  .ui-btn--sm {
+    height: 40px;
+    padding: 0 12px;
+  }
+
+  .ui-btn--icon {
+    width: 42px;
+  }
+
+  .ui-btn--sm.ui-btn--icon {
+    width: 40px;
+  }
+
+  .btn {
+    min-height: 40px;
+  }
+
+  .btn-sm {
+    min-height: 36px;
+  }
+
+  .ui-switch input {
+    width: 44px;
+    height: 26px;
+  }
+
+  .ui-switch input::after {
+    width: 22px;
+    height: 22px;
+  }
+
+  .ui-switch input:checked::after {
+    transform: translateX(18px);
+  }
+
+  /* Forms: 16px text stops iOS from zooming into fields */
+  .ui-input,
+  .ui-select,
+  .ui-textarea,
+  .form-control,
+  .form-select,
+  .app-content input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  .app-content select,
+  .app-content textarea,
+  .ui-modal input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  .ui-modal select,
+  .ui-modal textarea {
+    font-size: 16px;
+  }
+
+  .ui-input,
+  .ui-select {
+    min-height: 44px;
+  }
+
+  .ui-input-group > i {
+    font-size: 14px;
+  }
+
+  /* Multi-column form rows collapse to one column */
+  .ui-grid-2,
+  .ui-grid-3,
+  .ui-grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Tables: denser cells; rows stay on one line and the table scrolls
+     sideways inside its card (first column pinned) instead of squashing */
+  .ui-table th {
+    padding: 10px 12px;
+  }
+
+  .ui-table td {
+    padding: 12px;
+  }
+
+  .ui-table-wrap .ui-table th,
+  .ui-table-wrap .ui-table td {
+    white-space: nowrap;
+  }
+
+  .ui-table-wrap .ui-table td[colspan] {
+    white-space: normal;
+  }
+
+  .ui-empty {
+    padding: 40px 16px;
+  }
+
+  /* Modals become bottom sheets with a sticky header and footer */
+  .ui-modal-backdrop {
+    place-items: end stretch;
+    padding: env(safe-area-inset-top) 0 0;
+  }
+
+  .ui-modal {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top)) !important;
+    border-radius: 20px 20px 0 0;
+    border-bottom: 0;
+    animation: ui-sheet 0.24s var(--ease);
+    overscroll-behavior: contain;
+  }
+
+  .ui-modal__head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    padding: 18px 16px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ui-modal__head::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 40px;
+    height: 4px;
+    margin-left: -20px;
+    border-radius: 4px;
+    background: var(--border-strong);
+  }
+
+  .ui-modal__head h2 {
+    font-size: 17px;
+  }
+
+  .ui-modal__body {
+    padding: 16px;
+  }
+
+  .ui-modal__foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    flex-wrap: wrap;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+
+  .ui-modal__foot > .ui-btn,
+  .ui-modal__foot > a.ui-btn {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+
+  /* Bootstrap modals on legacy pages */
+  .modal-dialog {
+    margin: 0;
+    max-width: none;
+    min-height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .modal-dialog > .modal-content {
+    border-radius: 20px 20px 0 0;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .modal-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface);
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
+  .modal-footer > .btn {
+    flex: 1 1 0;
+  }
+
+  /* Toast + dropdowns never wider than the screen */
+  .dropdown-menu {
+    max-width: calc(100vw - 24px);
+  }
+
+  h1,
+  .h1 {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 380px) {
+  .ui-kpi {
+    padding: 12px;
+  }
+
+  .ui-kpi__value {
+    font-size: 18px;
+  }
+}
+
+@media (pointer: coarse) {
+  .ui-table tbody tr.is-clickable:hover {
+    background: transparent;
+  }
+
+  .ui-table tbody tr.is-clickable:active {
+    background: var(--surface-hover);
+  }
+}

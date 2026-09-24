@@ -151,7 +151,7 @@ export default {
     },
     async loadSummary() {
       try {
-        const { data } = await api.get('/hr/summary')
+        const { data } = await api.get('/hr/summary', { params: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone } })
         this.summary = data.data
       } catch (e) {
         this.loadError = apiErrorMessage(e, 'Could not load HR data')

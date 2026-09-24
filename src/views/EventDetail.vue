@@ -52,7 +52,7 @@
         <div class="ui-kpi">
           <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-ticket"></i></span>Registered</div>
           <div class="ui-kpi__value">{{ s.tickets }}<small v-if="s.capacity" class="of">/ {{ s.capacity }}</small></div>
-          <div class="ui-kpi__meta">{{ s.registrations }} booking{{ s.registrations === 1 ? '' : 's' }}{{ s.waitlisted ? ` · ${s.waitlisted} waitlisted` : '' }}</div>
+          <div class="ui-kpi__meta">{{ s.registrations }} registration{{ s.registrations === 1 ? '' : 's' }}{{ s.waitlisted ? ` · ${s.waitlisted} waitlisted` : '' }}</div>
           <div v-if="s.capacity" class="kpi-bar"><span :style="{ width: Math.min(100, s.fill_rate) + '%' }"></span></div>
         </div>
         <div class="ui-kpi">

@@ -85,7 +85,7 @@
             <tr>
               <th>Customer</th>
               <th class="hide-sm">Phone</th>
-              <th class="hide-md">Location</th>
+              <th class="hide-md">Country</th>
               <th class="hide-sm">Last visit</th>
               <th class="num hide-md">Bookings</th>
               <th v-if="showVehicles" class="num hide-lg">Vehicles</th>
@@ -100,13 +100,24 @@
                 <div class="person">
                   <span class="avatar" :class="{ 'avatar--off': !c.is_active }">{{ initials(fullName(c)) }}</span>
                   <span class="person__text">
-                    <span class="person__name">{{ fullName(c) }}</span>
-                    <small>{{ c.email || c.phone || '—' }}</small>
+                    <span class="person__name">{{ fullName(c) }} <span v-if="c.country_code" class="name-flag" :title="countryOf(c)">{{ flag(c.country_code) }}</span></span>
+                    <small>
+                      {{ c.email || c.phone || '—' }}
+                      <span v-if="c.contacts_count" class="contacts-pill" :title="`${c.contacts_count} contact${c.contacts_count > 1 ? 's' : ''} copied on emails`"><i class="fa-regular fa-address-card"></i> {{ c.contacts_count }}</span>
+                    </small>
                   </span>
                 </div>
               </td>
               <td class="hide-sm nowrap">{{ c.phone || '—' }}</td>
-              <td class="hide-md muted nowrap">{{ location(c) || '—' }}</td>
+              <td class="hide-md nowrap">
+                <span class="loc">
+                  <span v-if="c.country_code" class="loc__flag" aria-hidden="true">{{ flag(c.country_code) }}</span>
+                  <span>
+                    <span class="loc__country">{{ countryOf(c) || '—' }}</span>
+                    <small v-if="location(c)" class="muted">{{ location(c) }}</small>
+                  </span>
+                </span>
+              </td>
               <td class="hide-sm">
                 <span v-if="c.last_booking_at">{{ date(c.last_booking_at) }}</span>
                 <span v-else class="muted">Never</span>
@@ -160,6 +171,8 @@ import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatDate, formatMoney, downloadBlob, isoDate } from '@/utils/format'
+import { countryFlag } from '@/utils/currencies'
+import { customerCountry } from '@/services/customerService'
 
 export default {
   name: 'Customers',
@@ -218,6 +231,8 @@ export default {
     money: (v) => formatMoney(v),
     invoiceLink: newInvoiceLink,
     bookingLink: newBookingLink,
+    flag: countryFlag,
+    countryOf: customerCountry,
     location(c) {
       const a = c.address || {}
       return [a.suburb, a.state].filter(Boolean).join(', ')
@@ -335,7 +350,7 @@ export default {
     },
     exportCsv() {
       const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-      const head = ['First name', 'Last name', 'Email', 'Phone', 'Street', 'Suburb', 'State', 'Postcode', 'Country', 'Status', 'Bookings', 'Last visit', 'Total spent', 'Created']
+      const head = ['First name', 'Last name', 'Email', 'Phone', 'Street', 'Suburb', 'State', 'Postcode', 'Country', 'Country code', 'Invoice currency', 'Contacts', 'Status', 'Bookings', 'Last visit', 'Total spent', 'Created']
       const lines = this.rows.map((c) =>
         [
           c.first_name,
@@ -346,7 +361,10 @@ export default {
           c.address?.suburb,
           c.address?.state,
           c.address?.postcode,
-          c.address?.country,
+          customerCountry(c),
+          c.country_code || '',
+          c.billing_currency || '',
+          c.contacts_count || 0,
           c.is_active ? 'Active' : 'Inactive',
           c.bookings_count || 0,
           c.last_booking_at ? isoDate(new Date(c.last_booking_at)) : '',
@@ -470,6 +488,35 @@ export default {
   color: var(--text-3);
 }
 
+.contacts-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.loc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loc__flag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.loc small {
+  display: block;
+  font-size: 12px;
+}
+
 .nowrap {
   white-space: nowrap;
 }
@@ -522,9 +569,17 @@ export default {
   }
 }
 
+.name-flag {
+  display: none;
+  font-weight: 400;
+}
+
 @media (max-width: 960px) {
   .hide-md {
     display: none;
+  }
+  .name-flag {
+    display: inline;
   }
 }
 

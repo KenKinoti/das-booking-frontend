@@ -65,8 +65,8 @@
             <input id="cm-suburb" v-model="form.address.suburb" class="ui-input" />
           </div>
           <div class="ui-field">
-            <label for="cm-state">State</label>
-            <input id="cm-state" v-model="form.address.state" class="ui-input" list="cm-states" />
+            <label for="cm-state">State / region</label>
+            <input id="cm-state" v-model="form.address.state" class="ui-input" :list="form.country_code === 'AU' ? 'cm-states' : undefined" />
             <datalist id="cm-states">
               <option v-for="s in states" :key="s" :value="s" />
             </datalist>
@@ -77,9 +77,29 @@
           </div>
           <div class="ui-field">
             <label for="cm-country">Country</label>
-            <input id="cm-country" v-model="form.address.country" class="ui-input" />
+            <CountryPicker id="cm-country" v-model="form.country_code" @change="onCountry" />
           </div>
         </div>
+
+        <div class="section-label">Invoicing</div>
+        <div class="ui-grid-2">
+          <div class="ui-field">
+            <label for="cm-currency">Invoice currency</label>
+            <select id="cm-currency" v-model="form.currency" class="ui-select">
+              <option value="">Automatic — {{ autoCurrency.currency }} ({{ autoCurrencyReason }})</option>
+              <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region">
+                <option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.flag }} {{ c.code }} — {{ c.name }}</option>
+              </optgroup>
+            </select>
+            <span class="ui-hint">{{ currencyHint }}</span>
+          </div>
+        </div>
+
+        <div class="section-label">
+          Contacts <span v-if="contactsCount" class="count-pill">{{ contactsCount }}</span>
+        </div>
+        <CustomerContacts v-if="isEditing" :customer-id="customer.id" @changed="contactsCount = $event" />
+        <CustomerContacts v-else v-model="pendingContacts" />
 
         <div class="section-label">Notes</div>
         <div class="ui-field">
@@ -100,9 +120,28 @@
 
 <script>
 import { customerService } from '@/services/customerService'
+import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { isoDate } from '@/utils/format'
+import { currencyGroups, countryName, countryCodeFromName, customerCurrency, currencyLabel } from '@/utils/currencies'
+import CountryPicker from './customers/CountryPicker.vue'
+import CustomerContacts from './customers/CustomerContacts.vue'
+
+// Organisation default currency (for customers whose country's currency isn't supported).
+let orgDefaultPromise = null
+function orgDefaultCurrency() {
+  if (!orgDefaultPromise) {
+    orgDefaultPromise = invoicingApi
+      .getSettings()
+      .then((r) => r?.settings?.currency || 'AUD')
+      .catch(() => {
+        orgDefaultPromise = null
+        return 'AUD'
+      })
+  }
+  return orgDefaultPromise
+}
 
 const blank = () => ({
   first_name: '',
@@ -112,11 +151,14 @@ const blank = () => ({
   date_of_birth: '',
   is_active: true,
   notes: '',
+  country_code: 'AU',
+  currency: '',
   address: { street: '', suburb: '', state: '', postcode: '', country: 'Australia' }
 })
 
 export default {
   name: 'CustomerModal',
+  components: { CountryPicker, CustomerContacts },
   props: {
     show: { type: Boolean, default: false },
     customer: { type: Object, default: null }
@@ -128,6 +170,10 @@ export default {
       errors: {},
       error: '',
       saving: false,
+      orgDefault: 'AUD',
+      pendingContacts: [],
+      contactsCount: 0,
+      currencyGroups: currencyGroups(),
       today: isoDate(),
       states: ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT']
     }
@@ -138,6 +184,19 @@ export default {
     },
     title() {
       return this.isEditing ? 'Edit customer' : 'New customer'
+    },
+    autoCurrency() {
+      return customerCurrency({ country_code: this.form.country_code }, this.orgDefault)
+    },
+    autoCurrencyReason() {
+      return this.autoCurrency.source === 'country' ? `from ${countryName(this.form.country_code)}` : 'organisation default'
+    },
+    currencyHint() {
+      if (this.form.currency) return `New invoices and quotes for this customer use ${currencyLabel(this.form.currency)}.`
+      if (this.autoCurrency.source === 'country') return `Follows the customer's country. Choose a currency to override it.`
+      return this.form.country_code
+        ? `${countryName(this.form.country_code)}'s currency isn't supported yet, so your default currency is used.`
+        : 'No country set, so your default currency is used.'
     }
   },
   watch: {
@@ -156,9 +215,14 @@ export default {
               notes: c.notes || '',
               is_active: c.is_active !== false,
               date_of_birth: c.date_of_birth ? isoDate(c.date_of_birth) : '',
-              address: { ...blank().address, ...(c.address || {}) }
+              address: { ...blank().address, ...(c.address || {}) },
+              country_code: c.country_code || countryCodeFromName(c.address?.country),
+              currency: c.currency || ''
             }
           : blank()
+        this.pendingContacts = []
+        this.contactsCount = c?.contacts_count || 0
+        orgDefaultCurrency().then((cur) => (this.orgDefault = cur))
         this.errors = {}
         this.error = ''
         this.$nextTick(() => this.$refs.first?.focus())
@@ -168,6 +232,9 @@ export default {
   methods: {
     close() {
       if (!this.saving) this.$emit('close')
+    },
+    onCountry(code) {
+      this.form.address.country = countryName(code)
     },
     validate() {
       const e = {}
@@ -183,9 +250,20 @@ export default {
       this.saving = true
       this.error = ''
       try {
-        const payload = { ...this.form, address: { ...this.form.address } }
+        const payload = { ...this.form, address: { ...this.form.address, country: countryName(this.form.country_code) } }
         const saved = this.isEditing ? await customerService.update(this.customer.id, payload) : await customerService.create(payload)
+        let failed = 0
+        if (!this.isEditing && saved?.id && this.pendingContacts.length) {
+          for (const { _local, ...ct } of this.pendingContacts) {
+            try {
+              await customerService.createContact(saved.id, ct)
+            } catch {
+              failed++
+            }
+          }
+        }
         toast.success(this.isEditing ? 'Customer updated' : 'Customer created')
+        if (failed) toast.warning(`${failed} contact${failed > 1 ? 's' : ''} could not be saved — add them from the customer's Contacts tab.`)
         this.$emit('saved', saved)
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not save the customer')
@@ -230,6 +308,17 @@ export default {
 .field-error {
   font-size: 12px;
   color: var(--danger);
+}
+
+.count-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 11px;
+  letter-spacing: 0;
 }
 
 .status-switch {

@@ -130,6 +130,14 @@
       />
     </div>
 
+    <div v-if="data && data.other_currencies && data.other_currencies.length" class="ui-alert cur-note mb" role="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <span>
+        Amounts are in {{ currency }}. Not included:
+        <template v-for="(o, i) in data.other_currencies" :key="o.currency">{{ i ? '; ' : '' }}{{ o.open }} open invoice{{ o.open === 1 ? '' : 's' }} in {{ o.currency }} ({{ fmtCur(o.outstanding, o.currency) }} outstanding)</template>.
+      </span>
+    </div>
+
     <!-- Revenue + sources -->
     <div class="grid-row row-8-4">
       <section class="ui-card">
@@ -654,6 +662,11 @@ export default {
     money(v, compact = false) {
       return money(v, this.currency, compact)
     },
+    // Other-currency amounts are written with the ISO code ("USD 1,100.00") so
+    // they can't be mistaken for the organisation's own currency.
+    fmtCur(v, cur) {
+      return `${cur} ${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    },
     axisMoney(v) {
       return moneyAxis(v, this.currency)
     },
@@ -685,6 +698,15 @@ export default {
 
 .mb {
   margin-bottom: 16px;
+}
+
+.cur-note {
+  background: var(--info-soft);
+  color: var(--text);
+}
+
+.cur-note > i {
+  color: var(--info);
 }
 
 .retry {
@@ -988,8 +1010,14 @@ export default {
 
 @media (max-width: 520px) {
   .kpis {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .grid-row {
     gap: 12px;
+    margin-bottom: 12px;
   }
 
   .actions {

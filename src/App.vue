@@ -14,6 +14,7 @@
       <AppTopbar @toggle-menu="mobileOpen = !mobileOpen" @open-search="paletteOpen = true" />
       <OrganizationContext />
       <main class="app-content" id="main">
+        <WhatsNew v-if="$route.path === '/dashboard'" />
         <router-view v-slot="{ Component, route }">
           <transition name="page" mode="out-in">
             <component :is="Component" :key="route.path" />
@@ -38,12 +39,15 @@ import AppTopbar from './components/layout/AppTopbar.vue'
 import CommandPalette from './components/layout/CommandPalette.vue'
 import ToastHost from './components/layout/ToastHost.vue'
 import ConfirmHost from './components/layout/ConfirmHost.vue'
+import WhatsNew from './components/layout/WhatsNew.vue'
 import OrganizationContext from './components/OrganizationContext.vue'
 import { useAuthStore } from './stores/auth'
+import { globalTheme } from './composables/useTheme'
+import { APP_VERSION } from './version'
 
 export default {
   name: 'App',
-  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext },
+  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew },
   data() {
     let rail = false
     try {
@@ -60,12 +64,29 @@ export default {
     },
     effectiveRail() {
       return this.rail && !this.isMobile
+    },
+    isDark() {
+      return globalTheme.isDark.value
     }
   },
   watch: {
     '$route.fullPath'() {
       this.mobileOpen = false
+    },
+    mobileOpen(open) {
+      // Lock the page behind the off-canvas drawer
+      document.documentElement.classList.toggle('has-drawer-open', open)
+    },
+    isDark: {
+      immediate: true,
+      handler(dark) {
+        // Mobile browser chrome / installed-app title bar follows the app theme
+        document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', dark ? '#0b0d14' : '#f6f7fb'))
+      }
     }
+  },
+  created() {
+    document.documentElement.dataset.appVersion = APP_VERSION
   },
   mounted() {
     window.addEventListener('keydown', this.onKey)
@@ -86,8 +107,13 @@ export default {
     },
     onResize() {
       this.isMobile = window.innerWidth < 992
+      if (!this.isMobile) this.mobileOpen = false
     },
     onKey(e) {
+      if (e.key === 'Escape' && this.mobileOpen) {
+        this.mobileOpen = false
+        return
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && this.showShell) {
         e.preventDefault()
         this.paletteOpen = !this.paletteOpen
@@ -98,9 +124,18 @@ export default {
 </script>
 
 <style>
+/* Legacy pages that set their own widths never push the page sideways on small screens */
+@media (max-width: 991px) {
+  .app-content {
+    overflow-x: clip;
+  }
+}
+
 .shell__main {
   margin-left: var(--sidebar-w);
+  min-width: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   transition: margin-left 0.22s var(--ease);
@@ -122,6 +157,13 @@ export default {
   z-index: 1025;
   background: rgba(10, 12, 24, 0.45);
   backdrop-filter: blur(2px);
+  animation: ui-fade 0.2s ease-out;
+  touch-action: none;
+}
+
+html.has-drawer-open,
+html.has-drawer-open body {
+  overflow: hidden;
 }
 
 .page-enter-active,
@@ -144,7 +186,7 @@ export default {
     margin-left: 0;
   }
   .app-content {
-    padding: 20px 16px 40px;
+    padding: 20px max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
 }
 

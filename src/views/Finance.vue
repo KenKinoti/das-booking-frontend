@@ -44,7 +44,7 @@
       <button class="ui-kpi kpi-link kpi-btn" @click="setTab('reports')">
         <div class="ui-kpi__label"><span class="ui-kpi__icon" :class="s && s.net_profit_this_month < 0 ? 'k-danger' : 'k-success'"><i class="fa-solid fa-chart-line"></i></span>Net profit · {{ monthName }}</div>
         <div class="ui-kpi__value" :class="{ 'txt-danger': s && s.net_profit_this_month < 0 }"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.net_profit_this_month) }}</template></div>
-        <div class="ui-kpi__meta">{{ s ? `${money(s.revenue_this_month)} in · ${money(s.expenses_this_month)} out` : '…' }}</div>
+        <div class="ui-kpi__meta">{{ s ? `${money(s.revenue_this_month)} revenue · ${money(s.expenses_this_month)} expenses posted to the ledger` : '…' }}</div>
       </button>
     </div>
 

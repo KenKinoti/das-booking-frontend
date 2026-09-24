@@ -2,9 +2,17 @@
  * Client-side mirror of the backend invoice calculation (pkg/invoicing/calc.go)
  * so totals update live while editing. The server recalculates on save.
  */
-const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100
+/** Minor-unit decimals per currency (mirrors pkg/currency.Decimals). */
+export function currencyDecimals(code) {
+  const c = String(code || '').toUpperCase()
+  if (c === 'JPY' || c === 'UGX') return 0
+  if (c === 'KWD') return 3
+  return 2
+}
 
 export function calculate(doc) {
+  const p = Math.pow(10, currencyDecimals(doc.currency))
+  const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * p) / p
   const items = (doc.items || []).map((it) => {
     const qty = Math.max(0, Number(it.quantity) || 0)
     const price = Number(it.unit_price) || 0

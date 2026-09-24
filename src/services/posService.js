@@ -27,7 +27,8 @@ export const posService = {
   /** Returns { transactions, total, page, limit, summary } */
   async listTransactions(params = {}) {
     const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined))
-    const res = await api.get('/pos/transactions', { params: clean })
+    // tz: date filters (start_date/end_date) are calendar days in the user's time zone
+    const res = await api.get('/pos/transactions', { params: { ...clean, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } })
     return {
       transactions: listFrom(res, 'transactions'),
       total: res.data?.total || 0,
@@ -74,7 +75,7 @@ export const posService = {
   },
 
   async report(params = {}) {
-    const res = await api.get('/pos/report', { params })
+    const res = await api.get('/pos/report', { params: { ...params, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } })
     return res.data.report
   }
 }

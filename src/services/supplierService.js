@@ -40,7 +40,7 @@ export const supplierService = {
 
   // Purchase orders
   getPurchaseOrders(params = {}) {
-    return api.get('/suppliers/purchase-orders', { params })
+    return api.get('/suppliers/purchase-orders', { params: { ...params, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } })
   },
   getPurchaseOrder(id) {
     return api.get(`/suppliers/purchase-orders/${id}`)
@@ -67,7 +67,7 @@ export const supplierService = {
 
   // Reports
   getSupplierReport() {
-    return api.get('/suppliers/report')
+    return api.get('/suppliers/report', { params: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone } })
   }
 }
 

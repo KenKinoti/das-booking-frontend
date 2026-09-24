@@ -160,6 +160,8 @@
             </router-link>
           </div>
         </section>
+
+        <AboutCard compact />
       </div>
     </div>
 
@@ -177,6 +179,7 @@
 
 <script>
 import '@/styles/module-page.css'
+import AboutCard from '@/components/layout/AboutCard.vue'
 import api, { apiErrorMessage } from '@/services/api'
 import { currencyGroups } from '@/utils/currencies'
 import { toast } from '@/composables/useToast'
@@ -190,6 +193,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
+  components: { AboutCard },
   data() {
     return {
       org: blankOrg(),
@@ -207,7 +211,8 @@ export default {
         { id: 'business', label: 'Business details', icon: 'fa-regular fa-building' },
         { id: 'regional', label: 'Regional & formats', icon: 'fa-solid fa-globe' },
         { id: 'notifications', label: 'Notifications', icon: 'fa-regular fa-bell' },
-        { id: 'more', label: 'More settings', icon: 'fa-solid fa-grip' }
+        { id: 'more', label: 'More settings', icon: 'fa-solid fa-grip' },
+        { id: 'about', label: 'About', icon: 'fa-solid fa-circle-info' }
       ],
       links: [
         { to: '/profile', label: 'My profile & password', hint: 'Your name, phone and sign-in password', icon: 'fa-regular fa-user' },

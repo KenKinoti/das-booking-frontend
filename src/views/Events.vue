@@ -21,14 +21,14 @@
         </div>
       </button>
       <div class="ui-kpi">
-        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-info"><i class="fa-solid fa-ticket"></i></span>Registrations</div>
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-info"><i class="fa-solid fa-ticket"></i></span>Tickets issued</div>
         <div class="ui-kpi__value"><span v-if="stats">{{ num(stats.tickets) }}</span><span v-else class="ui-skeleton sk-val"></span></div>
-        <div class="ui-kpi__meta" v-if="stats">{{ num(stats.registrations) }} bookings · {{ num(stats.checked_in) }} checked in</div>
+        <div class="ui-kpi__meta" v-if="stats">{{ num(stats.registrations) }} registration{{ stats.registrations === 1 ? '' : 's' }}, all events · {{ num(stats.checked_in) }} checked in</div>
       </div>
       <div class="ui-kpi">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-sack-dollar"></i></span>Ticket revenue</div>
         <div class="ui-kpi__value"><span v-if="stats">{{ money(stats.revenue, stats.currency) }}</span><span v-else class="ui-skeleton sk-val"></span></div>
-        <div class="ui-kpi__meta" v-if="stats">{{ money(stats.paid, stats.currency) }} collected</div>
+        <div class="ui-kpi__meta" v-if="stats">{{ money(stats.paid, stats.currency) }} collected<template v-for="(v, c) in stats.other_currency_revenue || {}" :key="c"> · + {{ money(v, c) }}</template></div>
       </div>
       <div class="ui-kpi">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-solid fa-users"></i></span>Capacity filled</div>

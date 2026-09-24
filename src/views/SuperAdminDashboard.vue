@@ -49,7 +49,7 @@
           <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-solid fa-file-invoice-dollar"></i></span>Invoiced (all orgs)</div>
           <div class="ui-kpi__value">{{ primary ? money(primary.invoiced, primary.currency) : '—' }}</div>
           <div class="ui-kpi__meta">
-            <template v-if="primary">{{ n(data.invoicing.total_invoices) }} invoices<template v-if="otherCurrencies"> · +{{ otherCurrencies }} other currenc{{ otherCurrencies === 1 ? 'y' : 'ies' }}</template></template>
+            <template v-if="primary">{{ n(primary.count) }} issued invoice{{ primary.count === 1 ? '' : 's' }} in {{ primary.currency }}<template v-if="otherCurrencies"> · +{{ otherCurrencies }} other currenc{{ otherCurrencies === 1 ? 'y' : 'ies' }}</template></template>
             <template v-else>No issued invoices yet</template>
           </div>
         </div>

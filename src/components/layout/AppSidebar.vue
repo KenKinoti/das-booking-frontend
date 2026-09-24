@@ -2,7 +2,7 @@
   <aside class="sb" :class="{ 'is-rail': rail, 'is-mobile-open': mobileOpen }" aria-label="Main navigation">
     <div class="sb__brand">
       <router-link to="/dashboard" class="sb__logo" @click="$emit('navigate')">
-        <span class="sb__mark"><i class="fa-solid fa-bolt"></i></span>
+        <BrandMark class="sb__mark" :size="36" />
         <span class="sb__name" v-show="!rail">
           {{ appName }}
           <small>{{ orgName }}</small>
@@ -62,7 +62,16 @@
         <i :class="allOpen ? 'fa-solid fa-compress' : 'fa-solid fa-expand'"></i>
         <span>{{ allOpen ? 'Collapse all' : 'Expand all' }}</span>
       </button>
-      <button class="sb__foot-btn sb__rail-toggle" @click="$emit('toggle-rail')" :title="rail ? 'Expand sidebar' : 'Collapse sidebar'">
+      <router-link
+        to="/faq#about"
+        class="sb__ver"
+        :title="`${appName} ${versionLabel} — about this release`"
+        :aria-label="`${appName} version ${appVersion}. About this release`"
+        @click="$emit('navigate')"
+      >
+        <span class="sb__ver-dot" aria-hidden="true"></span>{{ rail ? versionShort : versionLabel }}
+      </router-link>
+      <button class="sb__foot-btn sb__rail-toggle" @click="$emit('toggle-rail')" :title="rail ? 'Expand sidebar' : 'Collapse sidebar'" :aria-label="rail ? 'Expand sidebar' : 'Collapse sidebar'">
         <i :class="rail ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left'"></i>
       </button>
     </div>
@@ -74,11 +83,14 @@ import { visibleGroups, isItemActive } from '@/navigation'
 import { useAuthStore } from '@/stores/auth'
 import { APP_NAME } from '@/config'
 import { entitlements } from '@/composables/useEntitlements'
+import { APP_VERSION, VERSION_LABEL, VERSION_SHORT } from '@/version'
+import BrandMark from './BrandMark.vue'
 
 const STORAGE_KEY = 'nav.openGroups'
 
 export default {
   name: 'AppSidebar',
+  components: { BrandMark },
   props: {
     rail: { type: Boolean, default: false },
     mobileOpen: { type: Boolean, default: false }
@@ -94,6 +106,9 @@ export default {
     return {
       openGroups: Array.isArray(saved) ? saved : ['overview', 'sales'],
       appName: APP_NAME,
+      appVersion: APP_VERSION,
+      versionLabel: VERSION_LABEL,
+      versionShort: VERSION_SHORT,
       isMac: typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
     }
   },
@@ -204,16 +219,7 @@ export default {
 }
 
 .sb__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
   flex-shrink: 0;
-  color: #fff;
-  font-size: 15px;
-  background: linear-gradient(140deg, #7c6bff 0%, #5b4cf0 45%, #2f86ff 100%);
-  box-shadow: 0 6px 16px -6px rgba(91, 76, 240, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .sb__name {
@@ -504,9 +510,10 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
+  min-width: 0;
   height: 34px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -518,6 +525,12 @@ export default {
   flex: 1;
 }
 
+.sb__foot-btn span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sb__foot-btn:hover {
   background: var(--surface-hover);
   color: var(--text);
@@ -526,6 +539,41 @@ export default {
 .sb__rail-toggle {
   flex: 0 0 34px;
   padding: 0;
+}
+
+/* Release pill — always visible so everyone can tell which version they are on */
+.sb__ver {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sb__ver:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sb__ver-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
 }
 
 .is-rail .sb__brand {
@@ -550,8 +598,16 @@ export default {
 }
 
 .is-rail .sb__foot {
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   padding: 10px;
+}
+
+.is-rail .sb__ver {
+  padding: 0 8px;
+  height: 26px;
+  font-size: 11px;
 }
 
 .is-rail .sb__rail-toggle {
@@ -559,20 +615,76 @@ export default {
 }
 
 @media (max-width: 991px) {
+  /* Off-canvas drawer */
   .sb,
   .sb.is-rail {
-    width: min(300px, 86vw);
-    transform: translateX(-100%);
-    box-shadow: var(--shadow-lg);
+    width: min(320px, 86vw);
+    transform: translateX(-104%);
+    box-shadow: none;
+    visibility: hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    transition: transform 0.26s var(--ease), visibility 0s linear 0.26s;
+    overscroll-behavior: contain;
   }
 
   .sb.is-mobile-open {
     transform: translateX(0);
+    visibility: visible;
+    box-shadow: var(--shadow-lg);
+    transition: transform 0.26s var(--ease), visibility 0s;
   }
 
   .sb__close {
     display: grid;
     place-items: center;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .sb__close:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+
+  /* Comfortable tap targets */
+  .sb__search {
+    height: 44px;
+    font-size: 15px;
+  }
+
+  .sb__search kbd {
+    display: none;
+  }
+
+  .sb__group-head {
+    height: 46px;
+    font-size: 15px;
+  }
+
+  .sb__item {
+    height: 44px;
+    font-size: 15px;
+  }
+
+  .sb__item i {
+    font-size: 14px;
+  }
+
+  .sb__item.is-active::before {
+    top: 11px;
+    bottom: 11px;
+  }
+
+  .sb__plan {
+    padding: 12px;
+  }
+
+  .sb__foot-btn,
+  .sb__ver {
+    height: 42px;
   }
 
   .sb__rail-toggle {

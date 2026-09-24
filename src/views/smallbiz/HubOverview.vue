@@ -9,12 +9,12 @@
         <div class="ui-kpi">
           <div class="ui-kpi__label"><span class="ui-kpi__icon k-success"><i class="fa-solid fa-arrow-down"></i></span>Money in · {{ monthName }}</div>
           <div class="ui-kpi__value"><span v-if="!o" class="ui-skeleton sk"></span><template v-else>{{ money(tm.income_net) }}</template></div>
-          <div class="ui-kpi__meta"><Delta v-if="o" :now="tm.income_net" :prev="lm.income_net" /> vs {{ money(lm.income_net) }} last month</div>
+          <div class="ui-kpi__meta"><Delta v-if="o" :now="tm.income_net" :prev="lm.income_net" /> vs {{ money(lm.income_net) }} last month{{ taxNote }}</div>
         </div>
         <div class="ui-kpi">
           <div class="ui-kpi__label"><span class="ui-kpi__icon k-danger"><i class="fa-solid fa-arrow-up"></i></span>Money out · {{ monthName }}</div>
           <div class="ui-kpi__value"><span v-if="!o" class="ui-skeleton sk"></span><template v-else>{{ money(tm.expenses_net) }}</template></div>
-          <div class="ui-kpi__meta"><Delta v-if="o" :now="tm.expenses_net" :prev="lm.expenses_net" invert /> vs {{ money(lm.expenses_net) }} last month</div>
+          <div class="ui-kpi__meta"><Delta v-if="o" :now="tm.expenses_net" :prev="lm.expenses_net" invert /> vs {{ money(lm.expenses_net) }} last month{{ taxNote }}</div>
         </div>
         <div class="ui-kpi">
           <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-scale-balanced"></i></span>Profit · {{ monthName }}</div>

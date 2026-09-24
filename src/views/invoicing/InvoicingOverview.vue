@@ -19,7 +19,7 @@
         <router-link to="/invoices?status=unpaid" class="ui-kpi kpi-link">
           <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-hourglass-half"></i></span>Outstanding</div>
           <div class="ui-kpi__value"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.outstanding) }}</template></div>
-          <div class="ui-kpi__meta">{{ unpaidCount }} unpaid invoice{{ unpaidCount === 1 ? '' : 's' }}</div>
+          <div class="ui-kpi__meta">{{ unpaidCount }} unpaid invoice{{ unpaidCount === 1 ? '' : 's' }}<template v-if="otherNote"> · {{ otherNote }}</template></div>
         </router-link>
         <router-link to="/invoices?status=overdue" class="ui-kpi kpi-link">
           <div class="ui-kpi__label"><span class="ui-kpi__icon k-danger"><i class="fa-solid fa-triangle-exclamation"></i></span>Overdue</div>
@@ -31,7 +31,7 @@
           <div class="ui-kpi__value"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.paid_this_month) }}</template></div>
           <div class="ui-kpi__meta">Invoiced {{ s ? money(s.invoiced_this_month) : '…' }} this month</div>
         </div>
-        <router-link to="/quotes?status=sent" class="ui-kpi kpi-link">
+        <router-link to="/quotes?status=open" class="ui-kpi kpi-link">
           <div class="ui-kpi__label"><span class="ui-kpi__icon k-info"><i class="fa-solid fa-file-signature"></i></span>Open quotes</div>
           <div class="ui-kpi__value"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.open_quotes) }}</template></div>
           <div class="ui-kpi__meta">Sent or accepted, not yet invoiced</div>
@@ -104,7 +104,7 @@
                   <strong>{{ inv.client_name }}</strong>
                   <small>{{ inv.number }} · {{ inv.days_overdue }} days overdue</small>
                 </span>
-                <span class="list__amt danger">{{ money(inv.balance_due) }}</span>
+                <span class="list__amt danger">{{ fmt(inv.balance_due, inv.currency) }}</span>
               </router-link>
             </li>
           </ul>
@@ -130,7 +130,7 @@
                   <small>{{ inv.number }} · {{ date(inv.issue_date) }}</small>
                 </span>
                 <span class="ui-badge" :class="`ui-badge--${inv.display_status}`">{{ label(inv.display_status) }}</span>
-                <span class="list__amt">{{ money(inv.total) }}</span>
+                <span class="list__amt">{{ fmt(inv.total, inv.currency) }}</span>
               </router-link>
             </li>
           </ul>
@@ -143,7 +143,8 @@
 <script>
 import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
-import { formatMoney, formatDate } from '@/utils/format'
+import { formatDate } from '@/utils/format'
+import { formatCurrency, currencyDecimals } from '@/utils/currencies'
 
 export default {
   name: 'InvoicingOverview',
@@ -161,12 +162,18 @@ export default {
     ticks() {
       return [this.max, (this.max * 2) / 3, this.max / 3, 0]
     },
+    // Counts follow the amounts: invoices in the organisation's currency only.
     unpaidCount() {
-      const c = this.s?.counts || {}
-      return (c['invoice:sent'] || 0) + (c['invoice:partial'] || 0) + (c['invoice:overdue'] || 0)
+      return this.s?.outstanding_count || 0
     },
     overdueCount() {
-      return this.s?.counts?.['invoice:overdue'] || 0
+      return this.s?.overdue_count || 0
+    },
+    otherNote() {
+      const o = this.s?.other_currencies || []
+      if (!o.length) return ''
+      const amt = (v, c) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: currencyDecimals(c), maximumFractionDigits: currencyDecimals(c) })
+      return 'excl. ' + o.map((x) => `${x.currency} ${amt(x.outstanding, x.currency)}`).join(', ')
     },
     agingBuckets() {
       return [
@@ -187,9 +194,12 @@ export default {
   },
   methods: {
     money(v, compact) {
-      return formatMoney(v, this.s?.currency || 'AUD', { compact })
+      return formatCurrency(v, this.s?.currency || 'AUD', { compact })
     },
     date: formatDate,
+    fmt(v, cur) {
+      return formatCurrency(v, cur || this.s?.currency || 'AUD')
+    },
     label(s) {
       return STATUS_LABELS[s] || s
     },

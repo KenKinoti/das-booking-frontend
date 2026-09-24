@@ -96,7 +96,8 @@
 </template>
 
 <script>
-import { formatMoney, formatDate } from '@/utils/format'
+import { formatDate } from '@/utils/format'
+import { formatCurrency } from '@/utils/currencies'
 import { STATUS_LABELS } from '@/services/invoicing'
 
 export default {
@@ -136,7 +137,7 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.doc.currency)
+      return formatCurrency(v, this.doc.currency)
     },
     date: formatDate,
     qty(q) {
@@ -426,6 +427,27 @@ export default {
   }
   .idoc__items {
     font-size: 12.5px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Phone: keep the paper inside the screen; very wide line tables scroll inside it */
+  .idoc {
+    padding: 22px 14px;
+    overflow-x: auto;
+  }
+  .idoc__items th,
+  .idoc__items td {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+  .idoc__items th:first-child,
+  .idoc__items td:first-child {
+    padding-left: 0;
+  }
+  .idoc__items th:last-child,
+  .idoc__items td:last-child {
+    padding-right: 0;
   }
 }
 

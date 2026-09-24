@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>DASYIN ERP</title>
+  <defs>
+    <linearGradient id="g" x1="6" y1="2" x2="58" y2="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c6bff"/>
+      <stop offset=".45" stop-color="#5b4cf0"/>
+      <stop offset="1" stop-color="#2f86ff"/>
+    </linearGradient>
+    <linearGradient id="s" x1="32" y1="0" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#g)"/>
+  <rect width="64" height="64" rx="18" fill="url(#s)"/>
+  <path d="M36.4 9.5 16.6 35.2c-.8 1-.1 2.5 1.2 2.5H29l-3.3 15.4c-.3 1.5 1.6 2.4 2.6 1.2l19.8-25.7c.8-1 .1-2.5-1.2-2.5H35.8l3.2-15.4c.4-1.5-1.6-2.4-2.6-1.2Z" fill="#fff"/>
+</svg>

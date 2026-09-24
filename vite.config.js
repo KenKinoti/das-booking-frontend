@@ -1,12 +1,27 @@
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
+// Release version: package.json "version" is the single source of truth.
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+const APP_VERSION = pkg.version
+const BUILD_DATE = new Date().toISOString()
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __BUILD_DATE__: JSON.stringify(BUILD_DATE)
+  },
   plugins: [
+    {
+      // Replaces %APP_VERSION% in index.html (meta tag, manifest cache-busting)
+      name: 'dasyin-app-version',
+      transformIndexHtml: (html) => html.replace(/%APP_VERSION%/g, APP_VERSION)
+    },
     vue({
       template: {
         compilerOptions: {

@@ -3,7 +3,7 @@
     <section class="login__brand" aria-hidden="true">
       <div class="login__brand-inner">
         <div class="login__logo">
-          <span class="login__mark"><i class="fa-solid fa-bolt"></i></span>
+          <BrandMark class="login__mark" :size="40" label="" />
           <span>{{ appName }}</span>
         </div>
         <div class="login__pitch">
@@ -15,19 +15,14 @@
             <li><i class="fa-solid fa-chart-line"></i> Live dashboards across every module</li>
           </ul>
         </div>
-        <div class="login__card-preview">
-          <div class="lp-row"><span>INV-1042 · Northwind Pty Ltd</span><span class="lp-badge lp-badge--paid">Paid</span></div>
-          <div class="lp-row"><span>INV-1043 · Acme Studio</span><span class="lp-badge">Sent</span></div>
-          <div class="lp-row"><span>QUO-1012 · Blue Harbour</span><span class="lp-badge lp-badge--acc">Accepted</span></div>
-        </div>
-        <p class="login__foot">© {{ year }} DASYIN</p>
+        <p class="login__foot">© {{ year }} DASYIN · <span class="login__ver">{{ versionLabel }}</span></p>
       </div>
     </section>
 
     <section class="login__panel">
       <form class="login__form" @submit.prevent="handleLogin" novalidate>
         <div class="login__mobile-logo">
-          <span class="login__mark"><i class="fa-solid fa-bolt"></i></span>
+          <BrandMark class="login__mark" :size="40" label="" />
           <span>{{ appName }}</span>
         </div>
         <h1>Welcome back</h1>
@@ -93,6 +88,10 @@
         </div>
 
         <p class="login__secure"><i class="fa-solid fa-shield-halved"></i> Secured with encrypted sessions</p>
+        <p class="login__version">
+          <span>{{ appName }}</span>
+          <span class="ui-version" :title="`${appName} version ${appVersion}`">{{ versionLabel }}</span>
+        </p>
       </form>
     </section>
   </div>
@@ -101,9 +100,12 @@
 <script>
 import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
+import { APP_VERSION, VERSION_LABEL } from '../version'
+import BrandMark from '../components/layout/BrandMark.vue'
 
 export default {
   name: 'LoginView',
+  components: { BrandMark },
   data() {
     return {
       // Test accounts are shown unless VITE_SHOW_TEST_LOGINS=false
@@ -122,6 +124,8 @@ export default {
       loading: false,
       error: null,
       appName: APP_NAME,
+      appVersion: APP_VERSION,
+      versionLabel: VERSION_LABEL,
       year: new Date().getFullYear()
     }
   },
@@ -206,14 +210,7 @@ export default {
 }
 
 .login__mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: linear-gradient(140deg, #8b7fff, #5b4cf0 50%, #2f86ff);
-  box-shadow: 0 10px 24px -8px rgba(91, 76, 240, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 24px -8px rgba(91, 76, 240, 0.8);
 }
 
 .login__pitch {
@@ -484,6 +481,21 @@ export default {
   .demo__grid {
     grid-template-columns: 1fr;
   }
+}
+
+.login__ver {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.login__version {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-3);
 }
 
 .login__secure {

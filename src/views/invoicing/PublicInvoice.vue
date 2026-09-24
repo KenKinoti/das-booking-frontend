@@ -39,7 +39,8 @@
 import InvoiceDocument from '@/components/invoicing/InvoiceDocument.vue'
 import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
-import { formatMoney, formatDate } from '@/utils/format'
+import { formatDate } from '@/utils/format'
+import { formatCurrency } from '@/utils/currencies'
 
 export default {
   name: 'PublicInvoice',
@@ -71,7 +72,7 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.doc.currency)
+      return formatCurrency(v, this.doc.currency)
     },
     date: formatDate,
     print() {

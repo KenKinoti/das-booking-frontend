@@ -24,9 +24,9 @@
         <div class="ui-kpi__meta">{{ report ? `${money(report.open_order_value)} awaiting delivery` : '&nbsp;' }}</div>
       </button>
       <div class="ui-kpi">
-        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-sack-dollar"></i></span>Spend this month</div>
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-sack-dollar"></i></span>Ordered this month</div>
         <div class="ui-kpi__value"><template v-if="report">{{ money(report.spend_this_month) }}</template><span v-else class="ui-skeleton kpi-sk"></span></div>
-        <div class="ui-kpi__meta">{{ report ? `${report.orders_this_month} order${report.orders_this_month === 1 ? '' : 's'} placed` : '&nbsp;' }}</div>
+        <div class="ui-kpi__meta">{{ report ? `${report.orders_this_month} purchase order${report.orders_this_month === 1 ? '' : 's'} placed since the 1st` : '&nbsp;' }}</div>
       </div>
       <button class="ui-kpi kpi-btn" :class="{ 'is-selected': tab === 'orders' && poStatus === 'overdue' }" @click="showPOs('overdue')">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-danger"><i class="fa-solid fa-triangle-exclamation"></i></span>Overdue deliveries</div>

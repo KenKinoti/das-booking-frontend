@@ -89,6 +89,24 @@
                   <dt>Address</dt>
                   <dd>{{ address || '—' }}</dd>
                 </div>
+                <div>
+                  <dt>Country</dt>
+                  <dd>{{ countryLabel || '—' }}</dd>
+                </div>
+                <div>
+                  <dt>Invoice currency</dt>
+                  <dd>
+                    <strong class="cur">{{ customer.billing_currency }}</strong>
+                    <span class="muted"> · {{ currencyNote }}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Contacts</dt>
+                  <dd>
+                    <button v-if="contactsCount" class="link-btn" @click="tab = 'contacts'">{{ contactsCount }} {{ contactsCount === 1 ? 'person' : 'people' }} copied on emails</button>
+                    <button v-else class="link-btn" @click="tab = 'contacts'"><i class="fa-solid fa-plus"></i> Add accounts or staff contacts</button>
+                  </dd>
+                </div>
                 <div v-if="customer.date_of_birth">
                   <dt>Date of birth</dt>
                   <dd>{{ date(customer.date_of_birth) }}</dd>
@@ -147,6 +165,11 @@
               </ul>
             </section>
 
+            <!-- Contacts -->
+            <section v-else-if="tab === 'contacts'">
+              <CustomerContacts :customer-id="customer.id" @changed="onContactsChanged" />
+            </section>
+
             <!-- Vehicles -->
             <section v-else-if="tab === 'vehicles'">
               <VehicleManagementModal embedded :customer="customer" :initial="vehicles" @changed="onVehiclesChanged" />
@@ -197,7 +220,8 @@
 
 <script>
 import VehicleManagementModal from './VehicleManagementModal.vue'
-import { customerService, customerName, initials, customerAddress, newInvoiceLink, newBookingLink, invoicesLink } from '@/services/customerService'
+import CustomerContacts from './customers/CustomerContacts.vue'
+import { customerService, customerName, initials, customerAddress, customerCountryLabel, customerCountry, newInvoiceLink, newBookingLink, invoicesLink } from '@/services/customerService'
 import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDate } from '@/utils/format'
@@ -213,7 +237,7 @@ const BOOKING_BADGES = {
 
 export default {
   name: 'CustomerDetailsModal',
-  components: { VehicleManagementModal },
+  components: { VehicleManagementModal, CustomerContacts },
   props: {
     show: { type: Boolean, default: false },
     customerId: { type: String, default: '' },
@@ -221,7 +245,7 @@ export default {
   },
   emits: ['close', 'edit', 'toggle', 'delete', 'changed'],
   data() {
-    return { customer: null, vehicles: [], bookings: [], invoices: [], invoicesLoaded: false, invoicesLoading: false, error: '', tab: 'overview', menu: false }
+    return { customer: null, vehicles: [], bookings: [], contactsN: null, invoices: [], invoicesTotal: 0, invoicesLoaded: false, invoicesLoading: false, error: '', tab: 'overview', menu: false }
   },
   computed: {
     name() {
@@ -229,6 +253,18 @@ export default {
     },
     address() {
       return customerAddress(this.customer)
+    },
+    countryLabel() {
+      return customerCountryLabel(this.customer)
+    },
+    contactsCount() {
+      return this.contactsN ?? this.customer?.contacts_count ?? 0
+    },
+    currencyNote() {
+      const src = this.customer?.currency_source
+      if (src === 'customer') return 'set on this customer'
+      if (src === 'country') return `from ${customerCountry(this.customer)}`
+      return 'your default currency'
     },
     bookingLink() {
       return newBookingLink(this.customer)
@@ -242,9 +278,11 @@ export default {
     tabs() {
       return [
         { id: 'overview', label: 'Overview' },
-        { id: 'bookings', label: 'Bookings', count: this.bookings.length },
+        // Counts are server totals (the lists below show the most recent entries).
+        { id: 'bookings', label: 'Bookings', count: this.customer?.bookings_count ?? this.bookings.length },
+        { id: 'contacts', label: 'Contacts', count: this.contactsCount },
         { id: 'vehicles', label: 'Vehicles', count: this.vehicles.length },
-        { id: 'invoices', label: 'Invoices', count: this.invoicesLoaded ? this.invoices.length : null }
+        { id: 'invoices', label: 'Invoices', count: this.invoicesLoaded ? this.invoicesTotal : null }
       ]
     }
   },
@@ -295,6 +333,7 @@ export default {
         this.customer = data.customer
         this.vehicles = data.vehicles || []
         this.bookings = data.bookings || []
+        this.contactsN = Array.isArray(data.contacts) ? data.contacts.length : null
         if (this.tab === 'invoices') this.loadInvoices()
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not load this customer')
@@ -310,8 +349,10 @@ export default {
           rows = data.invoices || []
         }
         this.invoices = rows
+        this.invoicesTotal = data.total ?? rows.length
       } catch {
         this.invoices = []
+        this.invoicesTotal = 0
       } finally {
         this.invoicesLoaded = true
         this.invoicesLoading = false
@@ -319,6 +360,10 @@ export default {
     },
     onDrawerDown(e) {
       if (this.menu && !e.target.closest('.more')) this.menu = false
+    },
+    onContactsChanged(n) {
+      if (this.contactsN !== null && this.contactsN !== n) this.$emit('changed')
+      this.contactsN = n
     },
     onVehiclesChanged(list) {
       this.vehicles = list
@@ -551,6 +596,10 @@ export default {
 .facts dd {
   margin: 0;
   word-break: break-word;
+}
+
+.cur {
+  font-variant-numeric: tabular-nums;
 }
 
 .facts a {

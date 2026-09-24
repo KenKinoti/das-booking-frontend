@@ -26,12 +26,12 @@
       <div class="ui-kpi">
         <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-warning"><i class="fa-solid fa-hourglass-half"></i></span>Upcoming</div>
         <div class="ui-kpi__value">{{ loaded ? stats.upcoming : '—' }}</div>
-        <div class="ui-kpi__meta">{{ stats.people }} people invited</div>
+        <div class="ui-kpi__meta">{{ stats.people }} {{ stats.people === 1 ? 'person' : 'people' }} invited</div>
       </div>
       <div class="ui-kpi">
-        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-circle-check"></i></span>Completed</div>
+        <div class="ui-kpi__label"><span class="ui-kpi__icon kpi-success"><i class="fa-solid fa-circle-check"></i></span>Past meetings</div>
         <div class="ui-kpi__value">{{ loaded ? stats.completed : '—' }}</div>
-        <div class="ui-kpi__meta">{{ stats.transcripts }} with transcripts</div>
+        <div class="ui-kpi__meta">{{ stats.transcripts }} with transcript{{ stats.transcripts === 1 ? '' : 's' }}</div>
       </div>
     </div>
 
