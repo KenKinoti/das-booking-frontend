@@ -72,6 +72,26 @@
           <span>{{ loading ? 'Signing in…' : 'Sign in' }}</span>
         </button>
 
+        <div v-if="demoAccounts.length" class="demo">
+          <div class="demo__title"><span>Quick sign-in · test accounts</span></div>
+          <div class="demo__grid">
+            <button
+              v-for="a in demoAccounts"
+              :key="a.email"
+              type="button"
+              class="demo__btn"
+              :disabled="loading"
+              @click="quickLogin(a)"
+            >
+              <span class="demo__icon"><i :class="a.icon"></i></span>
+              <span class="demo__text">
+                <strong>{{ a.label }}</strong>
+                <small>{{ a.email }}</small>
+              </span>
+            </button>
+          </div>
+        </div>
+
         <p class="login__secure"><i class="fa-solid fa-shield-halved"></i> Secured with encrypted sessions</p>
       </form>
     </section>
@@ -86,6 +106,16 @@ export default {
   name: 'LoginView',
   data() {
     return {
+      // Test accounts are shown unless VITE_SHOW_TEST_LOGINS=false
+      demoAccounts:
+        import.meta.env.VITE_SHOW_TEST_LOGINS === 'false'
+          ? []
+          : [
+              { label: 'Super admin', email: 'kennedy@dasyin.com.au', password: 'Test123!@#', icon: 'fa-solid fa-crown' },
+              { label: 'Organisation admin', email: 'Michael.Thomas75@test.com', password: 'Test123!@#', icon: 'fa-solid fa-user-shield' },
+              { label: 'Support coordinator', email: 'David.Jones20@test.com', password: 'Test123!@#', icon: 'fa-solid fa-user-tie' },
+              { label: 'Care worker', email: 'Jane.Jones90@test.com', password: 'Test123!@#', icon: 'fa-solid fa-user' }
+            ],
       form: { email: '', password: '' },
       showPassword: false,
       showHelp: false,
@@ -101,6 +131,11 @@ export default {
     }
   },
   methods: {
+    quickLogin(account) {
+      this.form.email = account.email
+      this.form.password = account.password
+      this.handleLogin()
+    },
     async handleLogin() {
       this.error = null
       if (!this.form.email || !this.form.password) {
@@ -349,6 +384,106 @@ export default {
   height: 46px;
   font-size: 15px;
   margin-top: 4px;
+}
+
+.demo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.demo__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.demo__title::before,
+.demo__title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.demo__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.demo__btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+
+.demo__btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.demo__btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.demo__btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.demo__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.demo__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.demo__text strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.demo__text small {
+  font-size: 11.5px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .demo__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .login__secure {
