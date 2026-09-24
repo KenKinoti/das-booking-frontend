@@ -112,7 +112,7 @@
               </div>
               <div class="ui-field span-2">
                 <label for="cc_emails">CC <span class="muted">— copied whenever this {{ isQuote ? 'quote' : 'invoice' }} is emailed</span></label>
-                <EmailChips id="cc_emails" v-model="doc.cc_emails" :names="ccNames" :exclude="[doc.client_email]" icon="fa-regular fa-user" placeholder="Add people to keep in the loop (optional)" aria-label="CC email addresses" />
+                <EmailChips id="cc_emails" rows v-model="doc.cc_emails" :names="ccNames" :exclude="[doc.client_email]" icon="fa-regular fa-user" placeholder="Add people to keep in the loop (optional)" aria-label="CC email addresses" />
                 <p v-if="ccFromCustomer" class="ui-hint"><i class="fa-regular fa-address-card"></i> {{ ccFromCustomer }}</p>
               </div>
             </div>

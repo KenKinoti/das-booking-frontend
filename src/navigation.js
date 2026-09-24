@@ -17,6 +17,7 @@ export const navGroups = [
     icon: 'fa-solid fa-house',
     items: [
       { label: 'Dashboard', to: '/dashboard', module: 'core', icon: 'fa-solid fa-gauge-high' },
+      { label: 'Ask DASYIN', to: '/assistant', module: 'core', icon: 'fa-solid fa-wand-magic-sparkles' },
       { label: 'Analytics', to: '/reports-analytics', module: 'core', icon: 'fa-solid fa-chart-column' },
       { label: 'Reports', to: '/analytics', module: 'core', icon: 'fa-solid fa-chart-pie' }
     ]
@@ -112,8 +113,9 @@ export const navGroups = [
     label: 'Administration',
     icon: 'fa-solid fa-gear',
     items: [
-      { label: 'Settings', to: '/settings', icon: 'fa-solid fa-sliders' },
+      { label: 'Settings', to: '/settings', icon: 'fa-solid fa-sliders', match: /^\/settings\/?$/ },
       { label: 'Plan & billing', to: '/plan', icon: 'fa-solid fa-gem' },
+      { label: 'AI & MCP', to: '/settings/ai', icon: 'fa-solid fa-robot' },
       { label: 'My profile', to: '/profile', icon: 'fa-solid fa-user' },
       { label: 'Help & FAQ', to: '/faq', icon: 'fa-solid fa-circle-question' }
     ]

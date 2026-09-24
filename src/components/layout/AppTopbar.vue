@@ -17,6 +17,11 @@
         <span>Search…</span>
       </button>
 
+      <button class="tb__ask" :class="{ 'is-on': askOpen }" @click="toggleAsk" title="Ask DASYIN (Ctrl/⌘ J)" aria-label="Ask DASYIN" :aria-pressed="askOpen">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <span class="tb__hide-sm">Ask DASYIN</span>
+      </button>
+
       <router-link v-if="planChip" to="/plan" class="tb__plan tb__hide-sm" :class="{ 'is-warn': planChip.warn }" :title="planChip.title">
         <i class="fa-solid fa-gem"></i>
         <span>{{ planChip.label }}</span>
@@ -83,6 +88,7 @@ import { findNav } from '@/navigation'
 import { entitlements, hasModule } from '@/composables/useEntitlements'
 import { APP_NAME } from '@/config'
 import { VERSION_LABEL } from '@/version'
+import { assistant, toggleAssistant } from '@/composables/useAssistant'
 
 export default {
   name: 'AppTopbar',
@@ -107,6 +113,9 @@ export default {
     },
     isDark() {
       return globalTheme.isDark.value
+    },
+    askOpen() {
+      return assistant.open
     },
     visibleCreateActions() {
       // re-evaluate when the plan loads
@@ -157,6 +166,10 @@ export default {
     toggleTheme() {
       globalTheme.toggleTheme()
     },
+    toggleAsk() {
+      if (this.$route.path === '/assistant') assistant.focusTick++
+      else toggleAssistant()
+    },
     onDocClick(e) {
       if (this.newOpen && !this.$refs.newMenu?.contains(e.target)) this.newOpen = false
       if (this.userOpen && !this.$refs.userMenu?.contains(e.target)) this.userOpen = false
@@ -177,6 +190,30 @@ export default {
 </script>
 
 <style scoped>
+.tb__ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.tb__ask:hover,
+.tb__ask.is-on {
+  border-color: var(--accent);
+}
+
 .tb__plan {
   display: inline-flex;
   align-items: center;
@@ -555,6 +592,7 @@ export default {
   }
   .tb__btn,
   .tb__search,
+  .tb__ask,
   .tb__new > .ui-btn {
     width: 40px;
     height: 40px;

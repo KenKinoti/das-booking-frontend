@@ -6,6 +6,27 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.1.0] - 2026-09-24
+
+### AI: chat with your ERP and connect Claude (MCP)
+
+- **Ask DASYIN** — a chat assistant in the top bar (Ctrl/⌘ J) and at `/assistant`.
+  It answers questions from live data and can create or update records
+  (customers, invoices, quotes, bookings, stock, leads, cash book, reminders…).
+  Every change is shown as a card to **Confirm** or **Cancel** first; destructive
+  actions are flagged in red. Conversations are saved per user. Needs
+  `ANTHROPIC_API_KEY` on the backend.
+- **MCP server** at `/mcp` — connect Claude (claude.ai, Claude Desktop, Claude Code
+  or any MCP client) to the ERP. One-click OAuth ("Add custom connector") or
+  personal access tokens (read-only or read & write). 56 tools, all running
+  through the normal API with your permissions and plan. Setup, tokens, connected
+  apps and an AI activity log live at **Administration → AI & MCP**.
+- **Invoice CC** — enter several addresses separated by commas, or add rows with **+**.
+- **Reliability** — database migrations are pinned to the ERP schema even behind
+  connection poolers (fixes missing `cc_emails` / customer contacts tables);
+  Supabase transaction-pooler URLs switch to session mode automatically;
+  `/health` reports migration status.
+
 ## [2.0.0] - 2026-09-24
 
 ### DASYIN ERP 2.0 — the all-in-one release

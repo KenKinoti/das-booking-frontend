@@ -7,14 +7,14 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
-/** "v2.0.0" */
+/** e.g. "v2.1.0" */
 export const VERSION_LABEL = `v${APP_VERSION}`
 
-/** "v2.0" — the release family, used for the "What's new" notice. */
+/** e.g. "v2.1" — the release family, used for the "What's new" notice. */
 export const VERSION_SHORT = `v${APP_VERSION.split('.').slice(0, 2).join('.')}`
 
 /** Build date formatted for people, e.g. "24 Sep 2026", or '' when unknown. */
@@ -27,8 +27,8 @@ export function buildDateLabel(locale) {
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-wand-magic-sparkles', text: 'A redesigned workspace with light & dark themes that works on your phone' },
-  { icon: 'fa-solid fa-file-invoice-dollar', text: 'Invoicing, quotes, POS, bookings and events in one place' },
-  { icon: 'fa-solid fa-coins', text: 'Multi-currency finance, suppliers, inventory and manufacturing' },
-  { icon: 'fa-solid fa-chart-line', text: 'Live analytics, market insights, HR, projects and meetings' }
+  { icon: 'fa-solid fa-wand-magic-sparkles', text: 'Ask DASYIN — chat with your data and update records (Ctrl/⌘ J)' },
+  { icon: 'fa-solid fa-plug', text: 'Connect Claude to your ERP with MCP — Administration → AI & MCP' },
+  { icon: 'fa-solid fa-globe', text: 'Customer countries set the invoice currency; CC contacts on every email' },
+  { icon: 'fa-solid fa-mobile-screen', text: 'Sharper mobile layout, new icons and the version shown everywhere' }
 ]

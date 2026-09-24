@@ -185,7 +185,7 @@
           <div class="ui-field span">
             <label for="s_cc">CC <span class="muted small">— removable for this send; add extra addresses if needed</span></label>
             <div v-if="recipientsLoading" class="ui-skeleton" style="height: 40px"></div>
-            <EmailChips v-else id="s_cc" v-model="send.cc" :names="recipientNames" :exclude="send.to" icon="fa-regular fa-user" placeholder="Add CC email addresses" aria-label="CC email addresses" />
+            <EmailChips v-else id="s_cc" rows v-model="send.cc" :names="recipientNames" :exclude="send.to" icon="fa-regular fa-user" placeholder="Add CC email addresses" aria-label="CC email addresses" />
             <span v-if="ccNote" class="ui-hint">{{ ccNote }}</span>
           </div>
           <div class="ui-field span">

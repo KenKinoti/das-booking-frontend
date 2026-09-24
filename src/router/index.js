@@ -101,6 +101,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/assistant',
+    name: 'Assistant',
+    component: () => import('../views/assistant/AssistantPage.vue'),
+    meta: { requiresAuth: true, title: 'Ask DASYIN' }
+  },
+  {
     path: '/bookings',
     name: 'Bookings',
     component: Bookings,
@@ -490,6 +496,12 @@ const routes = [
 routes.push(
   { path: '/plan', name: 'PlanBilling', component: PlanBilling, meta: { requiresAuth: true, title: 'Plan & billing' } },
   { path: '/super-admin/plans', name: 'SuperAdminPlans', component: SuperAdminPlans, meta: { requiresAuth: true, requiresSuperAdmin: true, title: 'Plans & pricing' } }
+)
+
+// AI & MCP: connect Claude and other MCP clients; OAuth consent page
+routes.push(
+  { path: '/settings/ai', name: 'AiSettings', component: () => import('../views/ai/AiSettings.vue'), meta: { requiresAuth: true, title: 'AI & MCP' } },
+  { path: '/connect/authorize', name: 'ConnectAuthorize', component: () => import('../views/ai/ConnectAuthorize.vue'), meta: { requiresAuth: false, public: true, title: 'Connect an app' } }
 )
 
 routes.push({ path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound, meta: { requiresAuth: false, title: 'Page not found' } })

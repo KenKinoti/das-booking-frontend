@@ -23,6 +23,7 @@
       </main>
     </div>
     <CommandPalette :open="paletteOpen" @close="paletteOpen = false" />
+    <AssistantPanel />
   </div>
 
   <div v-else class="auth-container">
@@ -41,13 +42,14 @@ import ToastHost from './components/layout/ToastHost.vue'
 import ConfirmHost from './components/layout/ConfirmHost.vue'
 import WhatsNew from './components/layout/WhatsNew.vue'
 import OrganizationContext from './components/OrganizationContext.vue'
+import AssistantPanel from './components/assistant/AssistantPanel.vue'
 import { useAuthStore } from './stores/auth'
 import { globalTheme } from './composables/useTheme'
 import { APP_VERSION } from './version'
 
 export default {
   name: 'App',
-  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew },
+  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew, AssistantPanel },
   data() {
     let rail = false
     try {
