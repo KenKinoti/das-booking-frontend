@@ -3,7 +3,7 @@
     <div class="ui-modal" style="max-width: 780px" role="dialog" aria-modal="true" aria-labelledby="bd-title">
       <div class="ui-modal__head">
         <div>
-          <div class="ui-eyebrow">Bill {{ bill.bill_number }}<template v-if="bill.reference"> · {{ bill.reference }}</template></div>
+          <div class="ui-eyebrow">Bill {{ bill.bill_number }}<template v-if="bill.reference"> · {{ bill.reference }}</template><template v-if="bill.purchase_order_number"> · for {{ bill.purchase_order_number }}</template></div>
           <h2 id="bd-title">{{ bill.vendor_name || 'Unknown vendor' }}</h2>
         </div>
         <div class="head-right">
@@ -84,6 +84,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { financeApi, PAYMENT_METHODS, BILL_STATUS_LABELS, BILL_BADGE } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDate, relativeDays } from '@/utils/format'
@@ -95,7 +96,7 @@ export default {
   props: {
     bill: { type: Object, required: true },
     accounts: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['close', 'edit', 'pay', 'approve', 'delete', 'changed'],
   data() {

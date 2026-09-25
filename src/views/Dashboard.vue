@@ -26,6 +26,9 @@
       </div>
     </div>
 
+    <!-- Profit & loss: one calculation shared with Reports, Finance, the Business hub and Analytics -->
+    <PnlCard :period="period" />
+
     <!-- KPI row -->
     <div class="kpis" :class="{ busy: loading && data }">
       <KpiCard
@@ -35,7 +38,7 @@
         to="/billing"
         :loading="!data"
         :value="money(k.revenue?.value)"
-        :meta="`Invoices ${money(k.collected?.value, true)} · POS ${money(k.pos_sales?.value, true)}`"
+        :meta="`Invoices ${money(k.collected?.value, true)} · POS ${money(k.pos_sales?.value, true)} · incl. tax`"
         :delta="k.revenue?.delta_pct"
         :show-new="compare"
         :show-delta="compare"
@@ -431,6 +434,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import '@/components/dashboard/dashviz.css'
 import KpiCard from '@/components/dashboard/KpiCard.vue'
 import PeriodPicker from '@/components/dashboard/PeriodPicker.vue'
@@ -440,6 +444,7 @@ import ActivityFeed from '@/components/dashboard/ActivityFeed.vue'
 import TimeChart from '@/components/dashboard/charts/TimeChart.vue'
 import BarChart from '@/components/dashboard/charts/BarChart.vue'
 import DonutChart from '@/components/dashboard/charts/DonutChart.vue'
+import PnlCard from '@/components/pnl/PnlCard.vue'
 import {
   fetchOverview,
   money,
@@ -460,7 +465,7 @@ const PREF = 'dash.period'
 
 export default {
   name: 'DashboardView',
-  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, BarChart, DonutChart },
+  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, BarChart, DonutChart, PnlCard },
   data() {
     return {
       data: null,
@@ -476,7 +481,7 @@ export default {
         { label: 'Bookings', to: '/bookings', icon: 'fa-solid fa-calendar-plus', bg: 'var(--success-soft)', fg: 'var(--success)' },
         { label: 'Point of sale', to: '/pos', icon: 'fa-solid fa-cash-register', bg: 'var(--warning-soft)', fg: 'var(--warning)' },
         { label: 'Customers', to: '/customers', icon: 'fa-solid fa-user-plus', bg: 'var(--danger-soft)', fg: 'var(--danger)' },
-        { label: 'Analytics', to: '/reports-analytics', icon: 'fa-solid fa-chart-column', bg: 'var(--neutral-soft)', fg: 'var(--text-2)' }
+        { label: 'Profit & loss', to: '/reports/profit-loss', icon: 'fa-solid fa-scale-balanced', bg: 'var(--neutral-soft)', fg: 'var(--text-2)' }
       ]
     }
   },
@@ -498,7 +503,7 @@ export default {
       return !!this.period.compare
     },
     currency() {
-      return this.data?.currency || 'AUD'
+      return this.data?.currency || orgCurrency()
     },
     periodText() {
       if (this.data) return `Business performance for ${rangeLabel(this.data.range.from, this.data.range.to)}`

@@ -14,6 +14,7 @@
       <AppTopbar @toggle-menu="mobileOpen = !mobileOpen" @open-search="paletteOpen = true" />
       <OrganizationContext />
       <main class="app-content" id="main">
+        <RegionSetupPrompt />
         <WhatsNew v-if="$route.path === '/dashboard'" />
         <router-view v-slot="{ Component, route }">
           <transition name="page" mode="out-in">
@@ -43,13 +44,14 @@ import ConfirmHost from './components/layout/ConfirmHost.vue'
 import WhatsNew from './components/layout/WhatsNew.vue'
 import OrganizationContext from './components/OrganizationContext.vue'
 import AssistantPanel from './components/assistant/AssistantPanel.vue'
+import RegionSetupPrompt from './components/RegionSetupPrompt.vue'
 import { useAuthStore } from './stores/auth'
 import { globalTheme } from './composables/useTheme'
 import { APP_VERSION } from './version'
 
 export default {
   name: 'App',
-  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew, AssistantPanel },
+  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew, AssistantPanel, RegionSetupPrompt },
   data() {
     let rail = false
     try {

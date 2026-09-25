@@ -68,6 +68,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import '@/styles/module-page.css'
 import api, { apiErrorMessage } from '@/services/api'
 import { formatMoney } from '@/utils/format'
@@ -77,7 +78,7 @@ let seq = 0
 
 export default {
   name: 'BomModal',
-  props: { bom: { type: Object, default: null }, products: { type: Array, default: () => [] }, currency: { type: String, default: 'AUD' } },
+  props: { bom: { type: Object, default: null }, products: { type: Array, default: () => [] }, currency: { type: String, default: () => orgCurrency() } },
   emits: ['close', 'saved'],
   data() {
     const b = this.bom || {}

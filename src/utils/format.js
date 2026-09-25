@@ -1,17 +1,23 @@
 /** Formatting helpers shared by the invoicing module and dashboards. */
+import { orgCurrency } from './orgDefaults'
+import { currencyDecimals } from './currencies'
 
-export function formatMoney(value, currency = 'AUD', opts = {}) {
+
+export function formatMoney(value, currency = orgCurrency(), opts = {}) {
   const n = Number(value) || 0
+  const cur = currency || orgCurrency()
+  // Each currency's own minor units (JPY/UGX none, KWD three).
+  const d = opts.compact ? 0 : currencyDecimals(cur)
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: currency || 'AUD',
-      minimumFractionDigits: opts.compact ? 0 : 2,
-      maximumFractionDigits: opts.compact ? 0 : 2,
+      currency: cur,
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
       notation: opts.compact && Math.abs(n) >= 10000 ? 'compact' : 'standard'
     }).format(n)
   } catch {
-    return `${currency} ${n.toFixed(2)}`
+    return `${cur} ${n.toFixed(d)}`
   }
 }
 

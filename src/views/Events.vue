@@ -169,6 +169,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { eventsApi, EVENT_TYPES, STATUS_META, typeLabel, typeIcon, eventLocation } from '@/services/events'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDateTime } from '@/utils/format'
@@ -240,7 +241,7 @@ export default {
     typeIcon,
     location: eventLocation,
     money(v, c) {
-      return formatMoney(v, c || 'AUD')
+      return formatMoney(v, c || orgCurrency())
     },
     num(n) {
       return new Intl.NumberFormat().format(n || 0)

@@ -75,6 +75,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import VendorModal from './VendorModal.vue'
 import { financeApi, PAYMENT_TERMS } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
@@ -89,7 +90,7 @@ export default {
     vendors: { type: Array, default: () => [] },
     accounts: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['changed', 'reload', 'new-bill', 'show-bills'],
   data() {

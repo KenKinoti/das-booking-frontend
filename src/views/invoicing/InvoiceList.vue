@@ -169,6 +169,9 @@ export default {
       // Optional issue-date range (e.g. from an analytics drill-down).
       from: this.$route.query.from || '',
       to: this.$route.query.to || '',
+      // Optional payment-date range (cash-basis drill-down from Profit & loss).
+      paidFrom: this.$route.query.paid_from || '',
+      paidTo: this.$route.query.paid_to || '',
       sort: '',
       loading: false,
       exporting: false,
@@ -186,6 +189,7 @@ export default {
       const extraStatus = { due: 'Unpaid, not yet due', open: 'Open', sent: 'Sent', partial: 'Partially paid', accepted: 'Accepted', converted: 'Invoiced', expired: 'Expired', declined: 'Declined', void: 'Void' }
       if (!this.tabs.some((t) => t.value === this.status)) parts.push(extraStatus[this.status] || this.status)
       if (this.from || this.to) parts.push(`Issued ${this.from ? formatDate(this.from) : '…'} – ${this.to ? formatDate(this.to) : '…'}`)
+      if (this.paidFrom || this.paidTo) parts.push(`Paid ${this.paidFrom ? formatDate(this.paidFrom) : '…'} – ${this.paidTo ? formatDate(this.paidTo) : '…'}`)
       return parts.join(' · ')
     },
     otherNote() {
@@ -265,7 +269,7 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const data = await invoicingApi.list({ type: this.docType, status: this.status, q: this.q || undefined, sort: this.sort || undefined, from: this.from || undefined, to: this.to || undefined, page: this.page, per_page: this.perPage })
+        const data = await invoicingApi.list({ type: this.docType, status: this.status, q: this.q || undefined, sort: this.sort || undefined, from: this.from || undefined, to: this.to || undefined, paid_from: this.paidFrom || undefined, paid_to: this.paidTo || undefined, page: this.page, per_page: this.perPage })
         this.rows = data.invoices || []
         this.total = data.total || 0
       } catch (e) {
@@ -293,6 +297,8 @@ export default {
       if (!this.tabs.some((t) => t.value === this.status)) this.status = 'all'
       this.from = ''
       this.to = ''
+      this.paidFrom = ''
+      this.paidTo = ''
       this.page = 1
       this.syncQuery()
       this.load()
@@ -309,6 +315,8 @@ export default {
       if (this.q) query.q = this.q
       if (this.from) query.from = this.from
       if (this.to) query.to = this.to
+      if (this.paidFrom) query.paid_from = this.paidFrom
+      if (this.paidTo) query.paid_to = this.paidTo
       this.$router.replace({ query })
     },
     go(p) {

@@ -168,8 +168,11 @@
               <div class="ui-field">
                 <label for="ev-cur">Currency</label>
                 <select id="ev-cur" v-model="form.currency" class="ui-select">
-                  <option v-for="c in currencies" :key="c" :value="c">{{ c }}</option>
+                  <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region">
+                    <option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option>
+                  </optgroup>
                 </select>
+                <div v-if="!isEdit && form.currency === orgCur" class="ui-hint">Your organisation's currency (Settings → Business details).</div>
               </div>
             </div>
 
@@ -275,6 +278,9 @@
 </template>
 
 <script>
+import { orgCurrency, orgDefaults } from '@/utils/orgDefaults'
+import { loadOrgPrefs } from '@/composables/useOrgPrefs'
+import { currencyGroups } from '@/utils/currencies'
 import { eventsApi, EVENT_TYPES } from '@/services/events'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney } from '@/utils/format'
@@ -310,11 +316,11 @@ function emptyForm() {
     end: '',
     timezone: tz,
     venue_name: '',
-    address: { street: '', suburb: '', state: '', postcode: '', country: 'Australia' },
+    address: { street: '', suburb: '', state: '', postcode: '', country: orgDefaults.countryName || '' },
     online_url: '',
     online_platform: '',
     max_capacity: 0,
-    currency: 'AUD',
+    currency: orgCurrency(),
     cover_image_url: '',
     contact_name: '',
     contact_email: '',
@@ -341,7 +347,7 @@ export default {
       active: 'basics',
       observer: null,
       types: EVENT_TYPES,
-      currencies: ['AUD', 'NZD', 'USD', 'GBP', 'EUR', 'CAD', 'SGD'],
+      currencyGroups: currencyGroups(),
       typeHelp: { in_person: 'At a physical venue', online: 'Streamed or video call', hybrid: 'Venue plus online' },
       sections: [
         { id: 'basics', label: 'Basics' },
@@ -353,6 +359,9 @@ export default {
     }
   },
   computed: {
+    orgCur() {
+      return orgCurrency()
+    },
     id() {
       return this.$route.params.id
     },
@@ -429,7 +438,16 @@ export default {
       this.errors = {}
       this.formError = ''
       if (this.isEdit) this.loadEvent()
-      else this.form = emptyForm()
+      else {
+        this.form = emptyForm()
+        // New events default to the organisation's currency and country.
+        const initial = this.form.currency
+        loadOrgPrefs().then(() => {
+          if (this.isEdit) return
+          if (this.form.currency === initial) this.form.currency = orgCurrency()
+          if (!this.form.address.country) this.form.address.country = orgDefaults.countryName || ''
+        })
+      }
     },
     async loadEvent() {
       this.loading = true
@@ -452,7 +470,7 @@ export default {
           online_url: e.online_url || '',
           online_platform: e.online_platform || '',
           max_capacity: e.max_capacity || 0,
-          currency: e.currency || 'AUD',
+          currency: e.currency || orgCurrency(),
           cover_image_url: e.cover_image_url || '',
           contact_name: e.contact_name || '',
           contact_email: e.contact_email || '',

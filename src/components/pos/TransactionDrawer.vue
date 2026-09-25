@@ -129,11 +129,12 @@
       </div>
     </div>
 
-    <ReceiptModal v-if="showReceipt && txn" :transaction="txn" :organization="organization" :currency="currency" @close="showReceipt = false" />
+    <ReceiptModal v-if="showReceipt && txn" :transaction="txn" :organization="organization" :currency="txn.currency || currency" @close="showReceipt = false" />
   </div>
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import ReceiptModal from './ReceiptModal.vue'
 import { posService, PAYMENT_LABELS, personName } from '@/services/posService'
 import { apiErrorMessage } from '@/services/api'
@@ -146,7 +147,7 @@ export default {
   props: {
     transactionId: { type: String, required: true },
     organization: { type: Object, default: null },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['close', 'voided'],
   data() {
@@ -174,7 +175,7 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.currency)
+      return formatMoney(v, this.txn?.currency || this.currency)
     },
     dateTime: formatDateTime,
     name: personName,

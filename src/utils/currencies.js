@@ -1,3 +1,5 @@
+import { orgCurrency } from './orgDefaults'
+
 /**
  * Supported currencies (ISO 4217). Keep in sync with pkg/currency/currency.go.
  * Grouped for pickers; formatting uses Intl so symbols/decimals are correct.
@@ -285,13 +287,13 @@ export function currencyForCountry(code) {
  * Currency a customer should be invoiced in: their own choice, else their
  * country's currency, else the organisation default. Mirrors currency.ForCustomer.
  */
-export function customerCurrency(customer, orgDefault = 'AUD') {
+export function customerCurrency(customer, orgDefault = orgCurrency()) {
   const own = String(customer?.currency || '').toUpperCase()
   if (own && CURRENCY_CODES.includes(own)) return { currency: own, source: 'customer' }
   const code = customer?.country_code || countryCodeFromName(customer?.address?.country)
   const byCountry = currencyForCountry(code)
   if (byCountry) return { currency: byCountry, source: 'country' }
-  return { currency: orgDefault || 'AUD', source: 'default' }
+  return { currency: orgDefault || orgCurrency(), source: 'default' }
 }
 
 /** Minor units: JPY/UGX 0, KWD 3, others 2 (mirrors currency.Decimals). */
@@ -303,9 +305,9 @@ export function currencyDecimals(code) {
 }
 
 /** Money in a document currency with that currency's decimals. */
-export function formatCurrency(value, code = 'AUD', opts = {}) {
+export function formatCurrency(value, code = orgCurrency(), opts = {}) {
   const n = Number(value) || 0
-  const cur = code || 'AUD'
+  const cur = code || orgCurrency()
   const d = opts.compact ? 0 : currencyDecimals(cur)
   try {
     return new Intl.NumberFormat(undefined, {

@@ -16,6 +16,8 @@ export const platformAPI = {
   activateOrganization: (id) => api.post(`${BASE}/organizations/${id}/activate`).then(d),
   deleteOrganization: (id, confirmName) => api.delete(`${BASE}/organizations/${id}`, { data: { confirm_name: confirmName } }).then(d),
   impersonate: (id) => api.post(`${BASE}/organizations/${id}/impersonate`).then(d),
+  duplicates: () => api.get(`${BASE}/organizations/duplicates`).then(d),
+  merge: (body) => api.post(`${BASE}/organizations/merge`, body, { timeout: 120000 }).then(d),
 
   modules: () => api.get(`${BASE}/modules`).then(d),
 
@@ -43,6 +45,8 @@ export const AUDIT_LABELS = {
   'organization.activate': 'Organisation reactivated',
   'organization.delete': 'Organisation deleted',
   'organization.impersonate': 'Signed in as organisation',
+  'organization.merge': 'Organisations merged',
+  'organization.merged_into': 'Merged into another organisation',
   'user.create': 'User created',
   'user.update': 'User updated',
   'user.deactivate': 'User deactivated',

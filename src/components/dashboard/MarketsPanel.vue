@@ -112,6 +112,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import './dashviz.css'
 import DeltaBadge from './DeltaBadge.vue'
 import Sparkline from './charts/Sparkline.vue'
@@ -131,7 +132,7 @@ export default {
       data: null,
       loading: false,
       error: '',
-      base: loadPref(PREF, '') || this.defaultBase || 'AUD',
+      base: loadPref(PREF, '') || this.defaultBase || orgCurrency(),
       timer: null,
       tick: 0,
       tickTimer: null

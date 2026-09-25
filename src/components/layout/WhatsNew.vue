@@ -7,7 +7,7 @@
           <strong>What’s new in {{ versionShort }}</strong>
           <span class="wn__pill">{{ versionLabel }}</span>
         </div>
-        <p class="wn__lead">{{ appName }} {{ versionShort }} is our biggest release yet — a redesigned, phone-friendly workspace with every module in one place.</p>
+        <p class="wn__lead">{{ lead }}</p>
         <ul class="wn__list">
           <li v-for="h in highlights" :key="h.text"><i :class="h.icon"></i><span>{{ h.text }}</span></li>
         </ul>
@@ -24,7 +24,7 @@
 
 <script>
 import { APP_NAME } from '@/config'
-import { VERSION_LABEL, VERSION_SHORT, RELEASE_HIGHLIGHTS } from '@/version'
+import { VERSION_LABEL, VERSION_SHORT, RELEASE_HIGHLIGHTS, RELEASE_LEAD } from '@/version'
 
 const KEY = 'whatsnew.dismissed'
 
@@ -42,7 +42,8 @@ export default {
       appName: APP_NAME,
       versionLabel: VERSION_LABEL,
       versionShort: VERSION_SHORT,
-      highlights: RELEASE_HIGHLIGHTS
+      highlights: RELEASE_HIGHLIGHTS,
+      lead: RELEASE_LEAD
     }
   },
   methods: {

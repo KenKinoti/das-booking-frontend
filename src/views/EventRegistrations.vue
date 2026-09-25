@@ -152,6 +152,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { eventsApi, REG_STATUS, PAY_STATUS, eventLocation } from '@/services/events'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDateTime, downloadBlob, isoDate } from '@/utils/format'
@@ -241,7 +242,7 @@ export default {
       return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(v))
     },
     money(v) {
-      return formatMoney(v || 0, (this.event && this.event.currency) || 'AUD')
+      return formatMoney(v || 0, (this.event && this.event.currency) || orgCurrency())
     },
     regMeta(r) {
       return REG_STATUS[r.status] || REG_STATUS.pending

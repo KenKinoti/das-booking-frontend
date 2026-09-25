@@ -19,7 +19,9 @@ export const navGroups = [
       { label: 'Dashboard', to: '/dashboard', module: 'core', icon: 'fa-solid fa-gauge-high' },
       { label: 'Ask DASYIN', to: '/assistant', module: 'core', icon: 'fa-solid fa-wand-magic-sparkles' },
       { label: 'Analytics', to: '/reports-analytics', module: 'core', icon: 'fa-solid fa-chart-column' },
-      { label: 'Reports', to: '/analytics', module: 'core', icon: 'fa-solid fa-chart-pie' }
+      // Reports opens the Profit & loss statement (the old /analytics page was
+      // a duplicate of Analytics). It is highlighted under Finance instead.
+      { label: 'Reports', to: '/reports', module: 'core', icon: 'fa-solid fa-chart-pie', match: /^\/reports\/?$/ }
     ]
   },
   {
@@ -80,6 +82,7 @@ export const navGroups = [
     label: 'Finance',
     icon: 'fa-solid fa-building-columns',
     items: [
+      { label: 'Profit & loss', to: '/reports/profit-loss', module: 'core', icon: 'fa-solid fa-chart-line', match: /^\/reports\/profit-loss/ },
       { label: 'Accounting', to: '/finance', module: 'accounting', icon: 'fa-solid fa-scale-balanced' },
       { label: 'Bills', to: '/bills', module: 'accounting', icon: 'fa-solid fa-money-bill-wave' },
       { label: 'Banking', to: '/banking', module: 'accounting', icon: 'fa-solid fa-building-columns' }

@@ -76,6 +76,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { financeApi, BANK_TYPES } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, isoDate } from '@/utils/format'
@@ -96,7 +97,7 @@ export default {
         account_number: a.account_number || '',
         bsb: a.bsb || '',
         account_type: a.account_type || 'checking',
-        currency: a.currency || 'AUD',
+        currency: a.currency || orgCurrency(),
         opening_balance: '',
         opening_date: isoDate(),
         notes: a.notes || ''

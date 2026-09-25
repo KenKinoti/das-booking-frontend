@@ -98,6 +98,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { formatMoney } from '@/utils/format'
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
@@ -106,7 +107,7 @@ export default {
   name: 'PaymentModal',
   props: {
     total: { type: Number, required: true },
-    currency: { type: String, default: 'AUD' },
+    currency: { type: String, default: () => orgCurrency() },
     busy: { type: Boolean, default: false },
     error: { type: String, default: '' }
   },

@@ -1,6 +1,7 @@
 /** Shared helpers for the dashboard and analytics pages. */
 import api from '@/services/api'
 import { formatMoney } from '@/utils/format'
+import { orgCurrency } from '@/utils/orgDefaults'
 
 export const PERIODS = [
   { value: '7d', label: '7D', long: 'Last 7 days' },
@@ -39,12 +40,12 @@ export async function fetchMarket(base) {
   return res.data?.data || res.data
 }
 
-export function money(v, cur = 'AUD', compact = false) {
+export function money(v, cur = orgCurrency(), compact = false) {
   return formatMoney(v || 0, cur, { compact })
 }
 
 /** Compact currency for axes: $12.4k */
-export function moneyAxis(v, cur = 'AUD') {
+export function moneyAxis(v, cur = orgCurrency()) {
   const n = Number(v) || 0
   try {
     return new Intl.NumberFormat(undefined, {

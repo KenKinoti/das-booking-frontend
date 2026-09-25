@@ -30,7 +30,7 @@
     </div>
 
     <div class="kpis" :class="{ busy: loading && data }">
-      <KpiCard label="Revenue collected" icon="fa-solid fa-sack-dollar" tone="success" :loading="!data" :value="money(k.revenue?.value)" :meta="`${num(k.revenue?.count)} payments & sales`" :delta="k.revenue?.delta_pct" :show-delta="compare" :show-new="compare" :spark="k.revenue?.spark" />
+      <KpiCard label="Revenue collected" icon="fa-solid fa-sack-dollar" tone="success" :loading="!data" :value="money(k.revenue?.value)" :meta="`${num(k.revenue?.count)} payments & sales · incl. tax`" :delta="k.revenue?.delta_pct" :show-delta="compare" :show-new="compare" :spark="k.revenue?.spark" />
       <KpiCard label="Invoiced" icon="fa-solid fa-file-invoice-dollar" :loading="!data" :value="money(k.invoiced?.value)" :meta="`${num(k.invoice_count?.value)} invoices`" :delta="k.invoiced?.delta_pct" :show-delta="compare" :show-new="compare" :spark="k.invoiced?.spark" spark-color="var(--viz-3)" />
       <KpiCard label="Collection rate" icon="fa-solid fa-percent" tone="info" :loading="!data" :value="k.collection_rate?.value ? k.collection_rate.value.toFixed(1) + '%' : '—'" meta="Payments ÷ invoiced this period" :delta="k.collection_rate?.delta_pct" delta-unit="pts" :show-delta="compare" />
       <KpiCard label="Average invoice" icon="fa-solid fa-receipt" :loading="!data" :value="money(k.avg_invoice?.value)" :meta="`Across ${num(k.invoice_count?.value)} invoices`" :delta="k.avg_invoice?.delta_pct" :show-delta="compare" :spark="k.avg_invoice?.spark" spark-color="var(--viz-3)" />
@@ -39,6 +39,9 @@
       <KpiCard label="Bookings" icon="fa-solid fa-calendar-check" tone="info" :loading="!data" :value="num(k.bookings?.value)" :meta="`${money(k.booking_value?.value, true)} booked value`" :delta="k.bookings?.delta_pct" :show-delta="compare" :show-new="compare" :spark="k.bookings?.spark" />
       <KpiCard label="New customers" icon="fa-solid fa-user-plus" tone="warning" :loading="!data" :value="num(k.new_customers?.value)" meta="Added in this period" :delta="k.new_customers?.delta_pct" :show-delta="compare" :show-new="compare" :spark="k.new_customers?.spark" />
     </div>
+
+    <!-- Profit & loss for the same period: the shared calculation (Reports → Profit & loss) -->
+    <PnlCard :period="period" />
 
     <div v-if="otherCurrencies.length" class="ui-alert cur-note mb" role="note">
       <i class="fa-solid fa-circle-info"></i>
@@ -161,11 +164,13 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import './dashviz.css'
 import KpiCard from './KpiCard.vue'
 import PeriodPicker from './PeriodPicker.vue'
 import TimeChart from './charts/TimeChart.vue'
 import DonutChart from './charts/DonutChart.vue'
+import PnlCard from '@/components/pnl/PnlCard.vue'
 import { fetchOverview, money, moneyAxis, num, bucketLabel, rangeLabel, titleCase, downloadCsv, loadPref, savePref, BOOKING_STATUS } from './analytics'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
@@ -183,7 +188,7 @@ const INVOICE_STATUS = {
 
 export default {
   name: 'AnalyticsReport',
-  components: { KpiCard, PeriodPicker, TimeChart, DonutChart },
+  components: { KpiCard, PeriodPicker, TimeChart, DonutChart, PnlCard },
   props: {
     title: { type: String, default: 'Analytics' }
   },
@@ -210,7 +215,7 @@ export default {
       return !!this.period.compare
     },
     currency() {
-      return this.data?.currency || 'AUD'
+      return this.data?.currency || orgCurrency()
     },
     intervalText() {
       const i = this.data?.range?.interval

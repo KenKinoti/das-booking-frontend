@@ -105,6 +105,7 @@
                   <span class="show-md">{{ e.category_name || 'Uncategorised' }}</span>
                   <template v-if="e.reference"><span class="show-md"> · </span>Ref {{ e.reference }}</template>
                   <i v-if="e.has_attachment" class="fa-solid fa-paperclip clip" title="Receipt attached"></i>
+                  <span v-if="e.link_type" class="ui-badge ui-badge--info linked" :title="'Not counted in Profit & loss: ' + linkLabel(e.link_type)"><i class="fa-solid fa-link"></i> {{ linkLabel(e.link_type) }}</span>
                 </small>
               </td>
               <td class="hide-md"><span class="ui-badge" :class="e.category_name ? 'ui-badge--draft' : 'ui-badge--warning'">{{ e.category_name || 'Uncategorised' }}</span></td>
@@ -132,7 +133,7 @@
 </template>
 
 <script>
-import { smallbizApi, fmtMinor, PERIODS } from '@/services/smallbiz'
+import { smallbizApi, fmtMinor, PERIODS, LINK_TYPES } from '@/services/smallbiz'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate, downloadBlob, isoDate } from '@/utils/format'
 import { toast } from '@/composables/useToast'
@@ -149,6 +150,10 @@ export default {
   },
   emits: ['add', 'edit', 'changed', 'manage-categories'],
   data() {
+    // Optional filters from the URL (drill-down from Profit & loss):
+    // ?type=income|expense&from=YYYY-MM-DD&to=YYYY-MM-DD&category=<id>
+    const q = this.$route.query
+    const custom = !!(q.from && q.to)
     return {
       entries: [],
       totals: [],
@@ -160,7 +165,14 @@ export default {
       error: null,
       search: '',
       timer: null,
-      filters: { type: '', period: 'this_month', category_id: '', from: '', to: '', q: '' },
+      filters: {
+        type: ['income', 'expense'].includes(q.type) ? q.type : '',
+        period: custom ? 'custom' : 'this_month',
+        category_id: q.category || '',
+        from: custom ? q.from : '',
+        to: custom ? q.to : '',
+        q: ''
+      },
       types: [
         { key: '', label: 'All' },
         { key: 'income', label: 'Money in' },
@@ -212,6 +224,9 @@ export default {
       return fmtMinor(v, c)
     },
     date: formatDate,
+    linkLabel(t) {
+      return (LINK_TYPES.find((x) => x.value === t) || {}).short || t
+    },
     shortDate(d) {
       return String(d).slice(0, 4) === String(new Date().getFullYear()) ? formatDate(d, 'short') : formatDate(d)
     },
@@ -548,5 +563,10 @@ export default {
   .desc strong {
     max-width: 150px;
   }
+}
+
+.linked {
+  margin-left: 6px;
+  font-size: 10.5px;
 }
 </style>

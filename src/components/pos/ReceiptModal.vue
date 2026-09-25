@@ -33,6 +33,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import PosReceipt from './PosReceipt.vue'
 import { formatMoney } from '@/utils/format'
 
@@ -42,7 +43,7 @@ export default {
   props: {
     transaction: { type: Object, required: true },
     organization: { type: Object, default: null },
-    currency: { type: String, default: 'AUD' },
+    currency: { type: String, default: () => orgCurrency() },
     afterSale: { type: Boolean, default: false }
   },
   emits: ['close', 'new-sale'],
@@ -56,7 +57,7 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.currency)
+      return formatMoney(v, this.transaction?.currency || this.currency)
     },
     onKey(e) {
       if (e.key === 'Escape') this.$emit('close')

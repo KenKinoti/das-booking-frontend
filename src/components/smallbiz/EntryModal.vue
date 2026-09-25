@@ -98,6 +98,20 @@
               <input id="smb_ref" v-model="form.reference" class="ui-input" maxlength="120" placeholder="Receipt or invoice number" />
             </div>
           </div>
+          <div class="row">
+            <div class="ui-field grow">
+              <label for="smb_link">Already recorded elsewhere?</label>
+              <select id="smb_link" v-model="form.link_type" class="ui-select" :class="{ 'has-error': errors.link_type }">
+                <option value="">No — count it in Profit &amp; loss</option>
+                <option v-for="l in linkOptions" :key="l.value" :value="l.value">Yes — {{ l.label }}</option>
+              </select>
+              <div v-if="errors.link_type" class="err">{{ errors.link_type }}</div>
+              <div class="hint">
+                {{ form.link_type ? 'Stays in your cash book, but is left out of Profit & loss so it isn’t counted twice.' : 'If this money is already an invoice payment, bill, POS sale or pay run in DASYIN, pick it so it’s counted once.' }}
+                An entry whose reference matches an invoice, bill, purchase order or pay run number is also left out automatically.
+              </div>
+            </div>
+          </div>
 
           <div class="ui-field">
             <label>Receipt</label>
@@ -136,7 +150,7 @@
 </template>
 
 <script>
-import { smallbizApi, fmtMinor, minorToInput, parseMinor, taxFromInclusive, currencyDecimals, fieldErrors, readAttachment, PAYMENT_METHODS } from '@/services/smallbiz'
+import { smallbizApi, fmtMinor, minorToInput, parseMinor, taxFromInclusive, currencyDecimals, fieldErrors, readAttachment, PAYMENT_METHODS, LINK_TYPES } from '@/services/smallbiz'
 import { apiErrorMessage } from '@/services/api'
 import { currencyGroups } from '@/utils/currencies'
 import { isoDate } from '@/utils/format'
@@ -167,6 +181,9 @@ export default {
     }
   },
   computed: {
+    linkOptions() {
+      return LINK_TYPES.filter((l) => !l.type || l.type === this.form.type || l.value === this.form.link_type)
+    },
     title() {
       if (this.entryId) return 'Edit entry'
       if (this.quick) return this.form.type === 'income' ? 'Quick sale' : 'Quick expense'
@@ -205,6 +222,7 @@ export default {
           payment_method: e.payment_method || '',
           description: e.description || '',
           reference: e.reference || '',
+          link_type: e.link_type || '',
           tax_rate: e.tax_rate,
           attachment_url: e.attachment_url || '',
           attachment_data: e.attachment_data || '',
@@ -239,6 +257,7 @@ export default {
         payment_method: type === 'expense' ? 'Card' : 'Cash',
         description: '',
         reference: '',
+        link_type: '',
         tax_rate: 0,
         attachment_url: '',
         attachment_data: '',
@@ -450,6 +469,13 @@ export default {
 
 .has-error {
   border-color: var(--danger) !important;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .err {

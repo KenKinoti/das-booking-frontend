@@ -33,13 +33,14 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { fmtMinor, monthLabel } from '@/services/smallbiz'
 
 export default {
   name: 'TrendChart',
   props: {
     months: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   data() {
     return { hover: -1, W: 600, H: 220, padL: 56, padB: 4 }

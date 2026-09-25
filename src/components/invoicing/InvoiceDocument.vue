@@ -81,7 +81,8 @@
         <div v-if="doc.tax_total > 0 || hasTax"><dt>{{ taxLabel }}{{ doc.prices_include_tax ? ' (included)' : '' }}</dt><dd>{{ money(doc.tax_total) }}</dd></div>
         <div class="grand"><dt>Total {{ doc.currency }}</dt><dd>{{ money(doc.total) }}</dd></div>
         <template v-if="!isQuote && doc.amount_paid > 0">
-          <div><dt>Paid</dt><dd>−{{ money(doc.amount_paid) }}</dd></div>
+          <div v-if="depositPaid > 0" data-testid="doc-deposit"><dt>Deposit received</dt><dd>−{{ money(depositPaid) }}</dd></div>
+          <div v-if="doc.amount_paid - depositPaid > 0.0001"><dt>{{ depositPaid > 0 ? 'Paid since' : 'Paid' }}</dt><dd>−{{ money(doc.amount_paid - depositPaid) }}</dd></div>
           <div class="grand due"><dt>Balance due</dt><dd>{{ money(doc.balance_due) }}</dd></div>
         </template>
       </dl>
@@ -109,6 +110,10 @@ export default {
     return { logoFailed: false }
   },
   computed: {
+    // Money received when the invoice was written (deposits), shown apart.
+    depositPaid() {
+      return (this.doc.payments || []).filter((p) => p.is_deposit).reduce((t, p) => t + (Number(p.amount) || 0), 0)
+    },
     // The company logo (Settings → Business details); a broken image falls back to the name.
     logoSrc() {
       return !this.logoFailed && this.business.logo_url ? this.business.logo_url : ''

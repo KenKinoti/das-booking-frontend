@@ -79,6 +79,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import AccountModal from './AccountModal.vue'
 import { financeApi, ACCOUNT_TYPES } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
@@ -92,7 +93,7 @@ export default {
   props: {
     accounts: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['changed', 'ledger'],
   data() {

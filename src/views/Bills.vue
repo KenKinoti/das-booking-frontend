@@ -76,6 +76,11 @@
           </div>
         </div>
 
+        <div v-if="dateText" class="date-chip">
+          <span><i class="fa-regular fa-calendar"></i> {{ dateText }}</span>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="clearDates">Clear dates</button>
+        </div>
+
         <div v-if="error" class="ui-card__body">
           <div class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="loadBills">Try again</a></span></div>
         </div>
@@ -177,6 +182,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import BillModal from '@/components/finance/BillModal.vue'
 import BillDetailModal from '@/components/finance/BillDetailModal.vue'
 import PaymentModal from '@/components/finance/PaymentModal.vue'
@@ -199,6 +205,8 @@ export default {
       status: STATUSES.includes(qs.status) ? qs.status : 'all',
       q: '',
       vendorId: qs.vendor || '',
+      // Optional date range (drill-down from Profit & loss): bill date or payment date.
+      dates: { from: qs.from || '', to: qs.to || '', paid_from: qs.paid_from || '', paid_to: qs.paid_to || '' },
       bills: [],
       loading: false,
       error: '',
@@ -214,7 +222,7 @@ export default {
   },
   computed: {
     currency() {
-      return 'AUD'
+      return orgCurrency()
     },
     tabs() {
       return [
@@ -241,7 +249,15 @@ export default {
       return c
     },
     filtered() {
-      return !!(this.q || this.vendorId || this.status !== 'all')
+      return !!(this.q || this.vendorId || this.status !== 'all' || this.dateText)
+    },
+    dateText() {
+      const d = this.dates
+      const f = (v) => (v ? formatDate(v) : '…')
+      const parts = []
+      if (d.from || d.to) parts.push(`Bill date ${f(d.from)} – ${f(d.to)}`)
+      if (d.paid_from || d.paid_to) parts.push(`Paid ${f(d.paid_from)} – ${f(d.paid_to)}`)
+      return parts.join(' · ')
     },
     rows() {
       const q = this.q.trim().toLowerCase()
@@ -316,6 +332,7 @@ export default {
       if (this.view === 'vendors') query.view = 'vendors'
       if (this.status !== 'all') query.status = this.status
       if (this.vendorId) query.vendor = this.vendorId
+      for (const [k, v] of Object.entries(this.dates)) if (v) query[k] = v
       this.$router.replace({ query })
     },
     setView(v) {
@@ -331,7 +348,15 @@ export default {
       this.q = ''
       this.vendorId = ''
       this.status = 'all'
+      const hadDates = !!this.dateText
+      this.dates = { from: '', to: '', paid_from: '', paid_to: '' }
       this.syncQuery()
+      if (hadDates) this.loadBills()
+    },
+    clearDates() {
+      this.dates = { from: '', to: '', paid_from: '', paid_to: '' }
+      this.syncQuery()
+      this.loadBills()
     },
     showVendorBills(v) {
       this.vendorId = v.id
@@ -343,7 +368,9 @@ export default {
       this.loading = true
       this.error = ''
       try {
-        this.bills = (await financeApi.bills()) || []
+        const params = {}
+        for (const [k, v] of Object.entries(this.dates)) if (v) params[k] = v
+        this.bills = (await financeApi.bills(params)) || []
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not load bills')
       } finally {
@@ -682,5 +709,18 @@ export default {
   .card-tab i {
     display: none;
   }
+}
+
+.date-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--info-soft);
+  border-bottom: 1px solid var(--border);
 }
 </style>

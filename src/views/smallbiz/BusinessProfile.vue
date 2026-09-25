@@ -53,6 +53,7 @@
             </optgroup>
           </select>
           <div v-if="errors.currency" class="err">{{ errors.currency }}</div>
+          <div v-else class="ui-hint">Defaults to your organisation's currency (<router-link to="/settings#regional">Settings</router-link>) and follows it until you enter an opening balance.</div>
         </div>
         <div class="ui-field">
           <label for="bp_fy">Financial year starts</label>

@@ -67,7 +67,7 @@
                   <label class="ui-field"><span class="ui-label">Suburb / city</span><input v-model.trim="org.address.suburb" class="ui-input" /></label>
                   <label class="ui-field"><span class="ui-label">State / region</span><input v-model.trim="org.address.state" class="ui-input" /></label>
                   <label class="ui-field"><span class="ui-label">Postcode</span><input v-model.trim="org.address.postcode" class="ui-input" maxlength="10" /></label>
-                  <label class="ui-field"><span class="ui-label">Country</span><input v-model.trim="org.address.country" class="ui-input" /></label>
+                  <div class="ui-field"><label class="ui-label" for="st_country">Country *</label><CountryPicker id="st_country" v-model="org.country_code" :clearable="false" :invalid="!!errors.country" placeholder="Where the business is based" @change="onCountry" /><span v-if="errors.country" class="field-error">{{ errors.country }}</span></div>
                 </div>
                 <label class="ui-field span-2">
                   <span class="ui-label">About the business</span>
@@ -101,7 +101,7 @@
                       <option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option>
                     </optgroup>
                   </select>
-                  <span class="ui-hint">Invoices and pay runs can still use other currencies.</span>
+                  <span class="ui-hint" data-testid="currency-hint">The default for new invoices, POS sales, bookings, events, bills and pay runs (defaults from your country). Existing records keep their currency; a customer's own currency still applies to their invoices.</span>
                 </label>
                 <label class="ui-field">
                   <span class="ui-label">Date format</span>
@@ -186,19 +186,22 @@ import '@/styles/module-page.css'
 import AboutCard from '@/components/layout/AboutCard.vue'
 import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
 import api, { apiErrorMessage } from '@/services/api'
-import { currencyGroups } from '@/utils/currencies'
+import { currencyGroups, currencyForCountry, CURRENCY_CODES } from '@/utils/currencies'
+import CountryPicker from '@/components/customers/CountryPicker.vue'
+import { refreshOrgPrefs } from '@/composables/useOrgPrefs'
+import { orgDefaults } from '@/utils/orgDefaults'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 
 const FALLBACK_TZ = ['Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Adelaide', 'Australia/Perth', 'Pacific/Auckland', 'Asia/Singapore', 'Asia/Dubai', 'Africa/Nairobi', 'Africa/Lagos', 'Africa/Johannesburg', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'UTC']
 
 function blankOrg() {
-  return { name: '', abn: '', phone: '', email: '', website: '', description: '', address: { street: '', suburb: '', state: '', postcode: '', country: '' } }
+  return { name: '', abn: '', phone: '', email: '', website: '', description: '', country_code: '', address: { street: '', suburb: '', state: '', postcode: '', country: '' } }
 }
 
 export default {
   name: 'Settings',
-  components: { AboutCard, OrgLogoUploader },
+  components: { AboutCard, OrgLogoUploader, CountryPicker },
   data() {
     return {
       org: blankOrg(),
@@ -312,6 +315,11 @@ export default {
         this.loadError = apiErrorMessage(e, 'Could not load settings')
       }
     },
+    onCountry(code) {
+      // The currency follows the country (it can still be changed below).
+      const c = currencyForCountry(code)
+      if (c && CURRENCY_CODES.includes(c)) this.settings.currency = c
+    },
     reset() {
       const o = JSON.parse(this.original)
       this.org = o.org
@@ -326,6 +334,7 @@ export default {
     validate() {
       const e = {}
       if (!this.org.name) e.name = 'Business name is required'
+      if (!this.org.country_code) e.country = 'Choose the country your business is based in'
       if (this.org.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.org.email)) e.email = 'Enter a valid email address'
       if (this.org.website && !/^(https?:\/\/)?[^\s/]+\.[^\s]+$/i.test(this.org.website)) e.website = 'Enter a valid website, e.g. https://example.com'
       this.errors = e
@@ -336,9 +345,11 @@ export default {
       if (!this.validate()) return
       this.saving = true
       try {
+        const before = orgDefaults.currency
         const { data } = await api.put('/account/organization', { ...this.org, settings: this.settings })
         this.apply(data.data)
-        toast.success('Settings saved')
+        await refreshOrgPrefs()
+        toast.success(before && before !== this.settings.currency ? `Settings saved — new records now default to ${this.settings.currency}` : 'Settings saved')
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not save settings'))
       } finally {

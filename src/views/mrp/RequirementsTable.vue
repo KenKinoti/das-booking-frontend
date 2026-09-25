@@ -31,12 +31,13 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import '@/styles/module-page.css'
 import { formatMoney } from '@/utils/format'
 
 export default {
   name: 'RequirementsTable',
-  props: { rows: { type: Array, default: () => [] }, currency: { type: String, default: 'AUD' }, showStock: { type: Boolean, default: true } },
+  props: { rows: { type: Array, default: () => [] }, currency: { type: String, default: () => orgCurrency() }, showStock: { type: Boolean, default: true } },
   methods: {
     money(v) {
       return formatMoney(v, this.currency)

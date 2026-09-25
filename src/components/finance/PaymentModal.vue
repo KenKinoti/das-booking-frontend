@@ -62,6 +62,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { financeApi, PAYMENT_METHODS, toCents } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, isoDate } from '@/utils/format'
@@ -72,7 +73,7 @@ export default {
   props: {
     bill: { type: Object, required: true },
     banks: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['close', 'saved'],
   data() {

@@ -51,6 +51,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { financeApi } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDate } from '@/utils/format'
@@ -59,7 +60,7 @@ export default {
   name: 'LedgerModal',
   props: {
     account: { type: Object, required: true },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['close'],
   data() {

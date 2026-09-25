@@ -8,6 +8,13 @@
       </div>
       <div class="toolbar__right">
         <template v-if="report === 'pl'">
+        <div class="ui-alert ledger-note no-print">
+          <i class="fa-solid fa-circle-info"></i>
+          <span>
+            Ledger P&amp;L is built from posted journals only (approved bills, categorised bank lines, manual journals). Your
+            <router-link to="/reports/profit-loss">Business P&amp;L</router-link> also includes invoices, point of sale, events, the cash book and payroll, so the two can differ.
+          </span>
+        </div>
           <select v-model="preset" class="ui-select preset" aria-label="Period" @change="applyPreset">
             <option v-for="p in presets" :key="p.value" :value="p.value">{{ p.label }}</option>
           </select>
@@ -172,6 +179,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { financeApi } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDate, isoDate, downloadBlob } from '@/utils/format'
@@ -185,7 +193,7 @@ function fyStart(d) {
 export default {
   name: 'ReportsTab',
   props: {
-    currency: { type: String, default: 'AUD' },
+    currency: { type: String, default: () => orgCurrency() },
     orgName: { type: String, default: '' }
   },
   emits: ['ledger'],
@@ -205,7 +213,7 @@ export default {
   computed: {
     reports() {
       return [
-        { value: 'pl', label: 'Profit & loss', icon: 'fa-solid fa-chart-line' },
+        { value: 'pl', label: 'Ledger P&L', icon: 'fa-solid fa-chart-line' },
         { value: 'bs', label: 'Balance sheet', icon: 'fa-solid fa-scale-balanced' },
         { value: 'tb', label: 'Trial balance', icon: 'fa-solid fa-table-list' }
       ]
@@ -538,5 +546,15 @@ export default {
   .st-line:hover {
     background: none;
   }
+}
+
+.ledger-note {
+  background: var(--info-soft);
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.ledger-note > i {
+  color: var(--info);
 }
 </style>

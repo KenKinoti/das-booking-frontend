@@ -17,6 +17,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { timeAgo, money } from './analytics'
 import { formatDateTime } from '@/utils/format'
 
@@ -32,7 +33,7 @@ export default {
   name: 'ActivityFeed',
   props: {
     items: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   methods: {
     icon(a) {

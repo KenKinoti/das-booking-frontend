@@ -6,6 +6,59 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.2.0] - 2026-09-25
+
+### Where the business is based, deposits, profit & loss and duplicate organisations
+
+- **Organisation country & home currency** — every organisation now has a country
+  (ISO code), a home currency and a time zone, set in **Settings → Business details**
+  (country picker; the currency follows the country and can be overridden). It is the
+  single source of the default currency everywhere: new invoices and quotes (a
+  customer's own currency still wins), invoicing settings, POS sales and receipts (POS
+  sales now store their currency), bookings and service prices, events and tickets,
+  the Business hub, HR pay, bills and bank accounts (bills now store their currency),
+  plans, the P&L, Analytics, the Dashboard and the Ask DASYIN / MCP assistant.
+  Changing it changes the default for **new** records; existing records keep their
+  currency. Amounts use each currency's own decimals (JPY and UGX none, KWD three).
+  Existing organisations were filled in from their invoicing / organisation / plan
+  currency and address (else Australia / AUD); admins of an organisation whose country
+  was never set see a one-time **"Where is your business based?"** prompt.
+- **Deposits and part payments on invoices** — the invoice editor has an **Already
+  paid / deposit** section (amount, date, method — cash, card, bank transfer, mobile
+  money such as M-Pesa, other — and reference). Saving records it as a real payment:
+  it appears in the activity log, the invoice becomes partially paid (or paid) and the
+  document and public link show **Deposit received** and the balance due. Also
+  available when converting a quote to an invoice, and to Ask DASYIN / MCP
+  (`invoices_create` / `quotes_convert` take `amount_paid`, `payment_date`,
+  `payment_method`, `payment_reference`). Deposits count in the cash-basis P&L like
+  any other payment.
+- **Profit & loss, counted once** — one P&L for the whole business (invoices, point
+  of sale net of refunds, online orders, event tickets, the cash book, supplier bills,
+  stock received on purchase orders and paid pay runs) on an accrual or cash basis.
+  It is shown on the Dashboard (Revenue − Expenses = Net profit, a waterfall, top
+  expenses, a 12-month trend and "How is this calculated?"), in **Finance → Profit &
+  loss** (full statement vs the previous period, links to the underlying records, CSV
+  and print with your logo), in Finance, the Business hub and Analytics, and to Ask
+  DASYIN / MCP (`profit_and_loss`). Nothing is counted twice: a bill can be linked to
+  its purchase order, and cash-book entries can be marked "already recorded
+  elsewhere" (entries whose reference matches an invoice, bill, order, pay run or POS
+  sale are left out automatically). The accounting ledger's own report is now called
+  "Ledger P&L", and the cash-book-only report "Cash book P&L".
+- **Duplicate organisations: check & merge (platform admin)** — Organisations →
+  **Duplicates** lists organisations that share a name (ignoring case, punctuation and
+  "Pty Ltd"), an ABN or an email, with their users and record counts for every
+  organisation-scoped table. Pick the one to keep, preview the merge (a dry run of the
+  real thing: records moved, per-organisation settings kept, clashing invoice / quote /
+  bill / order numbers, SKUs and account codes renumbered with a `-M1` suffix), then
+  type the kept organisation's name to merge. The merged organisation is archived and
+  the merge is written to the audit log. The organisation list shows each
+  organisation's users and country, and super admins see which organisation they are
+  signed in to in the sidebar.
+- **No more duplicate "DASYIN" organisations** — start-up code never creates an
+  organisation when any organisation exists: it runs in one transaction pinned to the
+  ERP schema, holds a database lock so several instances can't race, and reuses the
+  organisation named `ADMIN_ORG_NAME` (else the oldest).
+
 ## [2.1.0] - 2026-09-24
 
 ### AI: chat with your ERP and connect Claude (MCP)

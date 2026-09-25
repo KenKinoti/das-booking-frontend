@@ -260,6 +260,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import '@/styles/module-page.css'
 import api, { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDateTime } from '@/utils/format'
@@ -303,7 +304,7 @@ export default {
   computed: {
     revenueMain() {
       const r = (this.summary && this.summary.revenue_30d) || []
-      return r.length ? formatMoney(r[0].total, r[0].currency) : this.summary ? formatMoney(0, 'AUD') : '–'
+      return r.length ? formatMoney(r[0].total, r[0].currency) : this.summary ? formatMoney(0, orgCurrency()) : '–'
     },
     revenueOther() {
       const r = (this.summary && this.summary.revenue_30d) || []

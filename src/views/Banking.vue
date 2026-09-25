@@ -213,6 +213,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import BankAccountModal from '@/components/finance/BankAccountModal.vue'
 import TransactionModal from '@/components/finance/TransactionModal.vue'
 import AccountSelect from '@/components/finance/AccountSelect.vue'
@@ -311,7 +312,7 @@ export default {
   },
   methods: {
     money(v, cur) {
-      return formatMoney(v, cur || 'AUD')
+      return formatMoney(v, cur || orgCurrency())
     },
     date: formatDate,
     mask: maskNumber,
@@ -322,7 +323,7 @@ export default {
       return BANK_TYPES.find((x) => x.value === t)?.label || t
     },
     bankCurrency(t) {
-      return this.banks.find((b) => b.id === t.bank_account_id)?.currency || 'AUD'
+      return this.banks.find((b) => b.id === t.bank_account_id)?.currency || orgCurrency()
     },
     syncQuery() {
       const query = {}

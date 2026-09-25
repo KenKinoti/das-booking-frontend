@@ -141,6 +141,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
@@ -194,11 +195,11 @@ export default {
   },
   methods: {
     money(v, compact) {
-      return formatCurrency(v, this.s?.currency || 'AUD', { compact })
+      return formatCurrency(v, this.s?.currency || orgCurrency(), { compact })
     },
     date: formatDate,
     fmt(v, cur) {
-      return formatCurrency(v, cur || this.s?.currency || 'AUD')
+      return formatCurrency(v, cur || this.s?.currency || orgCurrency())
     },
     label(s) {
       return STATUS_LABELS[s] || s

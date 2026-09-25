@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { authService } from '../services/auth'
 import { apiErrorMessage } from '../services/api'
 import { seedBranding, loadBranding, clearBranding } from '../composables/useBranding'
+import { loadOrgPrefs, clearOrgPrefs } from '../composables/useOrgPrefs'
 
 function readJSON(key) {
   try {
@@ -79,6 +80,8 @@ export const useAuthStore = defineStore('auth', {
       // Company name + logo for the sidebar and documents
       seedBranding(user)
       loadBranding({ force: true })
+      // Country / home currency: the default currency everywhere
+      loadOrgPrefs({ force: true })
     },
 
     async logout(options = {}) {
@@ -94,6 +97,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = null
         this.error = null
         clearBranding()
+        clearOrgPrefs()
         ;['auth_token', 'refresh_token', 'current_user', 'user_data', 'lastRoute', 'lastRouteName'].forEach((k) =>
           localStorage.removeItem(k)
         )

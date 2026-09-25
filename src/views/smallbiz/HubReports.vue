@@ -2,12 +2,21 @@
   <div class="reports">
     <div class="toolbar no-print">
       <div class="ui-tabs" role="tablist" aria-label="Report">
-        <button class="ui-tab" :class="{ 'is-active': report === 'pnl' }" @click="report = 'pnl'"><i class="fa-solid fa-chart-line"></i> Profit &amp; loss</button>
+        <button class="ui-tab" :class="{ 'is-active': report === 'business' }" data-report="business" @click="report = 'business'"><i class="fa-solid fa-scale-balanced"></i> Business P&amp;L</button>
+        <button class="ui-tab" :class="{ 'is-active': report === 'pnl' }" data-report="pnl" @click="report = 'pnl'"><i class="fa-solid fa-book"></i> Cash book P&amp;L</button>
         <button class="ui-tab" :class="{ 'is-active': report === 'tax' }" @click="report = 'tax'"><i class="fa-solid fa-percent"></i> {{ settings.tax_name }} summary</button>
       </div>
       <select v-if="report === 'pnl'" v-model="fy" class="ui-select fsel" aria-label="Financial year" @change="loadPnl">
         <option v-for="y in years" :key="y.year" :value="y.year">{{ y.label }}</option>
       </select>
+      <template v-else-if="report === 'business'">
+        <select v-model="bizRange" class="ui-select fsel" aria-label="Period" @change="loadBiz">
+          <option v-for="p in bizRanges" :key="p.key" :value="p.key">{{ p.label }}</option>
+        </select>
+        <div class="ui-tabs" role="tablist" aria-label="Basis">
+          <button v-for="b in ['accrual', 'cash']" :key="b" type="button" class="ui-tab" :class="{ 'is-active': bizBasis === b }" :title="basisHelp[b]" @click="setBizBasis(b)">{{ basisLabel[b] }}</button>
+        </div>
+      </template>
       <template v-else>
         <select v-model="taxPeriod" class="ui-select fsel" aria-label="Tax period" @change="onTaxPeriod">
           <option v-for="p in taxPeriods" :key="p.key" :value="p.key">{{ p.label }}</option>
@@ -24,14 +33,39 @@
 
     <div v-if="error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
 
-    <!-- Profit & loss -->
-    <section v-if="report === 'pnl'" class="ui-card sheet">
+    <!-- Business P&L: the same statement as Reports → Profit & loss -->
+    <section v-if="report === 'business'" class="ui-card sheet">
       <div class="sheet__head">
         <div>
           <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="biz" class="sheet__logo print-only" />
           <div class="ui-eyebrow">{{ biz }}</div>
-          <h2>Profit &amp; loss · {{ pnl ? pnl.label : '…' }}</h2>
+          <h2>Business profit &amp; loss</h2>
+          <p v-if="bizPnl">{{ date(bizPnl.period.from) }} – {{ date(bizPnl.period.to) }} · {{ basisLabel[bizBasis] }} basis · {{ bizPnl.currency }}, excl. {{ bizPnl.tax.label }}</p>
+          <p class="no-print muted-note">Invoices, point of sale, events, bills, purchase orders, payroll and this cash book — counted once. <router-link :to="bizLink">Open the full report</router-link></p>
+        </div>
+        <div v-if="bizPnl" class="headline">
+          <span>{{ bizPnl.totals.net_profit < 0 ? 'Net loss' : 'Net profit' }}</span>
+          <strong :class="{ neg: bizPnl.totals.net_profit < 0, pos: bizPnl.totals.net_profit > 0 }">{{ fmtMajor(bizPnl.totals.net_profit, bizPnl.currency) }}</strong>
+        </div>
+      </div>
+      <div v-if="!bizPnl" class="ui-card__body"><div class="ui-skeleton" style="height: 280px"></div></div>
+      <div v-else-if="!bizPnl.has_data" class="ui-empty">
+        <div class="ui-empty__icon"><i class="fa-solid fa-scale-balanced"></i></div>
+        <h3>Nothing to report in this period</h3>
+        <p>Record sales and expenses, or issue invoices, and your profit &amp; loss builds itself.</p>
+      </div>
+      <PnlStatement v-else :d="bizPnl" />
+    </section>
+
+    <!-- Cash book profit & loss -->
+    <section v-else-if="report === 'pnl'" class="ui-card sheet">
+      <div class="sheet__head">
+        <div>
+          <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="biz" class="sheet__logo print-only" />
+          <div class="ui-eyebrow">{{ biz }}</div>
+          <h2>Cash book profit &amp; loss · {{ pnl ? pnl.label : '…' }}</h2>
           <p v-if="pnl">{{ date(pnl.from) }} – {{ date(pnl.to) }} · {{ pnl.currency }}<template v-if="settings.tax_registered"> · amounts exclude {{ pnl.tax_name }}</template></p>
+          <p class="no-print muted-note">Money in and out recorded in this cash book only. For the whole business see <a href="#" @click.prevent="report = 'business'">Business P&amp;L</a>.</p>
         </div>
         <div v-if="pnl" class="headline">
           <span>Net profit</span>
@@ -177,9 +211,14 @@ import { apiErrorMessage } from '@/services/api'
 import { formatDate, downloadBlob, isoDate } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { useBranding } from '@/composables/useBranding'
+import PnlStatement from '@/components/pnl/PnlStatement.vue'
+import { fetchPnl, loadBasis, saveBasis, statementCsv, BASIS_LABEL, BASIS_HELP } from '@/services/pnl'
+import { downloadCsv as saveCsv } from '@/components/dashboard/analytics'
+import { formatCurrency } from '@/utils/currencies'
 
 export default {
   name: 'HubReports',
+  components: { PnlStatement },
   props: {
     settings: { type: Object, required: true },
     refreshKey: { type: Number, default: 0 }
@@ -191,7 +230,20 @@ export default {
   },
   data() {
     return {
-      report: this.$route.query.report === 'tax' ? 'tax' : 'pnl',
+      report: ['tax', 'pnl'].includes(this.$route.query.report) ? this.$route.query.report : 'business',
+      bizPnl: null,
+      bizRange: 'this_fy',
+      bizBasis: loadBasis(),
+      basisLabel: BASIS_LABEL,
+      basisHelp: BASIS_HELP,
+      bizRanges: [
+        { key: 'this_fy', label: 'This financial year' },
+        { key: 'last_fy', label: 'Last financial year' },
+        { key: 'this_quarter', label: 'This quarter' },
+        { key: 'last_quarter', label: 'Last quarter' },
+        { key: 'this_month', label: 'This month' },
+        { key: 'last_month', label: 'Last month' }
+      ],
       pnl: null,
       tax: null,
       fy: null,
@@ -213,6 +265,9 @@ export default {
     }
   },
   computed: {
+    bizLink() {
+      return { path: '/reports/profit-loss', query: { range: this.bizRange, basis: this.bizBasis } }
+    },
     cur() {
       return this.settings.currency
     },
@@ -222,16 +277,17 @@ export default {
   },
   watch: {
     report(v) {
-      this.$router.replace({ query: { ...this.$route.query, report: v === 'tax' ? 'tax' : undefined } })
+      this.$router.replace({ query: { ...this.$route.query, report: v === 'business' ? undefined : v } })
       if (v === 'tax' && !this.tax) this.loadTax()
       if (v === 'pnl' && !this.pnl) this.loadPnl()
+      if (v === 'business' && !this.bizPnl) this.loadBiz()
     },
     refreshKey() {
-      this.report === 'tax' ? this.loadTax() : this.loadPnl()
+      this.loadCurrent()
     }
   },
   created() {
-    this.report === 'tax' ? this.loadTax() : this.loadPnl()
+    this.loadCurrent()
     if (this.report === 'tax') this.loadYears()
   },
   methods: {
@@ -247,6 +303,28 @@ export default {
     date: formatDate,
     mlabel(m) {
       return monthLabel(m) + (m.endsWith('-01') ? ' ' + m.slice(2, 4) : '')
+    },
+    loadCurrent() {
+      if (this.report === 'tax') this.loadTax()
+      else if (this.report === 'pnl') this.loadPnl()
+      else this.loadBiz()
+    },
+    fmtMajor(v, c) {
+      return formatCurrency(v, c)
+    },
+    async loadBiz() {
+      this.error = null
+      try {
+        this.bizPnl = await fetchPnl({ range: this.bizRange, basis: this.bizBasis, compare: 'previous', series: false })
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not load the business profit & loss')
+      }
+    },
+    setBizBasis(b) {
+      if (b === this.bizBasis) return
+      this.bizBasis = b
+      saveBasis(b)
+      this.loadBiz()
     },
     pnlParams() {
       return this.fy ? { fy: this.fy } : {}
@@ -292,6 +370,12 @@ export default {
       }
     },
     async downloadCsv() {
+      if (this.report === 'business') {
+        if (!this.bizPnl) return
+        saveCsv(`business-profit-loss-${this.bizPnl.period.from}-to-${this.bizPnl.period.to}.csv`, statementCsv(this.bizPnl))
+        toast.success('CSV downloaded')
+        return
+      }
       this.downloading = true
       try {
         const res = this.report === 'pnl' ? await smallbizApi.pnlCsv(this.pnlParams()) : await smallbizApi.taxCsv(this.taxParams())
@@ -341,6 +425,12 @@ export default {
   flex-wrap: wrap;
   padding: 20px;
   border-bottom: 1px solid var(--border);
+}
+
+.muted-note {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin: 4px 0 0;
 }
 
 /* Company logo on printed reports (Settings → Business details) */

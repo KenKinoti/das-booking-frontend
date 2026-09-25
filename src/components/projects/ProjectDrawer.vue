@@ -184,6 +184,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import TaskFormModal from './TaskFormModal.vue'
 import { pmApi, TASK_CATEGORIES, projectStatus, priorityMeta, typeIcon, initials, isOverdue } from '@/services/projects'
 import { apiErrorMessage } from '@/services/api'
@@ -273,7 +274,7 @@ export default {
     initials,
     date: formatDate,
     dateTime: formatDateTime,
-    money: (v) => formatMoney(v, 'AUD', { compact: true }),
+    money: (v) => formatMoney(v, orgCurrency(), { compact: true }),
     shortDate: (v) => formatDate(v, 'short'),
     overdue: isOverdue,
     ago(v) {

@@ -57,6 +57,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { formatMoney, formatDateTime } from '@/utils/format'
 import { PAYMENT_LABELS, personName } from '@/services/posService'
 import { useBranding } from '@/composables/useBranding'
@@ -66,7 +67,7 @@ export default {
   props: {
     transaction: { type: Object, required: true },
     organization: { type: Object, default: null },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   setup() {
     return { branding: useBranding().branding }
@@ -98,7 +99,7 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.currency)
+      return formatMoney(v, this.transaction?.currency || this.currency)
     },
     dateTime: formatDateTime,
     label(m) {

@@ -7,12 +7,17 @@
         <p>Create, manage, suspend and sign in to every business on the platform.</p>
       </div>
       <div class="ui-actions">
+        <button class="ui-btn" :class="{ 'is-active': showDups }" data-testid="duplicates-btn" @click="showDups = !showDups">
+          <i class="fa-solid fa-code-merge"></i> Duplicates<span v-if="dupCount" class="ui-badge ui-badge--warning dup-count">{{ dupCount }}</span>
+        </button>
         <button class="ui-btn" :disabled="exporting || !total" @click="exportCsv">
           <i :class="exporting ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-download'"></i> Export
         </button>
         <button class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New organisation</button>
       </div>
     </header>
+
+    <DuplicateMerge v-if="showDups" @close="showDups = false" @count="dupCount = $event" @merged="onMerged" />
 
     <section class="ui-card">
       <div class="pf-toolbar">
@@ -66,6 +71,7 @@
             <tr>
               <th>Organisation</th>
               <th class="pf-hide-md">Type</th>
+              <th class="pf-hide-sm" title="Country and home currency">Region</th>
               <th class="pf-hide-md">Plan</th>
               <th class="num" title="Active users / all users">Active / users</th>
               <th class="num pf-hide-md" title="Invoices of every status, drafts included">Invoices</th>
@@ -87,6 +93,10 @@
                 </div>
               </td>
               <td class="pf-hide-md">{{ typeLabel(o.business_type) }}</td>
+              <td class="pf-hide-sm pf-nowrap" :title="o.country_code ? `${countryName(o.country_code)} · ${o.currency}` : 'Not set yet'">
+                <template v-if="o.country_code && o.region_source !== 'default'">{{ countryFlag(o.country_code) }} {{ o.country_code }} <span class="pf-muted">· {{ o.currency }}</span></template>
+                <span v-else class="pf-muted">Not set</span>
+              </td>
               <td class="pf-hide-md">
                 <span v-if="o.plan_name" class="plan">{{ tierLabel(o.plan_name) }}<small v-if="o.plan_status && o.plan_status !== 'active'" class="pf-muted"> · {{ o.plan_status }}</small></span>
                 <span v-else class="pf-muted">—</span>
@@ -180,6 +190,7 @@
                 <dt>Phone</dt><dd>{{ drawerOrg.phone || '—' }}</dd>
                 <dt>Website</dt><dd><a v-if="drawerOrg.website" :href="websiteHref(drawerOrg.website)" target="_blank" rel="noopener">{{ drawerOrg.website }}</a><span v-else>—</span></dd>
                 <dt>ABN</dt><dd>{{ drawerOrg.abn || '—' }}</dd>
+                <dt>Country &amp; currency</dt><dd>{{ drawerOrg.country_code ? `${countryFlag(drawerOrg.country_code)} ${countryName(drawerOrg.country_code)} · ${drawerOrg.currency}` : '—' }}<span v-if="drawerOrg.region_source && drawerOrg.region_source !== 'user'" class="pf-muted"> ({{ drawerOrg.region_source === 'default' ? 'not confirmed yet' : 'inferred' }})</span></dd>
                 <dt>Address</dt><dd>{{ address(drawerOrg) || '—' }}</dd>
                 <dt>Last active</dt><dd>{{ timeAgo(drawerOrg.last_active) }}</dd>
                 <dt>Organisation ID</dt><dd class="pf-mono">{{ drawerOrg.id }}</dd>
@@ -301,7 +312,17 @@
             </div>
             <div class="ui-field">
               <label for="of-country">Country</label>
-              <input id="of-country" v-model.trim="form.data.address.country" class="ui-input" maxlength="100" />
+              <CountryPicker id="of-country" v-model="form.data.country_code" placeholder="Where the business is based" @change="onFormCountry" />
+            </div>
+            <div class="ui-field">
+              <label for="of-currency">Home currency</label>
+              <select id="of-currency" v-model="form.data.currency" class="ui-select" :disabled="!form.data.country_code">
+                <option value="">{{ form.data.country_code ? 'Country default' : 'Pick a country first' }}</option>
+                <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region">
+                  <option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option>
+                </optgroup>
+              </select>
+              <span class="ui-hint">Leave the country empty to ask the organisation's admin on first sign-in.</span>
             </div>
             <div class="ui-field span-2">
               <label for="of-desc">Notes</label>
@@ -410,6 +431,9 @@
 <script>
 import '@/components/platform/platform.css'
 import OneTimeSecret from '@/components/platform/OneTimeSecret.vue'
+import DuplicateMerge from '@/components/platform/DuplicateMerge.vue'
+import CountryPicker from '@/components/customers/CountryPicker.vue'
+import { currencyGroups, currencyForCountry, countryFlag, countryName, CURRENCY_CODES } from '@/utils/currencies'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { formatDate, formatDateTime, formatMoney, downloadBlob } from '@/utils/format'
@@ -424,12 +448,12 @@ const TYPE_LABELS = {
 }
 const TIER_LABELS = { small: 'Small', sme: 'SME', large: 'Large' }
 
-const emptyOrg = () => ({ name: '', business_type: 'general', abn: '', email: '', phone: '', website: '', description: '', address: { street: '', suburb: '', state: '', postcode: '', country: 'Australia' } })
+const emptyOrg = () => ({ name: '', business_type: 'general', abn: '', email: '', phone: '', website: '', description: '', country_code: '', currency: '', address: { street: '', suburb: '', state: '', postcode: '', country: '' } })
 const emptyAdmin = () => ({ first_name: '', last_name: '', email: '', phone: '', password: '' })
 
 export default {
   name: 'SuperAdminOrganizations',
-  components: { OneTimeSecret },
+  components: { OneTimeSecret, DuplicateMerge, CountryPicker },
   data() {
     const q = this.$route.query
     return {
@@ -456,7 +480,10 @@ export default {
       suspend: { open: false, org: null, reason: '', saving: false },
       del: { open: false, org: null, confirm: '', saving: false, error: '' },
       secret: null,
-      timer: null
+      timer: null,
+      showDups: this.$route.query.duplicates === '1',
+      dupCount: 0,
+      currencyGroups: currencyGroups()
     }
   },
   computed: {
@@ -490,6 +517,7 @@ export default {
       return
     }
     this.load()
+    this.countDuplicates()
     const q = this.$route.query
     if (q.new) this.openCreate()
     if (q.open) this.openDrawer({ id: String(q.open) })
@@ -504,6 +532,24 @@ export default {
   methods: {
     initials,
     timeAgo,
+    countryFlag,
+    countryName,
+    async countDuplicates() {
+      try {
+        const res = await platformAPI.duplicates()
+        this.dupCount = (res.groups || []).length
+      } catch {
+        this.dupCount = 0
+      }
+    },
+    onMerged() {
+      this.reload()
+      if (this.drawer.open) this.closeDrawer()
+    },
+    onFormCountry(code) {
+      const c = currencyForCountry(code)
+      this.form.data.currency = c && CURRENCY_CODES.includes(c) ? c : ''
+    },
     roleLabel,
     formatDate,
     formatDateTime,
@@ -582,7 +628,7 @@ export default {
           if (all.length >= res.total || !(res.organizations || []).length) break
           page++
         }
-        const cols = ['id', 'name', 'status', 'business_type', 'plan_name', 'email', 'phone', 'website', 'abn', 'users', 'active_users', 'invoices', 'admin_email', 'last_active', 'created_at']
+        const cols = ['id', 'name', 'status', 'business_type', 'country_code', 'currency', 'plan_name', 'email', 'phone', 'website', 'abn', 'users', 'active_users', 'invoices', 'admin_email', 'last_active', 'created_at']
         const esc = (v) => {
           const s = v == null ? '' : String(v)
           return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -647,6 +693,7 @@ export default {
         id: o.id,
         data: {
           name: o.name, business_type: o.business_type || 'general', abn: o.abn || '', email: o.email || '', phone: o.phone || '', website: o.website || '', description: o.description || '',
+          country_code: o.region_source === 'default' ? '' : o.country_code || '', currency: o.region_source === 'default' ? '' : o.currency || '',
           address: { street: o.address_street || '', suburb: o.address_suburb || '', state: o.address_state || '', postcode: o.address_postcode || '', country: o.address_country || '' }
         },
         admin: emptyAdmin(),
@@ -779,6 +826,11 @@ export default {
 <style scoped>
 .plan {
   white-space: nowrap;
+}
+
+.dup-count {
+  margin-left: 6px;
+  padding: 1px 7px;
 }
 
 .drawer-tabs {

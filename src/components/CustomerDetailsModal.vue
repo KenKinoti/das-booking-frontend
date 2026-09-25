@@ -219,6 +219,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import VehicleManagementModal from './VehicleManagementModal.vue'
 import CustomerContacts from './customers/CustomerContacts.vue'
 import { customerService, customerName, initials, customerAddress, customerCountryLabel, customerCountry, newInvoiceLink, newBookingLink, invoicesLink } from '@/services/customerService'
@@ -314,7 +315,7 @@ export default {
     initials,
     date: formatDate,
     money(v, c) {
-      return formatMoney(v, c || 'AUD')
+      return formatMoney(v, c || orgCurrency())
     },
     onKey(e) {
       if (e.key === 'Escape' && this.show && !document.querySelector('.ui-modal-backdrop')) this.$emit('close')

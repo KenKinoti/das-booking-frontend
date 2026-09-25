@@ -246,6 +246,37 @@
           </div>
         </section>
 
+        <section v-if="canTakeDeposit" class="ui-card" data-testid="deposit-card">
+          <div class="ui-card__head">
+            <h2><i class="fa-solid fa-hand-holding-dollar head-ico"></i> {{ doc.amount_paid > 0 ? 'Record money received' : 'Already paid / deposit' }}</h2>
+            <label class="ui-switch"><input v-model="deposit.enabled" type="checkbox" data-testid="deposit-toggle" /> The client has already paid part of this</label>
+          </div>
+          <div v-if="deposit.enabled" class="ui-card__body">
+            <div class="dep-grid">
+              <div class="ui-field">
+                <label for="dep_amount">Amount received ({{ doc.currency }}) *</label>
+                <input id="dep_amount" v-model.number="deposit.amount" type="number" min="0" :step="step" inputmode="decimal" class="ui-input r" :class="{ 'is-invalid': touched && depositError }" placeholder="0" />
+              </div>
+              <div class="ui-field">
+                <label for="dep_date">Date received</label>
+                <input id="dep_date" v-model="deposit.date" type="date" :max="today" class="ui-input" />
+              </div>
+              <div class="ui-field">
+                <label for="dep_method">Method</label>
+                <select id="dep_method" v-model="deposit.method" class="ui-select">
+                  <option v-for="m in depositMethods" :key="m.value" :value="m.value">{{ m.label }}</option>
+                </select>
+              </div>
+              <div class="ui-field">
+                <label for="dep_ref">Reference <span class="muted">(optional)</span></label>
+                <input id="dep_ref" v-model.trim="deposit.reference" class="ui-input" maxlength="255" :placeholder="deposit.method === 'mobile_money' ? 'e.g. M-Pesa code QK12AB34CD' : 'Receipt or transaction number'" />
+              </div>
+            </div>
+            <p v-if="touched && depositError" class="field-error dep-err">{{ depositError }}</p>
+            <p v-else class="ui-hint">Recorded as a payment when you save: the invoice shows <strong>Deposit received</strong> and the balance due{{ depositAmount > 0 && depositBalance >= 0 ? ` (${money(depositBalance)})` : '' }}.</p>
+          </div>
+        </section>
+
         <section v-if="!isQuote" class="ui-card">
           <div class="ui-card__head">
             <h2><i class="fa-solid fa-repeat head-ico"></i> Recurring</h2>
@@ -297,9 +328,10 @@
               <div v-for="(v, k) in calc.taxByRate" :key="k"><dt>{{ k }}{{ doc.prices_include_tax ? ' (incl.)' : '' }}</dt><dd>{{ money(v) }}</dd></div>
               <div v-if="!Object.keys(calc.taxByRate).length"><dt>Tax</dt><dd>{{ money(0) }}</dd></div>
               <div class="grand"><dt>Total</dt><dd>{{ money(calc.total) }}</dd></div>
-              <template v-if="doc.amount_paid > 0">
-                <div><dt>Paid</dt><dd>−{{ money(doc.amount_paid) }}</dd></div>
-                <div class="grand small"><dt>Balance due</dt><dd>{{ money(calc.balanceDue) }}</dd></div>
+              <template v-if="doc.amount_paid > 0 || depositAmount > 0">
+                <div v-if="doc.amount_paid > 0"><dt>Paid</dt><dd>−{{ money(doc.amount_paid) }}</dd></div>
+                <div v-if="depositAmount > 0" data-testid="summary-deposit"><dt>Deposit received</dt><dd>−{{ money(depositAmount) }}</dd></div>
+                <div class="grand small"><dt>Balance due</dt><dd>{{ money(depositBalance) }}</dd></div>
               </template>
             </dl>
             <button class="ui-btn ui-btn--primary w-full" :disabled="saving" @click="save(isNew || doc.status === 'draft')">
@@ -349,10 +381,11 @@
 </template>
 
 <script>
-import { currencyGroups, currencyLabel, countryFlag, countryName, customerCurrency, formatCurrency, currencyStep } from '@/utils/currencies'
+import { orgCurrency } from '@/utils/orgDefaults'
+import { currencyGroups, currencyLabel, countryFlag, countryName, customerCurrency, formatCurrency, currencyStep, currencyDecimals } from '@/utils/currencies'
 import CountryPicker from '@/components/customers/CountryPicker.vue'
 import EmailChips from '@/components/invoicing/EmailChips.vue'
-import { invoicingApi, STATUS_LABELS, RECURRENCE } from '@/services/invoicing'
+import { invoicingApi, STATUS_LABELS, RECURRENCE, PAYMENT_METHODS } from '@/services/invoicing'
 import { CURRENCY_CODES } from '@/utils/currencies'
 import api, { apiErrorMessage } from '@/services/api'
 import { calculate } from '@/utils/invoiceMath'
@@ -396,7 +429,10 @@ export default {
       snapshot: '',
       doc: this.emptyDoc(),
       recurrence: RECURRENCE,
-      currencyGroups: currencyGroups()
+      currencyGroups: currencyGroups(),
+      deposit: { enabled: false, amount: '', date: isoDate(), method: 'cash', reference: '' },
+      depositMethods: PAYMENT_METHODS,
+      today: isoDate()
     }
   },
   computed: {
@@ -475,8 +511,32 @@ export default {
     step() {
       return currencyStep(this.doc.currency)
     },
+    // Money already received can be entered on new, draft and unpaid invoices.
+    canTakeDeposit() {
+      if (this.isQuote) return false
+      if (this.isNew) return true
+      return ['draft', 'sent', 'partial'].includes(this.doc.status) && this.calc.total - (Number(this.doc.amount_paid) || 0) > 0.004
+    },
+    depositAmount() {
+      if (!this.deposit.enabled) return 0
+      return Number(this.deposit.amount) || 0
+    },
+    depositBalance() {
+      return Math.round((this.calc.total - (Number(this.doc.amount_paid) || 0) - this.depositAmount) * 1000) / 1000
+    },
+    depositError() {
+      if (!this.deposit.enabled || !this.canTakeDeposit) return ''
+      const a = Number(this.deposit.amount)
+      if (!(a > 0)) return 'Enter the amount the client has already paid.'
+      const d = currencyDecimals(this.doc.currency)
+      if (Math.abs(Math.round(a * 10 ** d) - a * 10 ** d) > 1e-6) return d === 0 ? `${this.doc.currency} amounts can't have decimals.` : `${this.doc.currency} amounts can have at most ${d} decimal places.`
+      const due = this.calc.total - (Number(this.doc.amount_paid) || 0)
+      if (a > due + 0.4 / 10 ** d) return `The amount already paid can't be more than the ${this.doc.amount_paid > 0 ? 'balance due' : 'invoice total'} (${this.money(due)}).`
+      if (this.deposit.date && this.deposit.date > this.today) return "The date received can't be in the future."
+      return ''
+    },
     newClientCurrency() {
-      return customerCurrency({ country_code: this.newClient?.country_code }, this.settings.currency || 'AUD')
+      return customerCurrency({ country_code: this.newClient?.country_code }, this.settings.currency || orgCurrency())
     }
   },
   watch: {
@@ -589,7 +649,7 @@ export default {
         title: '',
         issue_date: today,
         due_date: addDays(today, 14),
-        currency: 'AUD',
+        currency: orgCurrency(),
         prices_include_tax: false,
         discount_type: 'percent',
         discount_value: 0,
@@ -615,7 +675,7 @@ export default {
         this.clientsLoaded = true
         if (this.isNew) {
           const d = this.emptyDoc()
-          d.currency = this.settings.currency || 'AUD'
+          d.currency = this.settings.currency || orgCurrency()
           d.prices_include_tax = !!this.settings.prices_include_tax
           d.notes = this.settings.default_notes || ''
           d.terms = this.settings.default_terms || ''
@@ -690,7 +750,7 @@ export default {
     },
     serialize() {
       const { items, ...rest } = this.doc
-      return JSON.stringify([rest, items.map((i) => ({ ...i, _key: undefined }))])
+      return JSON.stringify([rest, items.map((i) => ({ ...i, _key: undefined })), this.deposit.enabled ? this.deposit : null])
     },
     autosize(e) {
       const el = e.target
@@ -821,6 +881,7 @@ export default {
       if (this.doc.due_date && this.doc.issue_date && this.doc.due_date < this.doc.issue_date) e.push('The due date is before the issue date.')
       if (this.calc.total < 0) e.push('The total cannot be negative.')
       if (!this.isNew && this.doc.amount_paid > this.calc.total + 0.004) e.push('The total is less than the amount already paid.')
+      if (this.depositError) e.push(this.depositError)
       return e
     },
     payload() {
@@ -849,6 +910,9 @@ export default {
         next_recurrence_date: d.next_recurrence_date || '',
         recurrence_end_date: d.recurrence_end_date || '',
         cc_emails: d.cc_emails || [],
+        ...(this.canTakeDeposit && this.deposit.enabled && this.depositAmount > 0
+          ? { deposit: { amount: this.depositAmount, date: this.deposit.date || isoDate(), method: this.deposit.method, reference: this.deposit.reference } }
+          : {}),
         items: d.items
           .filter((i) => i.description.trim() || Number(i.unit_price))
           .map((i) => ({
@@ -905,6 +969,34 @@ export default {
 </script>
 
 <style scoped>
+.dep-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.dep-grid .ui-field {
+  margin: 0;
+}
+
+.dep-err {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .dep-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .dep-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .back {
   display: inline-flex;
   align-items: center;

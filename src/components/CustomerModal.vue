@@ -119,6 +119,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { customerService } from '@/services/customerService'
 import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
@@ -134,10 +135,10 @@ function orgDefaultCurrency() {
   if (!orgDefaultPromise) {
     orgDefaultPromise = invoicingApi
       .getSettings()
-      .then((r) => r?.settings?.currency || 'AUD')
+      .then((r) => r?.settings?.currency || orgCurrency())
       .catch(() => {
         orgDefaultPromise = null
-        return 'AUD'
+        return orgCurrency()
       })
   }
   return orgDefaultPromise
@@ -170,7 +171,7 @@ export default {
       errors: {},
       error: '',
       saving: false,
-      orgDefault: 'AUD',
+      orgDefault: orgCurrency(),
       pendingContacts: [],
       contactsCount: 0,
       currencyGroups: currencyGroups(),

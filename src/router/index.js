@@ -181,8 +181,14 @@ const routes = [
   {
     path: '/reports',
     name: 'Reports',
-    redirect: '/analytics',
+    redirect: '/reports/profit-loss',
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/reports/profit-loss',
+    name: 'ProfitLoss',
+    component: () => import('../views/reports/ProfitLoss.vue'),
+    meta: { requiresAuth: true, title: 'Profit & loss' }
   },
   {
     path: '/reports-analytics',

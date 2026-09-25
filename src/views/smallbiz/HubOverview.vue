@@ -17,10 +17,17 @@
           <div class="ui-kpi__meta"><Delta v-if="o" :now="tm.expenses_net" :prev="lm.expenses_net" invert /> vs {{ money(lm.expenses_net) }} last month{{ taxNote }}</div>
         </div>
         <div class="ui-kpi">
-          <div class="ui-kpi__label"><span class="ui-kpi__icon"><i class="fa-solid fa-scale-balanced"></i></span>Profit · {{ monthName }}</div>
+          <div class="ui-kpi__label" title="Money in − money out recorded in the cash book only"><span class="ui-kpi__icon"><i class="fa-solid fa-book"></i></span>Cash book profit · {{ monthName }}</div>
           <div class="ui-kpi__value" :class="{ neg: o && tm.profit < 0 }"><span v-if="!o" class="ui-skeleton sk"></span><template v-else>{{ money(tm.profit) }}</template></div>
           <div class="ui-kpi__meta">{{ money(lm.profit) }} last month{{ taxNote }}</div>
         </div>
+        <router-link :to="pnlLink" class="ui-kpi kpi-link" data-testid="hub-business-pnl" title="Invoices, POS, events, bills, payroll and the cash book — counted once">
+          <div class="ui-kpi__label"><span class="ui-kpi__icon" :class="pnl && pnl.totals.net_profit < 0 ? 'k-danger' : 'k-success'"><i class="fa-solid fa-scale-balanced"></i></span>Business net profit · {{ monthName }}</div>
+          <div class="ui-kpi__value" :class="{ neg: pnl && pnl.totals.net_profit < 0 }">
+            <span v-if="!pnlLoaded" class="ui-skeleton sk"></span><template v-else-if="pnl">{{ fmtMajor(pnl.totals.net_profit, pnl.currency) }}</template><template v-else>—</template>
+          </div>
+          <div class="ui-kpi__meta"><template v-if="pnl">{{ fmtMajor(pnl.totals.revenue, pnl.currency) }} revenue − {{ fmtMajor(pnl.totals.total_expenses, pnl.currency) }} expenses · all sources</template><template v-else>Whole-business profit &amp; loss</template></div>
+        </router-link>
         <div class="ui-kpi">
           <div class="ui-kpi__label"><span class="ui-kpi__icon k-info"><i class="fa-solid fa-wallet"></i></span>Cash position</div>
           <div class="ui-kpi__value" :class="{ neg: o && o.cash_position < 0 }"><span v-if="!o" class="ui-skeleton sk"></span><template v-else>{{ money(o.cash_position) }}</template></div>
@@ -39,7 +46,7 @@
       <div class="grid">
         <section class="ui-card">
           <div class="ui-card__head">
-            <h2>Last 6 months <small class="muted">{{ o && o.tax_registered ? 'excl. ' + o.tax_name : '' }}</small></h2>
+            <h2>Last 6 months <small class="muted">cash book{{ o && o.tax_registered ? ' · excl. ' + o.tax_name : '' }}</small></h2>
             <button class="ui-btn ui-btn--ghost ui-btn--sm" @click="$emit('tab', 'reports')">Reports</button>
           </div>
           <div class="ui-card__body">
@@ -90,7 +97,7 @@
       <div class="grid">
         <section class="ui-card">
           <div class="ui-card__head">
-            <h2>Where the money goes</h2>
+            <h2>Where the money goes <small class="muted">cash book</small></h2>
             <select v-model="topPeriod" class="ui-select ui-select--sm" aria-label="Spending period" @change="load">
               <option value="this_month">This month</option>
               <option value="last_month">Last month</option>
@@ -201,6 +208,7 @@ import { formatDate, formatMoney, relativeDays } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import TrendChart from '@/components/smallbiz/TrendChart.vue'
 import GetStarted from '@/components/smallbiz/GetStarted.vue'
+import { fetchPnl, loadBasis } from '@/services/pnl'
 
 const Delta = {
   name: 'Delta',
@@ -230,6 +238,9 @@ export default {
     return {
       o: null,
       inv: null,
+      pnl: null,
+      pnlLoaded: false,
+      basis: loadBasis(),
       error: null,
       busy: null,
       taxPeriod: 'this_quarter',
@@ -253,6 +264,9 @@ export default {
     },
     lm() {
       return this.o?.last_month.totals || {}
+    },
+    pnlLink() {
+      return { path: '/reports/profit-loss', query: { range: 'this_month', basis: this.basis } }
     },
     monthName() {
       return new Intl.DateTimeFormat(undefined, { month: 'long' }).format(new Date())
@@ -282,11 +296,13 @@ export default {
   watch: {
     refreshKey() {
       this.load()
+      this.loadPnl()
     }
   },
   created() {
     this.load()
     this.loadInvoices()
+    this.loadPnl()
   },
   methods: {
     money(v) {
@@ -314,6 +330,16 @@ export default {
         this.$emit('overdue', this.o.overdue_reminders)
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not load your overview')
+      }
+    },
+    // Whole-business P&L for this month — the same calculation as the dashboard.
+    async loadPnl() {
+      try {
+        this.pnl = await fetchPnl({ range: 'this_month', basis: this.basis, compare: false, series: false })
+      } catch {
+        this.pnl = null
+      } finally {
+        this.pnlLoaded = true
       }
     },
     async loadInvoices() {

@@ -43,6 +43,14 @@
             <span class="ui-label">Supplier invoice #</span>
             <input v-model="form.reference" class="ui-input" placeholder="e.g. INV-2041" maxlength="60" />
           </label>
+          <label v-if="poOptions.length || form.purchase_order_id" class="ui-field">
+            <span class="ui-label">Purchase order <small class="opt">optional</small></span>
+            <select v-model="form.purchase_order_id" class="ui-select" aria-label="Purchase order" data-testid="bill-po">
+              <option value="">Not for a purchase order</option>
+              <option v-for="po in poOptions" :key="po.id" :value="po.id">{{ po.label }}</option>
+            </select>
+            <span class="ui-hint">Link the supplier's bill for an order so its stock is counted once in Profit &amp; loss.</span>
+          </label>
           <label class="ui-field">
             <span class="ui-label">Bill date</span>
             <input v-model="form.bill_date" type="date" class="ui-input" :disabled="locked" @change="onVendor" />
@@ -115,10 +123,13 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import AccountSelect from './AccountSelect.vue'
 import { financeApi, PAYMENT_TERMS, termDays, toCents } from '@/services/finance'
 import { invoicingApi } from '@/services/invoicing'
-import { apiErrorMessage } from '@/services/api'
+import { apiErrorMessage, listFrom } from '@/services/api'
+import supplierService from '@/services/supplierService'
+import { hasModule } from '@/composables/useEntitlements'
 import { formatMoney, isoDate, addDays } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 
@@ -133,7 +144,7 @@ export default {
     vendorId: { type: String, default: '' },
     vendors: { type: Array, default: () => [] },
     accounts: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['close', 'saved', 'vendor-created'],
   data() {
@@ -143,6 +154,7 @@ export default {
       form: {
         vendor_id: b?.vendor_id || this.vendorId || '',
         reference: b?.reference || '',
+        purchase_order_id: b?.purchase_order_id || '',
         bill_date: b ? isoDate(b.bill_date) : today,
         due_date: b ? isoDate(b.due_date) : addDays(today, 30),
         notes: b?.notes || '',
@@ -155,12 +167,18 @@ export default {
       creatingVendor: false,
       newVendor: { name: '', email: '', payment_terms: 'NET30' },
       taxRates: [],
+      pos: [],
       saving: '',
       touched: false,
       error: ''
     }
   },
   computed: {
+    poOptions() {
+      return this.pos
+        .filter((p) => !['cancelled', 'draft'].includes(p.status) || p.id === this.form.purchase_order_id)
+        .map((p) => ({ id: p.id, label: `${p.order_number} · ${p.supplier?.name || 'Supplier'} · ${String(p.status || '').replace(/_/g, ' ')} · ${formatMoney(p.total_amount, this.currency)}` }))
+    },
     locked() {
       return !!this.bill && this.bill.paid_amount > 0
     },
@@ -200,6 +218,7 @@ export default {
   },
   async created() {
     if (!this.bill && this.form.vendor_id) this.onVendor()
+    this.loadPOs()
     try {
       this.taxRates = (await invoicingApi.taxRates()) || []
       if (!this.bill) {
@@ -211,6 +230,15 @@ export default {
     }
   },
   methods: {
+    async loadPOs() {
+      if (!hasModule('inventory')) return
+      try {
+        const res = await supplierService.getPurchaseOrders({ per_page: 200 })
+        this.pos = listFrom(res, 'purchase_orders', 'data')
+      } catch {
+        this.pos = []
+      }
+    },
     money(v) {
       return formatMoney(v, this.currency)
     },
@@ -278,6 +306,7 @@ export default {
         bill_date: this.form.bill_date,
         due_date: this.form.due_date,
         notes: this.form.notes,
+        purchase_order_id: this.form.purchase_order_id || '',
         status: this.bill && this.bill.status !== 'draft' && status === 'unpaid' ? 'unpaid' : status,
         line_items: this.form.lines
           .filter((l) => l.description.trim() || parseFloat(l.unit_price))
@@ -458,5 +487,11 @@ input.num {
   .c-amt {
     grid-column: 4 / 7;
   }
+}
+
+.opt {
+  font-weight: 400;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 </style>

@@ -197,6 +197,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import '@/styles/module-page.css'
 import api, { apiErrorMessage, listFrom } from '@/services/api'
 import { formatMoney } from '@/utils/format'
@@ -212,7 +213,7 @@ const TYPES = [
 ]
 
 function blank(currency) {
-  return { id: '', first_name: '', last_name: '', email: '', phone: '', position: '', department_id: '', employment_type: 'full_time', start_date: '', status: 'active', user_id: '', pay_type: 'hourly', pay_rate: '', currency: currency || 'AUD', notes: '' }
+  return { id: '', first_name: '', last_name: '', email: '', phone: '', position: '', department_id: '', employment_type: 'full_time', start_date: '', status: 'active', user_id: '', pay_type: 'hourly', pay_rate: '', currency: currency || orgCurrency(), notes: '' }
 }
 
 export default {
@@ -269,7 +270,7 @@ export default {
     defaultCurrency() {
       const counts = {}
       for (const e of this.employees) counts[e.currency] = (counts[e.currency] || 0) + 1
-      return Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || 'AUD'
+      return Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || orgCurrency()
     }
   },
   methods: {

@@ -33,6 +33,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { formatMoney, formatDateTime } from '@/utils/format'
 import { personName } from '@/services/posService'
 
@@ -40,7 +41,7 @@ export default {
   name: 'ParkedSalesModal',
   props: {
     sales: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['close', 'resume', 'discard'],
   mounted() {

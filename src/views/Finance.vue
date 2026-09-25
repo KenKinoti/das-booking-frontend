@@ -41,11 +41,18 @@
           <template v-else>…</template>
         </div>
       </router-link>
-      <button class="ui-kpi kpi-link kpi-btn" @click="setTab('reports')">
-        <div class="ui-kpi__label"><span class="ui-kpi__icon" :class="s && s.net_profit_this_month < 0 ? 'k-danger' : 'k-success'"><i class="fa-solid fa-chart-line"></i></span>Net profit · {{ monthName }}</div>
-        <div class="ui-kpi__value" :class="{ 'txt-danger': s && s.net_profit_this_month < 0 }"><span v-if="!s" class="ui-skeleton sk"></span><template v-else>{{ money(s.net_profit_this_month) }}</template></div>
-        <div class="ui-kpi__meta">{{ s ? `${money(s.revenue_this_month)} revenue · ${money(s.expenses_this_month)} expenses posted to the ledger` : '…' }}</div>
-      </button>
+      <router-link :to="pnlLink" class="ui-kpi kpi-link" data-testid="finance-business-pnl">
+        <div class="ui-kpi__label"><span class="ui-kpi__icon" :class="pnl && pnl.totals.net_profit < 0 ? 'k-danger' : 'k-success'"><i class="fa-solid fa-chart-line"></i></span>Business net profit · {{ monthName }}</div>
+        <div class="ui-kpi__value" :class="{ 'txt-danger': pnl && pnl.totals.net_profit < 0 }">
+          <span v-if="!pnlLoaded" class="ui-skeleton sk"></span><template v-else-if="pnl">{{ pnlMoney(pnl.totals.net_profit) }}</template><template v-else>—</template>
+        </div>
+        <div class="ui-kpi__meta">
+          <template v-if="pnl">{{ pnlMoney(pnl.totals.revenue) }} revenue − {{ pnlMoney(pnl.totals.total_expenses) }} expenses ({{ basisName }})</template>
+          <template v-else-if="pnlLoaded">Profit &amp; loss unavailable</template>
+          <template v-else>…</template>
+          <span v-if="s" class="ledger" title="From posted journals only — see Reports → Ledger P&L">Ledger net profit {{ money(s.net_profit_this_month) }}</span>
+        </div>
+      </router-link>
     </div>
 
     <div v-if="attention.length" class="attention no-print">
@@ -74,6 +81,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import AccountsTab from '@/components/finance/AccountsTab.vue'
 import JournalsTab from '@/components/finance/JournalsTab.vue'
 import ReportsTab from '@/components/finance/ReportsTab.vue'
@@ -83,6 +91,7 @@ import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
+import { fetchPnl, loadBasis, pnlMoney, BASIS_LABEL } from '@/services/pnl'
 
 const TABS = ['accounts', 'journals', 'reports']
 
@@ -99,7 +108,10 @@ export default {
       accounts: [],
       accountsLoading: false,
       accountsError: '',
-      ledgerAccount: null
+      ledgerAccount: null,
+      pnl: null,
+      pnlLoaded: false,
+      basis: loadBasis()
     }
   },
   computed: {
@@ -111,7 +123,13 @@ export default {
       ]
     },
     currency() {
-      return this.ar?.currency || 'AUD'
+      return this.ar?.currency || orgCurrency()
+    },
+    basisName() {
+      return BASIS_LABEL[this.basis].toLowerCase() + ' basis'
+    },
+    pnlLink() {
+      return { path: '/reports/profit-loss', query: { range: 'this_month', basis: this.basis } }
     },
     monthName() {
       return new Intl.DateTimeFormat(undefined, { month: 'long' }).format(new Date())
@@ -141,6 +159,7 @@ export default {
     this.loadSummary()
     this.loadAccounts()
     this.loadReceivables()
+    this.loadPnl()
   },
   methods: {
     money(v) {
@@ -156,6 +175,19 @@ export default {
         this.s = await financeApi.summary()
       } catch (e) {
         this.summaryError = apiErrorMessage(e, 'Could not load the finance summary')
+      }
+    },
+    pnlMoney(v) {
+      return pnlMoney(v, this.pnl?.currency)
+    },
+    // Business P&L for this month — the same calculation as the dashboard.
+    async loadPnl() {
+      try {
+        this.pnl = await fetchPnl({ range: 'this_month', basis: this.basis, compare: false, series: false })
+      } catch {
+        this.pnl = null
+      } finally {
+        this.pnlLoaded = true
       }
     },
     async loadReceivables() {
@@ -181,6 +213,7 @@ export default {
     refreshAll() {
       this.loadAccounts()
       this.loadSummary()
+      this.loadPnl()
     },
     newJournal() {
       if (this.tab !== 'journals') this.setTab('journals')
@@ -209,6 +242,12 @@ export default {
 .kpi-link:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow);
+}
+.ledger {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 .sk {
   display: inline-block;

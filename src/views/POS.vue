@@ -220,6 +220,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import PaymentModal from '@/components/pos/PaymentModal.vue'
 import ReceiptModal from '@/components/pos/ReceiptModal.vue'
 import CashDrawerModal from '@/components/pos/CashDrawerModal.vue'
@@ -258,7 +259,6 @@ export default {
     const current = readLS(LS_CURRENT, {})
     const tax = readLS(LS_TAX, {})
     return {
-      currency: 'AUD',
       products: [],
       loading: false,
       loadError: '',
@@ -300,6 +300,10 @@ export default {
     }
   },
   computed: {
+    // The organisation's home currency (Settings → Business details).
+    currency() {
+      return orgCurrency()
+    },
     categories() {
       const map = new Map()
       for (const p of this.products) {

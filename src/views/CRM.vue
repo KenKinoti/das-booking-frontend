@@ -422,6 +422,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import api, { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
@@ -521,7 +522,7 @@ export default {
   },
   methods: {
     money(v, compact = false) {
-      return formatMoney(v, 'AUD', { compact })
+      return formatMoney(v, orgCurrency(), { compact })
     },
     date: formatDate,
     pct(v) {

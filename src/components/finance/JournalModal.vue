@@ -92,6 +92,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import AccountSelect from './AccountSelect.vue'
 import { financeApi } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
@@ -107,7 +108,7 @@ export default {
   props: {
     entry: { type: Object, default: null },
     accounts: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['close', 'saved', 'reverse'],
   data() {

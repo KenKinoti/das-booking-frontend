@@ -254,6 +254,8 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
+import { loadOrgPrefs } from '@/composables/useOrgPrefs'
 import '@/styles/module-page.css'
 import api, { apiErrorMessage, listFrom } from '@/services/api'
 import { formatMoney, formatDate, formatDateTime, addDays, isoDate } from '@/utils/format'
@@ -274,7 +276,6 @@ export default {
       orders: [],
       boms: [],
       products: [],
-      currency: 'AUD',
       loading: true,
       error: '',
       busy: '',
@@ -289,6 +290,9 @@ export default {
     }
   },
   computed: {
+    currency() {
+      return orgCurrency()
+    },
     filteredBoms() {
       const q = this.q.toLowerCase()
       return q ? this.boms.filter((b) => [b.name, b.product_name, b.product_sku].some((v) => (v || '').toLowerCase().includes(q))) : this.boms
@@ -393,13 +397,8 @@ export default {
       this.products = listFrom(res, 'products')
     },
     async loadCurrency() {
-      try {
-        const { data } = await api.get('/invoicing/settings')
-        const c = data?.data?.settings?.currency
-        if (c) this.currency = c
-      } catch {
-        /* keep default */
-      }
+      // The organisation's home currency (single source).
+      await loadOrgPrefs()
     },
     refreshAll() {
       this.loadSummary().catch(() => {})

@@ -81,6 +81,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { eventsApi } from '@/services/events'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney } from '@/utils/format'
@@ -144,7 +145,7 @@ export default {
   },
   methods: {
     money(v) {
-      return formatMoney(v, this.event.currency || 'AUD')
+      return formatMoney(v, this.event.currency || orgCurrency())
     },
     validate() {
       const e = {}

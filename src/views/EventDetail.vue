@@ -232,6 +232,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { eventsApi, STATUS_META, REG_STATUS, typeLabel, typeIcon, eventLocation, publicEventUrl } from '@/services/events'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDateTime } from '@/utils/format'
@@ -317,7 +318,7 @@ export default {
     location: eventLocation,
     dateTime: formatDateTime,
     money(v) {
-      return formatMoney(v, (this.event && this.event.currency) || 'AUD')
+      return formatMoney(v, (this.event && this.event.currency) || orgCurrency())
     },
     regMeta(r) {
       return REG_STATUS[r.status] || REG_STATUS.pending

@@ -59,6 +59,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { formatMoney, formatDateTime } from '@/utils/format'
 import { personName } from '@/services/posService'
 
@@ -66,7 +67,7 @@ export default {
   name: 'CashDrawerModal',
   props: {
     drawer: { type: Object, default: null }, // the currently open drawer (close mode) or null (open mode)
-    currency: { type: String, default: 'AUD' },
+    currency: { type: String, default: () => orgCurrency() },
     busy: { type: Boolean, default: false }
   },
   emits: ['close', 'open', 'close-drawer'],

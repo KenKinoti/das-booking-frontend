@@ -85,6 +85,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import JournalModal from './JournalModal.vue'
 import { financeApi } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
@@ -97,7 +98,7 @@ export default {
   components: { JournalModal },
   props: {
     accounts: { type: Array, default: () => [] },
-    currency: { type: String, default: 'AUD' }
+    currency: { type: String, default: () => orgCurrency() }
   },
   emits: ['changed'],
   data() {

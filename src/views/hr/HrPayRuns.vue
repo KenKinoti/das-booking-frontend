@@ -200,6 +200,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import '@/styles/module-page.css'
 import api, { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDate, formatDateTime, isoDate, addDays, downloadBlob } from '@/utils/format'
@@ -242,7 +243,7 @@ export default {
   computed: {
     currencies() {
       const set = new Set(this.employees.filter((e) => e.status !== 'terminated').map((e) => e.currency))
-      if (!set.size) set.add('AUD')
+      if (!set.size) set.add(orgCurrency())
       return [...set].sort()
     },
     periodEnd() {

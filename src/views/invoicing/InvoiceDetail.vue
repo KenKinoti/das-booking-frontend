@@ -72,7 +72,7 @@
                   <span class="pay-ico"><i class="fa-solid fa-arrow-down"></i></span>
                   <span class="pay-main">
                     <strong>{{ money(p.amount) }}</strong>
-                    <small>{{ date(p.date) }} · {{ methodLabel(p.method) }}{{ p.reference ? ' · ' + p.reference : '' }}</small>
+                    <small><span v-if="p.is_deposit" class="ui-badge ui-badge--info dep-badge">Deposit</span>{{ date(p.date) }} · {{ methodLabel(p.method) }}{{ p.reference ? ' · ' + p.reference : '' }}</small>
                   </span>
                   <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Remove payment" @click="removePayment(p)"><i class="fa-regular fa-trash-can"></i></button>
                 </li>
@@ -111,6 +111,48 @@
         </aside>
       </div>
     </template>
+
+    <!-- Convert quote → invoice (optionally with a deposit already received) -->
+    <div v-if="conv.open" class="ui-modal-backdrop" @mousedown.self="conv.open = false">
+      <form class="ui-modal" data-testid="convert-modal" @submit.prevent="submitConvert">
+        <div class="ui-modal__head">
+          <div>
+            <h2>Convert to invoice</h2>
+            <p class="muted small m0">{{ doc.number }} · {{ money(doc.total) }}</p>
+          </div>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" @click="conv.open = false" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body grid-form">
+          <p class="span muted m0">A new draft invoice is created with this quote's client and lines, and the quote is marked converted.</p>
+          <label class="ui-switch span"><input v-model="conv.enabled" type="checkbox" data-testid="convert-deposit-toggle" /> The client has already paid a deposit</label>
+          <template v-if="conv.enabled">
+            <div class="ui-field">
+              <label for="cv_amount">Amount received ({{ doc.currency }})</label>
+              <input id="cv_amount" v-model.number="conv.amount" type="number" :step="step" min="0" :max="doc.total" class="ui-input" required />
+            </div>
+            <div class="ui-field">
+              <label for="cv_date">Date received</label>
+              <input id="cv_date" v-model="conv.date" type="date" :max="today" class="ui-input" />
+            </div>
+            <div class="ui-field">
+              <label for="cv_method">Method</label>
+              <select id="cv_method" v-model="conv.method" class="ui-select">
+                <option v-for="m in methods" :key="m.value" :value="m.value">{{ m.label }}</option>
+              </select>
+            </div>
+            <div class="ui-field">
+              <label for="cv_ref">Reference</label>
+              <input id="cv_ref" v-model.trim="conv.reference" class="ui-input" placeholder="Receipt or transaction number" />
+            </div>
+          </template>
+          <div v-if="conv.error" class="ui-alert ui-alert--danger span"><i class="fa-solid fa-circle-exclamation"></i><span>{{ conv.error }}</span></div>
+        </div>
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn" @click="conv.open = false">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy"><i :class="busy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-file-invoice-dollar'"></i> Create invoice</button>
+        </div>
+      </form>
+    </div>
 
     <!-- Record payment -->
     <div v-if="payOpen" class="ui-modal-backdrop" @mousedown.self="payOpen = false">
@@ -245,7 +287,9 @@ export default {
       recipientsLoading: false,
       recipientNames: {},
       suggested: { to: null, cc: [] },
-      methods: PAYMENT_METHODS
+      methods: PAYMENT_METHODS,
+      conv: { open: false, enabled: false, amount: '', date: '', method: 'bank_transfer', reference: '', error: '' },
+      today: isoDate()
     }
   },
   computed: {
@@ -509,9 +553,32 @@ export default {
         this.sendOpen = false
       }
     },
-    async convert() {
-      const res = await this.run(() => invoicingApi.convert(this.doc.id), 'Invoice created from quote')
-      if (res) this.$router.push(`/invoices/${res.id}`)
+    convert() {
+      this.conv = { open: true, enabled: false, amount: '', date: isoDate(), method: 'bank_transfer', reference: '', error: '' }
+    },
+    async submitConvert() {
+      const c = this.conv
+      c.error = ''
+      let body
+      if (c.enabled) {
+        const a = Number(c.amount)
+        const d = currencyDecimals(this.doc.currency)
+        if (!(a > 0)) return (c.error = 'Enter the deposit amount.')
+        if (Math.abs(Math.round(a * 10 ** d) - a * 10 ** d) > 1e-6) return (c.error = d === 0 ? `${this.doc.currency} amounts can't have decimals.` : `At most ${d} decimal places.`)
+        if (a > this.doc.total + 0.004) return (c.error = `The deposit can't be more than the total (${this.money(this.doc.total)}).`)
+        body = { deposit: { amount: a, date: c.date || isoDate(), method: c.method, reference: c.reference } }
+      }
+      this.busy = true
+      try {
+        const res = await invoicingApi.convert(this.doc.id, body)
+        toast.success(c.enabled ? `Invoice ${res.number} created — deposit recorded` : `Invoice ${res.number} created from quote`)
+        this.conv.open = false
+        this.$router.push(`/invoices/${res.id}`)
+      } catch (e) {
+        c.error = apiErrorMessage(e, 'Could not convert the quote')
+      } finally {
+        this.busy = false
+      }
     },
     async duplicate() {
       const res = await this.run(() => invoicingApi.duplicate(this.doc.id), 'Duplicated as a new draft')
@@ -549,6 +616,13 @@ export default {
 </script>
 
 <style scoped>
+.dep-badge {
+  margin-right: 6px;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  vertical-align: 1px;
+}
+
 .back {
   display: inline-flex;
   align-items: center;

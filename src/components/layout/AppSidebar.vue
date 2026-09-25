@@ -22,6 +22,23 @@
       </button>
     </div>
 
+    <!-- Super admins: which organisation this session is working in (orgs can share a name). -->
+    <router-link
+      v-if="auth.isSuperAdmin && !rail && currentOrgId"
+      :to="{ path: '/organizations', query: { open: currentOrgId } }"
+      class="sb__org-chip"
+      :title="`Organisation ID ${currentOrgId} — open in Organisations`"
+      data-testid="sidebar-current-org"
+      @click="$emit('navigate')"
+    >
+      <i class="fa-solid fa-building" aria-hidden="true"></i>
+      <span class="sb__org-chip-text">
+        <small>{{ impersonating ? 'Signed in as' : 'Your organisation' }}</small>
+        <strong>{{ currentOrgName }}</strong>
+      </span>
+      <code>#{{ currentOrgId.slice(0, 6) }}</code>
+    </router-link>
+
     <button v-if="!rail" class="sb__search" @click="$emit('open-search')">
       <i class="fa-solid fa-magnifying-glass"></i>
       <span>Search…</span>
@@ -95,7 +112,8 @@ import { APP_NAME } from '@/config'
 import { entitlements } from '@/composables/useEntitlements'
 import { APP_VERSION, VERSION_LABEL, VERSION_SHORT } from '@/version'
 import BrandMark from './BrandMark.vue'
-import { useBranding, loadBranding, initialsOf } from '@/composables/useBranding'
+import { useBranding, loadBranding, initialsOf, tokenOrgId } from '@/composables/useBranding'
+import { loadOrgPrefs } from '@/composables/useOrgPrefs'
 import { isImpersonating } from '@/services/platform'
 
 const STORAGE_KEY = 'nav.openGroups'
@@ -156,6 +174,16 @@ export default {
     brandTitle() {
       return this.company ? this.companyName : this.appName
     },
+    currentOrgId() {
+      // Re-evaluated when the session (token) changes.
+      return this.auth.token ? tokenOrgId() : ''
+    },
+    currentOrgName() {
+      return this.branding.orgName || this.auth.user?.organization_name || this.auth.user?.organization?.name || 'Organisation'
+    },
+    impersonating() {
+      return !!this.auth.token && isImpersonating()
+    },
     orgName() {
       const u = this.auth.user || {}
       return u.organization?.name || u.organization_name || (this.auth.isSuperAdmin ? 'Platform admin' : 'Workspace')
@@ -178,7 +206,10 @@ export default {
     'auth.token': {
       immediate: true,
       handler(t) {
-        if (t) loadBranding()
+        if (t) {
+          loadBranding()
+          loadOrgPrefs()
+        }
       }
     },
     'branding.logoUrl'() {
@@ -367,6 +398,60 @@ export default {
 
 .sb__close {
   display: none;
+}
+
+.sb__org-chip {
+  margin: 0 14px 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.sb__org-chip:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.sb__org-chip > i {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.sb__org-chip-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.2;
+}
+
+.sb__org-chip-text small {
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sb__org-chip-text strong {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb__org-chip code {
+  font-size: 10.5px;
+  color: var(--text-3);
+  background: transparent;
+  flex-shrink: 0;
 }
 
 .sb__search {

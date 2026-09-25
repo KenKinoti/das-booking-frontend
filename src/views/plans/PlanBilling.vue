@@ -455,6 +455,7 @@
 </template>
 
 <script>
+import { orgCurrency } from '@/utils/orgDefaults'
 import { apiErrorMessage } from '@/services/api'
 import { plansAPI, planMoney, niceRound, cycleLabel, TIER_ICONS, STATUS_LABELS } from '@/services/plans'
 import { currencyGroups } from '@/utils/currencies'
@@ -470,7 +471,7 @@ export default {
       catalog: null,
       error: '',
       viewCurrency: 'USD',
-      defaultCurrency: 'AUD',
+      defaultCurrency: orgCurrency(),
       savingCurrency: false,
       saving: false,
       steps: ['Industry', 'Plan', 'Modules', 'Billing'],

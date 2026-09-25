@@ -7,14 +7,14 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
-/** e.g. "v2.1.0" */
+/** e.g. "v2.2.0" */
 export const VERSION_LABEL = `v${APP_VERSION}`
 
-/** e.g. "v2.1" — the release family, used for the "What's new" notice. */
+/** e.g. "v2.2" — the release family, used for the "What's new" notice. */
 export const VERSION_SHORT = `v${APP_VERSION.split('.').slice(0, 2).join('.')}`
 
 /** Build date formatted for people, e.g. "24 Sep 2026", or '' when unknown. */
@@ -25,10 +25,13 @@ export function buildDateLabel(locale) {
   return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/** One-line summary of this release for the "What's new" notice. */
+export const RELEASE_LEAD = 'Set where your business is based for one home currency everywhere, take deposits on invoices and see profit & loss counted once.'
+
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-wand-magic-sparkles', text: 'Ask DASYIN — chat with your data and update records (Ctrl/⌘ J)' },
-  { icon: 'fa-solid fa-plug', text: 'Connect Claude to your ERP with MCP — Administration → AI & MCP' },
-  { icon: 'fa-solid fa-globe', text: 'Customer countries set the invoice currency; CC contacts on every email' },
-  { icon: 'fa-solid fa-mobile-screen', text: 'Sharper mobile layout, new icons and the version shown everywhere' }
+  { icon: 'fa-solid fa-earth-africa', text: 'Set where your business is based — one home currency for invoices, POS, bookings, events and reports' },
+  { icon: 'fa-solid fa-hand-holding-dollar', text: 'Record a deposit or part payment right in the invoice editor (M-Pesa, cash, card…)' },
+  { icon: 'fa-solid fa-scale-balanced', text: 'Profit & loss counted once, on the Dashboard and in Finance → Profit & loss' },
+  { icon: 'fa-solid fa-code-merge', text: 'Platform admins: find and merge duplicate organisations' }
 ]

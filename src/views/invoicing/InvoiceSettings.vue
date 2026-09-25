@@ -93,9 +93,8 @@
           </div>
           <div class="ui-field">
             <label for="cur">Default currency</label>
-            <select id="cur" v-model="s.currency" class="ui-select">
-              <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region"><option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option></optgroup>
-            </select>
+            <div id="cur" class="ui-input cur-ro" data-testid="invoice-currency">{{ currencyLabel(s.currency) }}</div>
+            <span class="ui-hint">Your organisation's currency — change it in <router-link to="/settings#regional">Settings → Business details</router-link>. A customer's own currency still applies to their invoices.</span>
           </div>
           <div class="ui-field">
             <label for="dd">Payment due (days)</label>
@@ -180,7 +179,7 @@
 </template>
 
 <script>
-import { currencyGroups } from '@/utils/currencies'
+import { currencyGroups, currencyLabel } from '@/utils/currencies'
 import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
@@ -215,6 +214,7 @@ export default {
     }
   },
   methods: {
+    currencyLabel,
     ph(p) {
       return '{' + '{' + p + '}' + '}'
     },
@@ -359,5 +359,13 @@ code {
   padding: 0 5px;
   margin: 0 3px;
   color: var(--text-2);
+}
+
+.cur-ro {
+  display: flex;
+  align-items: center;
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: default;
 }
 </style>

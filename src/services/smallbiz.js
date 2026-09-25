@@ -1,4 +1,5 @@
 import api from './api'
+import { orgCurrency } from '@/utils/orgDefaults'
 
 const base = '/smallbiz'
 const unwrap = (r) => r.data?.data
@@ -39,7 +40,7 @@ export function currencyDecimals(code) {
 }
 
 /** Format integer minor units (cents) as money, respecting 0/2/3-decimal currencies. */
-export function fmtMinor(minor, code = 'AUD', opts = {}) {
+export function fmtMinor(minor, code = orgCurrency(), opts = {}) {
   const dec = currencyDecimals(code)
   const n = Number(minor || 0) / Math.pow(10, dec)
   try {
@@ -89,6 +90,21 @@ export function taxFromInclusive(minor, rate) {
 }
 
 export const PAYMENT_METHODS = ['Cash', 'Card', 'Bank transfer', 'EFTPOS', 'Mobile money', 'PayPal', 'Cheque', 'Direct debit', 'Other']
+
+/**
+ * "Already recorded elsewhere" links for cash-book entries. A linked entry
+ * stays in the cash book (it is real money) but is left out of the Profit &
+ * loss report so the same money isn't counted twice.
+ */
+export const LINK_TYPES = [
+  { value: 'invoice', label: 'An invoice payment (Invoicing)', short: 'Invoice payment', type: 'income' },
+  { value: 'pos', label: 'A point-of-sale sale', short: 'POS sale', type: 'income' },
+  { value: 'event', label: 'An event ticket sale', short: 'Event ticket', type: 'income' },
+  { value: 'bill', label: 'A supplier bill (Finance → Bills)', short: 'Supplier bill', type: 'expense' },
+  { value: 'purchase_order', label: 'A purchase order (Suppliers)', short: 'Purchase order', type: 'expense' },
+  { value: 'payroll', label: 'A pay run (HR & payroll)', short: 'Pay run', type: 'expense' },
+  { value: 'transfer', label: 'A transfer, loan or owner money — not profit', short: 'Not profit', type: '' }
+]
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
