@@ -5,7 +5,7 @@
       <p v-if="product" class="sub">
         <span class="mono">{{ product.sku }}</span>
         <span v-if="product.category?.name">· {{ product.category.name }}</span>
-        <span v-if="product.is_active === false" class="ui-badge ui-badge--draft">Inactive</span>
+        <StatusBadge v-if="product.is_active === false" domain="product" status="inactive" />
       </p>
     </template>
 
@@ -21,7 +21,7 @@
         <div class="stat-main">
           <span>On hand</span>
           <strong>{{ product.current_stock }} <small>{{ product.unit_of_measure || 'each' }}</small></strong>
-          <span class="ui-badge" :class="`ui-badge--${statusMeta.badge}`">{{ statusMeta.label }}</span>
+          <StatusBadge domain="stock" :status="product.stock_status || 'in_stock'" :label="statusMeta.label" />
         </div>
         <div><span>Stock value</span><strong>{{ money(product.stock_value ?? product.current_stock * product.cost_price) }}</strong></div>
         <div><span>Cost / price</span><strong>{{ money(product.cost_price) }} / {{ money(product.selling_price) }}</strong></div>

@@ -13,7 +13,7 @@
           <router-link :to="listPath" class="back"><i class="fa-solid fa-arrow-left"></i> {{ isQuote ? 'Quotes' : 'Invoices' }}</router-link>
           <h1 class="title-row">
             {{ doc.number }}
-            <span class="ui-badge" :class="`ui-badge--${doc.display_status}`">{{ statusLabel }}</span>
+            <StatusBadge :domain="isQuote ? 'quote' : 'invoice'" :status="doc.display_status" :label="statusLabel" />
             <span v-if="doc.is_recurring" class="ui-badge ui-badge--converted"><i class="fa-solid fa-repeat"></i> {{ recurrenceLabel }}</span>
           </h1>
           <p>
@@ -24,7 +24,8 @@
         </div>
         <div class="ui-actions">
           <router-link v-if="canEdit" :to="`${listPath}/${doc.id}/edit`" class="ui-btn"><i class="fa-regular fa-pen-to-square"></i> Edit</router-link>
-          <button class="ui-btn" @click="print"><i class="fa-solid fa-print"></i> <span class="hide-sm">Print / PDF</span></button>
+          <button class="ui-btn" :disabled="pdfBusy" data-testid="download-pdf" @click="downloadPdf"><i :class="pdfBusy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-file-pdf'"></i> <span class="hide-sm">Download PDF</span></button>
+          <button class="ui-btn ui-btn--icon" title="Print" aria-label="Print" @click="print"><i class="fa-solid fa-print"></i></button>
           <button v-if="primary" class="ui-btn ui-btn--primary" @click="primary.run">
             <i :class="primary.icon"></i> {{ primary.label }}
           </button>
@@ -46,6 +47,15 @@
       <div v-if="doc.converted_from_id" class="ui-alert no-print banner">
         <i class="fa-solid fa-circle-info"></i>
         <span>Created from a quote. <router-link :to="`/quotes/${doc.converted_from_id}`">View original quote</router-link></span>
+      </div>
+
+      <div v-if="fxMissing" class="ui-alert ui-alert--danger no-print banner" data-testid="fx-missing">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span>
+          <strong>No exchange rate is locked on this {{ isQuote ? 'quote' : 'invoice' }}.</strong>
+          It is in {{ doc.currency }} and your home currency is {{ doc.base_currency }}. It can't be sent until a rate is locked.
+          <button class="ui-btn ui-btn--sm" :disabled="busy" data-testid="fx-lock" @click="lockRate()">Lock today's rate</button>
+        </span>
       </div>
 
       <div class="layout">
@@ -74,10 +84,69 @@
                     <strong>{{ money(p.amount) }}</strong>
                     <small><span v-if="p.is_deposit" class="ui-badge ui-badge--info dep-badge">Deposit</span>{{ date(p.date) }} · {{ methodLabel(p.method) }}{{ p.reference ? ' · ' + p.reference : '' }}</small>
                   </span>
-                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Remove payment" @click="removePayment(p)"><i class="fa-regular fa-trash-can"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Download receipt" aria-label="Download receipt" @click="downloadReceipt(p)"><i class="fa-solid fa-receipt"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Email receipt" aria-label="Email receipt" data-testid="email-receipt" @click="openSend('receipt', p)"><i class="fa-regular fa-envelope"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Remove payment" aria-label="Remove payment" @click="removePayment(p)"><i class="fa-regular fa-trash-can"></i></button>
                 </li>
               </ul>
               <p v-else class="muted small">No payments recorded yet.</p>
+            </div>
+          </section>
+
+          <section v-if="!isQuote" class="ui-card" data-testid="online-payments">
+            <div class="ui-card__head">
+              <h2>Online payments</h2>
+              <span v-if="online.enabled" class="ui-badge" :class="online.mode === 'live' ? 'ui-badge--success' : 'ui-badge--warning'">{{ online.mode === 'live' ? 'Flutterwave' : 'Test mode' }}</span>
+            </div>
+            <div class="ui-card__body share">
+              <template v-if="online.enabled">
+                <template v-if="payLink.payable">
+                  <div class="link-row">
+                    <input class="ui-input" :value="payLink.url" readonly aria-label="Pay link" data-testid="pay-link" @focus="$event.target.select()" />
+                    <button class="ui-btn ui-btn--icon" title="Copy pay link" aria-label="Copy pay link" data-testid="copy-pay-link" @click="copyPayLink"><i class="fa-regular fa-copy"></i></button>
+                  </div>
+                  <p class="muted small">Clients can pay by M-Pesa, mobile money, bank or card — the lowest-fee method is suggested. Emails include a <strong>Pay now</strong> button.</p>
+                </template>
+                <p v-else class="muted small">{{ payLink.reason || 'Nothing to pay online.' }}</p>
+                <ul v-if="online.transactions.length" class="otx" data-testid="online-tx">
+                  <li v-for="t in online.transactions" :key="t.id">
+                    <StatusBadge domain="payment" :status="t.status" :label="txStatus(t).label" size="sm" />
+                    <span class="otx__main">
+                      <strong>{{ money(t.charge_amount) }}</strong> · {{ t.method_label }}
+                      <small class="muted">{{ dt(t.completed_at || t.created_at) }}<template v-if="t.app_fee > 0"> · fee {{ money(t.app_fee) }}</template><template v-if="t.surcharge > 0"> · incl. surcharge {{ money(t.surcharge) }}</template><template v-if="t.error && t.status !== 'successful'"> · {{ t.error }}</template></small>
+                    </span>
+                  </li>
+                </ul>
+              </template>
+              <p v-else class="muted small">
+                Let clients pay this invoice online (M-Pesa, mobile money, bank or card).
+                <router-link to="/settings#payments">Set up Flutterwave</router-link>
+              </p>
+            </div>
+          </section>
+
+          <section v-if="isForeign" class="ui-card" data-testid="fx-card">
+            <div class="ui-card__head">
+              <h2>Exchange rate</h2>
+              <span class="ui-badge" :class="rateSource.badge"><i :class="rateSource.icon"></i> {{ rateSource.label }}</span>
+            </div>
+            <div class="ui-card__body fx-body">
+              <template v-if="doc.exchange_rate > 0">
+                <div class="fx-rate tabular" data-testid="fx-rate">{{ fxRateText }}</div>
+                <p class="muted small m0">Locked {{ doc.rate_date ? dt(doc.rate_date) : '' }}{{ doc.rate_provider ? ' · ' + doc.rate_provider : '' }}</p>
+                <dl class="fx-dl">
+                  <div><dt>Total</dt><dd class="tabular">{{ money(doc.total) }}</dd></div>
+                  <div><dt>In {{ doc.base_currency }}</dt><dd class="tabular" data-testid="fx-total-base">≈ {{ baseMoney(doc.total_base) }}</dd></div>
+                  <div v-if="!isQuote && doc.balance_due > 0 && doc.balance_due !== doc.total"><dt>Balance in {{ doc.base_currency }}</dt><dd class="tabular">≈ {{ baseMoney(doc.balance_due / doc.exchange_rate) }}</dd></div>
+                </dl>
+                <p v-if="rateStale" class="fx-warn"><i class="fa-solid fa-clock"></i> This rate is more than 24 hours old.</p>
+                <p v-if="doc.rate_source === 'fallback'" class="fx-warn"><i class="fa-solid fa-triangle-exclamation"></i> Live rates were unavailable — this is an approximate reference rate.</p>
+                <p class="muted small m0">{{ doc.status === 'draft' ? 'Used to convert catalog prices and for reporting. Locked until you update it.' : 'Locked when the document was created — it no longer changes.' }}</p>
+                <div v-if="doc.status === 'draft'" class="fx-actions">
+                  <button class="ui-btn ui-btn--sm" :disabled="busy" data-testid="fx-update" @click="lockRate()"><i class="fa-solid fa-rotate"></i> Update rate</button>
+                </div>
+              </template>
+              <p v-else class="muted small m0">No rate locked yet.</p>
             </div>
           </section>
 
@@ -95,9 +164,45 @@
             </div>
           </section>
 
-          <section class="ui-card">
-            <div class="ui-card__head"><h2>Activity</h2></div>
-            <ul class="timeline">
+          <section class="ui-card" data-testid="activity-card">
+            <div class="ui-card__head act-head">
+              <div class="ui-tabs act-tabs" role="tablist">
+                <button class="ui-tab" :class="{ 'is-active': actTab === 'activity' }" role="tab" @click="actTab = 'activity'">Activity</button>
+                <button class="ui-tab" :class="{ 'is-active': actTab === 'emails' }" role="tab" data-testid="emails-tab" @click="actTab = 'emails'; loadEmailLog()">Emails<span v-if="emailLog.length" class="count">{{ emailLog.length }}</span></button>
+              </div>
+            </div>
+            <ul v-if="actTab === 'emails'" class="elog" data-testid="email-log">
+              <li v-if="!emailLog.length" class="muted small elog-empty">{{ emailLogLoading ? 'Loading…' : 'No emails yet. Every send, test and failed attempt is recorded here with its checks.' }}</li>
+              <li v-for="e in emailLog" :key="e.id" :class="`el-${e.status}`">
+                <button class="elog-row" :aria-expanded="openLog === e.id" @click="openLog = openLog === e.id ? null : e.id">
+                  <span class="ui-badge" :class="logBadge(e).cls">{{ logBadge(e).label }}</span>
+                  <span class="elog-main">
+                    <strong>{{ logKind(e) }} → {{ e.to || '—' }}</strong>
+                    <small>{{ dt(e.created_at) }}<template v-if="e.amounts && Object.keys(e.amounts).length"> · {{ Object.entries(e.amounts)[0].join(' ') }}</template></small>
+                  </span>
+                  <i class="fa-solid" :class="openLog === e.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                </button>
+                <div v-if="openLog === e.id" class="elog-detail" data-testid="email-log-detail">
+                  <div v-if="e.error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span><strong>{{ e.error_code || 'Error' }}</strong> {{ e.error }}</span></div>
+                  <dl>
+                    <div><dt>Subject</dt><dd>{{ e.subject }}</dd></div>
+                    <div v-if="e.from"><dt>From</dt><dd>{{ e.from }}</dd></div>
+                    <div><dt>To</dt><dd>{{ e.to || '—' }}</dd></div>
+                    <div v-if="e.cc && e.cc.length"><dt>CC</dt><dd>{{ e.cc.join(', ') }}</dd></div>
+                    <div v-if="e.bcc && e.bcc.length"><dt>BCC</dt><dd>{{ e.bcc.join(', ') }}</dd></div>
+                    <div v-if="e.attachments && e.attachments.length"><dt>Attached</dt><dd>{{ e.attachments.join(', ') }}</dd></div>
+                    <div v-if="e.message_id"><dt>Message-ID</dt><dd class="mono">&lt;{{ e.message_id }}&gt;</dd></div>
+                    <div v-if="e.response"><dt>Server</dt><dd>{{ e.response }}<template v-if="e.duration_ms"> · {{ e.duration_ms }} ms</template></dd></div>
+                    <div v-if="e.user_email"><dt>By</dt><dd>{{ e.user_email }}</dd></div>
+                    <div v-for="(v, k) in e.amounts || {}" :key="k"><dt>{{ k }}</dt><dd class="tabular">{{ v }}</dd></div>
+                  </dl>
+                  <ul v-if="e.checks && e.checks.length" class="elog-checks">
+                    <li v-for="c in sortedChecks(e.checks)" :key="c.id" :class="`c-${c.severity}`"><i :class="checkIcon(c.severity)"></i><span>{{ c.title }}<small v-if="c.detail"> — {{ c.detail }}</small></span></li>
+                  </ul>
+                </div>
+              </li>
+            </ul>
+            <ul v-else class="timeline">
               <li v-for="a in doc.activities" :key="a.id">
                 <span class="dot" :class="`t-${a.type}`"></span>
                 <span>
@@ -200,53 +305,20 @@
       </form>
     </div>
 
-    <!-- Send -->
-    <div v-if="sendOpen" class="ui-modal-backdrop" @mousedown.self="sendOpen = false">
-      <form class="ui-modal wide" @submit.prevent="submitSend">
-        <div class="ui-modal__head">
-          <div>
-            <h2>{{ sendKind === 'reminder' ? 'Send payment reminder' : `Send ${isQuote ? 'quote' : 'invoice'}` }}</h2>
-            <p class="muted small m0">{{ doc.number }} · {{ money(isQuote ? doc.total : doc.balance_due) }}{{ sendKind === 'reminder' ? ' outstanding' : '' }}</p>
-          </div>
-          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" @click="sendOpen = false" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="ui-modal__body grid-form">
-          <div v-if="!emailEnabled" class="ui-alert ui-alert--warning span smtp-note">
-            <i class="fa-solid fa-circle-info"></i>
-            <span>
-              <strong>Email sending isn’t set up on this server.</strong>
-              “Open in email app” drafts this message in your own email app with the To and CC recipients below, and marks the {{ isQuote ? 'quote' : 'invoice' }} as sent. An administrator can enable direct sending by configuring SMTP.
-            </span>
-          </div>
-          <div class="ui-field span">
-            <label for="s_to">To</label>
-            <div v-if="recipientsLoading" class="ui-skeleton" style="height: 40px"></div>
-            <EmailChips v-else id="s_to" v-model="send.to" :names="recipientNames" :max="1" primary icon="fa-solid fa-user" placeholder="client@email.com" aria-label="To email address" />
-            <span v-if="toNote" class="ui-hint">{{ toNote }}</span>
-          </div>
-          <div class="ui-field span">
-            <label for="s_cc">CC <span class="muted small">— removable for this send; add extra addresses if needed</span></label>
-            <div v-if="recipientsLoading" class="ui-skeleton" style="height: 40px"></div>
-            <EmailChips v-else id="s_cc" rows v-model="send.cc" :names="recipientNames" :exclude="send.to" icon="fa-regular fa-user" placeholder="Add CC email addresses" aria-label="CC email addresses" />
-            <span v-if="ccNote" class="ui-hint">{{ ccNote }}</span>
-          </div>
-          <div class="ui-field span">
-            <label for="s_subject">Subject</label>
-            <input id="s_subject" v-model="send.subject" class="ui-input" />
-          </div>
-          <div class="ui-field span">
-            <label for="s_msg">Message</label>
-            <textarea id="s_msg" v-model="send.message" class="ui-textarea" rows="8"></textarea>
-          </div>
-          <div v-if="sendError" class="ui-alert ui-alert--danger span"><i class="fa-solid fa-circle-exclamation"></i><span>{{ sendError }}</span></div>
-        </div>
-        <div class="ui-modal__foot">
-          <button v-if="sendKind !== 'reminder'" type="button" class="ui-btn ui-btn--ghost" @click="markSentOnly" :disabled="busy">Just mark as sent</button>
-          <button type="button" class="ui-btn" @click="sendOpen = false">Cancel</button>
-          <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy || recipientsLoading"><i :class="busy ? 'fa-solid fa-circle-notch spin' : emailEnabled ? 'fa-solid fa-paper-plane' : 'fa-solid fa-arrow-up-right-from-square'"></i> {{ emailEnabled ? (sendKind === 'reminder' ? 'Send reminder' : 'Send email') : 'Open in email app' }}</button>
-        </div>
-      </form>
-    </div>
+    <!-- Send: compose → pre-send checks + exact preview → send -->
+    <SendDialog
+      v-if="sendOpen"
+      :doc="doc"
+      :kind="sendKind"
+      :payment="sendPayment"
+      :email-enabled="emailEnabled"
+      :sender="sender"
+      :online-enabled="online.enabled"
+      @close="sendOpen = false"
+      @sent="onSent"
+      @marked="onMarked"
+      @logged="loadEmailLog"
+    />
   </div>
 </template>
 
@@ -254,17 +326,19 @@
 import InvoiceDocument from '@/components/invoicing/InvoiceDocument.vue'
 import { invoicingApi, STATUS_LABELS, PAYMENT_METHODS, RECURRENCE } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
-import { formatDate, formatDateTime, relativeDays, isoDate } from '@/utils/format'
-import { formatCurrency, currencyStep, currencyDecimals } from '@/utils/currencies'
-import EmailChips from '@/components/invoicing/EmailChips.vue'
-import { renderTemplate } from '@/utils/invoiceMath'
+import { formatDate, formatDateTime, relativeDays, isoDate, downloadBlob } from '@/utils/format'
+import { formatCurrency, currencyStep, currencyDecimals, rateText } from '@/utils/currencies'
+import SendDialog from '@/components/invoicing/SendDialog.vue'
+import { RATE_SOURCES } from '@/services/invoicing'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { useBranding } from '@/composables/useBranding'
+import { paymentsApi, TX_STATUS } from '@/services/payments'
+import StatusBadge from '@/components/ui/StatusBadge.vue'
 
 export default {
   name: 'InvoiceDetail',
-  components: { InvoiceDocument, EmailChips },
+  components: { InvoiceDocument, SendDialog, StatusBadge },
   props: { id: { type: String, required: true } },
   setup() {
     return { branding: useBranding().branding }
@@ -281,13 +355,17 @@ export default {
       pay: {},
       payError: null,
       sendOpen: false,
-      send: {},
       sendKind: 'invoice',
-      sendError: null,
-      recipientsLoading: false,
-      recipientNames: {},
-      suggested: { to: null, cc: [] },
+      sendPayment: null,
+      sender: null,
+      actTab: 'activity',
+      emailLog: [],
+      emailLogLoading: false,
+      openLog: null,
       methods: PAYMENT_METHODS,
+      pdfBusy: false,
+      online: { enabled: false, mode: 'test', transactions: [] },
+      payLink: { payable: false, url: '', reason: '' },
       conv: { open: false, enabled: false, amount: '', date: '', method: 'bank_transfer', reference: '', error: '' },
       today: isoDate()
     }
@@ -335,17 +413,20 @@ export default {
     canRemind() {
       return !this.isQuote && ['sent', 'partial'].includes(this.doc.status) && this.doc.balance_due > 0
     },
-    toNote() {
-      const t = this.suggested.to
-      const cur = this.send.to?.[0]
-      if (!t || cur !== t.email) return cur ? '' : 'Add the address this should go to.'
-      return t.source === 'primary_billing' ? `Primary billing contact${t.name ? ' — ' + t.name : ''}.` : 'The client’s email on this document.'
+    isForeign() {
+      return !!this.doc.base_currency && this.doc.currency !== this.doc.base_currency
     },
-    ccNote() {
-      const fromContacts = this.suggested.cc.filter((r) => r.source === 'contact' && this.send.cc?.includes(r.email)).length
-      const what = this.sendKind === 'reminder' ? 'reminders' : this.isQuote ? 'quotes' : 'invoices'
-      if (fromContacts) return `${fromContacts} customer contact${fromContacts > 1 ? 's are' : ' is'} copied on ${what} automatically. Changes here are remembered for this ${this.isQuote ? 'quote' : 'invoice'}.`
-      return this.send.cc?.length ? 'These addresses are remembered for future emails about this document.' : ''
+    fxMissing() {
+      return this.isForeign && !(this.doc.exchange_rate > 0) && !['void', 'converted'].includes(this.doc.status)
+    },
+    rateSource() {
+      return RATE_SOURCES[this.doc.rate_source] || RATE_SOURCES.missing
+    },
+    fxRateText() {
+      return rateText(this.doc.base_currency, this.doc.currency, this.doc.exchange_rate)
+    },
+    rateStale() {
+      return this.doc.status === 'draft' && this.doc.rate_source === 'live' && this.doc.rate_date && Date.now() - new Date(this.doc.rate_date).getTime() > 86400000
     },
     publicUrl() {
       return `${window.location.origin}/i/${this.doc.public_token}`
@@ -369,6 +450,7 @@ export default {
       }
       if (this.isQuote && d.status === 'draft') a.push({ label: 'Convert to invoice', icon: 'fa-solid fa-file-invoice-dollar', run: this.convert })
       if (d.status !== 'draft') a.push({ label: 'Copy client link', icon: 'fa-regular fa-copy', run: this.copyLink })
+      if (this.payLink.payable) a.push({ label: 'Copy pay link', icon: 'fa-solid fa-credit-card', run: this.copyPayLink })
       a.push({ label: 'Duplicate', icon: 'fa-regular fa-clone', run: this.duplicate })
       if (d.status !== 'draft') a.push({ label: 'Reset client link', icon: 'fa-solid fa-link-slash', run: this.resetLink })
       if (d.status !== 'void' && d.amount_paid <= 0 && d.status !== 'converted') a.push({ label: 'Void', icon: 'fa-solid fa-ban', run: this.voidDoc, danger: true })
@@ -410,6 +492,9 @@ export default {
         this.doc = inv
         this.settings = s?.settings || {}
         this.emailEnabled = !!s?.email_enabled
+        this.sender = s?.sender || null
+        this.loadOnline()
+        this.loadEmailLog()
         const expected = inv.doc_type === 'quote' ? '/quotes' : '/invoices'
         if (!this.$route.path.startsWith(expected)) this.$router.replace(`${expected}/${inv.id}`)
         if (this.$route.query.send === '1') {
@@ -418,6 +503,46 @@ export default {
         }
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not load this document')
+      }
+    },
+    txStatus(t) {
+      return TX_STATUS[t.status] || { label: t.status, badge: 'ui-badge--draft' }
+    },
+    async loadOnline() {
+      if (!this.doc || this.doc.doc_type === 'quote') return
+      try {
+        const [o, l] = await Promise.all([paymentsApi.invoiceTransactions(this.doc.id), invoicingApi.payLink(this.doc.id)])
+        this.online = { enabled: !!o.enabled, mode: o.mode, transactions: o.transactions || [] }
+        this.payLink = l || { payable: false }
+      } catch {
+        this.online = { enabled: false, mode: 'test', transactions: [] }
+      }
+    },
+    async copyPayLink() {
+      try {
+        await navigator.clipboard.writeText(this.payLink.url)
+        toast.success('Pay link copied')
+      } catch {
+        toast.info(this.payLink.url, { duration: 8000, title: 'Copy this link' })
+      }
+    },
+    async downloadPdf() {
+      this.pdfBusy = true
+      try {
+        const blob = await invoicingApi.pdf(this.doc.id)
+        downloadBlob(blob, `${this.doc.number}.pdf`)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not create the PDF'))
+      } finally {
+        this.pdfBusy = false
+      }
+    },
+    async downloadReceipt(p) {
+      try {
+        const blob = await invoicingApi.receipt(this.doc.id, p.id)
+        downloadBlob(blob, `Receipt-${this.doc.number}.pdf`)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not create the receipt'))
       }
     },
     async run(fn, successMsg) {
@@ -452,6 +577,7 @@ export default {
       this.busy = true
       try {
         this.doc = await invoicingApi.addPayment(this.doc.id, { ...this.pay, amount: amt })
+        this.loadOnline()
         this.payOpen = false
         toast.success(this.doc.status === 'paid' ? `${this.doc.number} is fully paid` : 'Payment recorded')
       } catch (e) {
@@ -466,85 +592,60 @@ export default {
       const res = await this.run(() => invoicingApi.deletePayment(this.doc.id, p.id), 'Payment removed')
       if (res) this.doc = res
     },
-    templateVars() {
-      const s = this.settings
-      return {
-        type: this.isQuote ? 'Quote' : 'Invoice',
-        type_lower: this.isQuote ? 'quote' : 'invoice',
-        number: this.doc.number,
-        business: s.business_name || 'us',
-        client: this.doc.client_name,
-        total: this.money(this.isQuote ? this.doc.total : this.doc.balance_due),
-        due_date: this.date(this.doc.due_date),
-        link: this.publicUrl
-      }
+    baseMoney(v) {
+      return formatCurrency(v, this.doc.base_currency)
     },
-    async openSend(kind = 'invoice') {
-      this.sendKind = kind === 'reminder' && this.canRemind ? 'reminder' : 'invoice'
-      const v = this.templateVars()
-      const s = this.settings
-      const reminder = this.sendKind === 'reminder'
-      this.send = {
-        to: this.doc.client_email ? [this.doc.client_email.toLowerCase()] : [],
-        cc: [...(this.doc.cc_emails || [])],
-        subject: reminder
-          ? renderTemplate('Reminder: {{type}} {{number}} from {{business}}', v)
-          : renderTemplate(s.email_subject || '{{type}} {{number}} from {{business}}', v),
-        message: reminder
-          ? renderTemplate(
-              `Hi {{client}},\n\nThis is a friendly reminder that {{type_lower}} {{number}} for {{total}} ${this.doc.display_status === 'overdue' ? 'was due on' : 'is due on'} {{due_date}}.\n\nView and pay it online: {{link}}\n\nIf you've already paid, please ignore this message.\n\nThank you,\n{{business}}`,
-              v
-            )
-          : renderTemplate(
-              s.email_message || 'Hi {{client}},\n\nPlease find {{type_lower}} {{number}} for {{total}}, due {{due_date}}.\n\nView it online: {{link}}\n\nThank you,\n{{business}}',
-              v
-            )
-      }
-      this.sendError = null
+    openSend(kind = 'invoice', payment = null) {
+      this.sendKind = kind === 'reminder' && this.canRemind ? 'reminder' : kind === 'receipt' && payment ? 'receipt' : 'invoice'
+      this.sendPayment = kind === 'receipt' ? payment : null
       this.sendOpen = true
-      this.recipientsLoading = true
-      this.suggested = { to: null, cc: [] }
+    },
+    onSent(res) {
+      if (res?.invoice) this.doc = res.invoice
+      this.sendOpen = false
+      this.loadOnline()
+      this.loadEmailLog()
+    },
+    onMarked(doc) {
+      if (doc) this.doc = doc
+      this.sendOpen = false
+    },
+    async loadEmailLog() {
+      if (!this.doc) return
+      this.emailLogLoading = true
       try {
-        const r = await invoicingApi.recipients(this.doc.id, this.sendKind === 'reminder' ? 'reminder' : this.isQuote ? 'quote' : 'invoice')
-        this.suggested = { to: r.to || null, cc: r.cc || [] }
-        const names = {}
-        for (const x of [r.to, ...(r.cc || [])]) if (x?.name) names[x.email] = x.name
-        this.recipientNames = names
-        if (r.to?.email) this.send.to = [r.to.email]
-        this.send.cc = (r.cc || []).map((x) => x.email)
-        if (typeof r.email_enabled === 'boolean') this.emailEnabled = r.email_enabled
-      } catch (e) {
-        this.sendError = apiErrorMessage(e, 'Could not load the recipients — you can still add them below.')
+        const r = await invoicingApi.emailLog(this.doc.id)
+        this.emailLog = r?.log || []
+      } catch {
+        this.emailLog = []
       } finally {
-        this.recipientsLoading = false
+        this.emailLogLoading = false
       }
     },
-    async submitSend() {
-      this.sendError = null
-      const to = this.send.to[0] || ''
-      if (this.emailEnabled && !to) return (this.sendError = 'Add the email address to send this to.')
-      this.busy = true
-      try {
-        const payload = { to, cc: this.send.cc, subject: this.send.subject, message: this.send.message, kind: this.sendKind, mode: this.emailEnabled ? 'email' : 'mailto' }
-        const res = await invoicingApi.send(this.doc.id, payload)
-        this.doc = res.invoice
-        this.sendOpen = false
-        const ccText = res.cc?.length ? ` (CC ${res.cc.length})` : ''
-        if (res.emailed) {
-          toast.success(`${this.sendKind === 'reminder' ? 'Reminder emailed' : 'Emailed'} to ${res.to}${ccText}`)
-        } else {
-          const q = []
-          if (res.cc?.length) q.push(`cc=${encodeURIComponent(res.cc.join(','))}`)
-          q.push(`subject=${encodeURIComponent(this.send.subject)}`, `body=${encodeURIComponent(this.send.message)}`)
-          window.location.href = `mailto:${encodeURIComponent(res.to || to)}?${q.join('&')}`
-          toast.success(this.sendKind === 'reminder' ? 'Reminder recorded — finish sending it in your email app' : `${this.doc.number} marked as sent`)
-        }
-        if (res.skipped?.length) toast.warning(`Skipped invalid address${res.skipped.length > 1 ? 'es' : ''}: ${res.skipped.join(', ')}`)
-      } catch (e) {
-        this.sendError = apiErrorMessage(e, 'Could not send')
-      } finally {
-        this.busy = false
-      }
+    logBadge(e) {
+      if (e.status === 'sent' && e.mode === 'test') return { label: 'Test', cls: 'ui-badge--info' }
+      return (
+        {
+          sent: { label: 'Sent', cls: 'ui-badge--success' },
+          failed: { label: 'Failed', cls: 'ui-badge--danger' },
+          blocked: { label: 'Blocked', cls: 'ui-badge--warning' },
+          recorded: { label: 'Email app', cls: 'ui-badge--draft' }
+        }[e.status] || { label: e.status, cls: 'ui-badge--draft' }
+      )
+    },
+    logKind(e) {
+      return { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt' }[e.kind] || 'Email'
+    },
+    checkIcon(sev) {
+      return { error: 'fa-solid fa-circle-xmark', warning: 'fa-solid fa-triangle-exclamation', info: 'fa-solid fa-circle-info', ok: 'fa-solid fa-circle-check' }[sev]
+    },
+    sortedChecks(list) {
+      const order = { error: 0, warning: 1, info: 2, ok: 3 }
+      return [...list].sort((a, b) => order[a.severity] - order[b.severity])
+    },
+    async lockRate() {
+      const res = await this.run(() => invoicingApi.lockRate(this.doc.id), 'Exchange rate updated')
+      if (res) this.doc = res
     },
     async markSentOnly() {
       const res = await this.run(() => invoicingApi.markSent(this.doc.id), 'Marked as sent')
@@ -616,6 +717,182 @@ export default {
 </script>
 
 <style scoped>
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.fx-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fx-rate {
+  font-size: 17px;
+  font-weight: 700;
+}
+.fx-dl {
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.fx-dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.fx-dl dt {
+  color: var(--text-3);
+}
+.fx-dl dd {
+  margin: 0;
+  font-weight: 600;
+}
+.fx-warn {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--warning);
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.fx-actions {
+  display: flex;
+  gap: 8px;
+}
+.banner .ui-btn {
+  margin-left: 8px;
+}
+.act-head {
+  padding-bottom: 0;
+}
+.act-tabs {
+  border-bottom: 0;
+}
+.count {
+  margin-left: 6px;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.elog {
+  list-style: none;
+  margin: 0;
+  padding: 6px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.elog-empty {
+  padding: 8px 6px;
+}
+.elog-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.elog-row:hover {
+  background: var(--surface-hover);
+}
+.elog-row > i {
+  color: var(--text-3);
+  font-size: 11px;
+}
+.elog-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.elog-main strong {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.elog-main small {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.elog-detail {
+  margin: 2px 6px 8px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.elog-detail dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.elog-detail dl div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 8px;
+}
+.elog-detail dt {
+  color: var(--text-3);
+}
+.elog-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+}
+.elog-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.elog-checks li {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.elog-checks small {
+  color: var(--text-2);
+}
+.c-error i {
+  color: var(--danger);
+}
+.c-warning i {
+  color: var(--warning);
+}
+.c-info i {
+  color: var(--info);
+}
+.c-ok i {
+  color: var(--success);
+}
+.t-rate {
+  background: var(--info);
+}
+.t-receipt_sent,
+.t-reminder {
+  background: var(--info);
+}
 .dep-badge {
   margin-right: 6px;
   font-size: 10.5px;
@@ -799,6 +1076,45 @@ export default {
   font-size: 12px;
 }
 
+.otx {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.otx li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+
+.otx__main {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.attach-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
 .share {
   display: flex;
   flex-direction: column;
@@ -855,6 +1171,8 @@ export default {
 .t-payment, .t-accepted { background: var(--success); }
 .t-voided, .t-payment_removed, .t-declined { background: var(--danger); }
 .t-viewed { background: var(--warning); }
+.t-online_payment { background: var(--success); }
+.t-online_payment_failed { background: var(--danger); }
 
 .wide {
   max-width: 620px;
@@ -864,6 +1182,23 @@ export default {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+}
+
+.sending-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.sending-from strong {
+  color: var(--text);
 }
 
 .smtp-note {

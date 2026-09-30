@@ -122,7 +122,7 @@
             <span class="key">{{ p.key }}</span>
             <span v-if="p.source === 'jira'" class="src src--jira" title="Synced from Jira"><i class="fa-brands fa-jira"></i> Jira</span>
             <span class="grow"></span>
-            <span class="ui-badge" :class="`ui-badge--${statusOf(p).badge}`">{{ statusOf(p).label }}</span>
+            <StatusBadge domain="project" :status="p.status" />
           </div>
           <h3 class="pcard__name">{{ p.name }}</h3>
           <p class="pcard__desc">{{ p.description || (p.source === 'jira' ? 'Jira project' : 'No description') }}</p>
@@ -163,7 +163,7 @@
                   <i v-if="p.source === 'jira'" class="fa-brands fa-jira jira-ic" title="Synced from Jira"></i>
                 </div>
               </td>
-              <td><span class="ui-badge" :class="`ui-badge--${statusOf(p).badge}`">{{ statusOf(p).label }}</span></td>
+              <td><StatusBadge domain="project" :status="p.status" /></td>
               <td class="prog-col">
                 <div class="pm-progress">
                   <div class="bar"><span :style="{ width: (p.stats?.progress || 0) + '%' }"></span></div>
@@ -731,6 +731,13 @@ export default {
   }
   .jira-bar {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .seg button {
+    min-height: 40px;
+    min-width: 40px;
   }
 }
 </style>

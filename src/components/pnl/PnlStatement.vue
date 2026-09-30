@@ -380,4 +380,12 @@ td.neg {
     margin-bottom: 8px;
   }
 }
+
+@media (max-width: 640px) {
+  .twisty {
+    width: 40px;
+    height: 40px;
+    margin: -10px 0 -10px -42px;
+  }
+}
 </style>

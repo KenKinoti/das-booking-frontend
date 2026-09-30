@@ -19,7 +19,7 @@
           </div>
           <h1>{{ event.title }}</h1>
           <p class="head-meta">
-            <span class="ui-badge" :class="`ui-badge--${statusMeta.badge}`">{{ statusMeta.label }}</span>
+            <StatusBadge domain="event" :status="event.display_status || 'draft'" />
             <span><i class="fa-regular fa-calendar"></i> {{ whenLabel }}</span>
             <span><i :class="typeIcon(event.type)"></i> {{ location(event) }}</span>
           </p>
@@ -122,7 +122,7 @@
                   <strong>{{ r.registrant_name }}</strong>
                   <small>{{ r.registrant_email }} · {{ r.ticket_type_name || 'Ticket' }}{{ r.quantity > 1 ? ` ×${r.quantity}` : '' }}</small>
                 </span>
-                <span class="ui-badge hide-sm" :class="`ui-badge--${regMeta(r).badge}`">{{ regMeta(r).label }}</span>
+                <StatusBadge class="hide-sm" domain="registration" :status="r.status || 'pending'" />
                 <button
                   class="ui-btn ui-btn--sm checkin"
                   :class="r.checked_in_at ? 'ui-btn--success' : ''"

@@ -124,7 +124,7 @@
       </div>
 
       <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-        <table class="ui-table">
+        <table class="ui-table" v-table-cards>
           <thead>
             <tr>
               <th>Event</th>
@@ -148,11 +148,11 @@
                 </div>
               </td>
               <td class="nowrap">{{ dateTime(e.start_date) }}</td>
-              <td class="hide-md muted">{{ location(e) }}</td>
-              <td><span class="ui-badge" :class="`ui-badge--${badge(e)}`">{{ statusLabel(e) }}</span></td>
+              <td class="hide-md muted card-show">{{ location(e) }}</td>
+              <td><StatusBadge domain="event" :status="e.display_status || 'draft'" /></td>
               <td class="num">{{ e.stats.tickets }}<span v-if="e.stats.capacity" class="muted"> / {{ e.stats.capacity }}</span></td>
-              <td class="num hide-sm">{{ money(e.stats.revenue, e.currency) }}</td>
-              <td @click.stop>
+              <td class="num hide-sm card-show">{{ money(e.stats.revenue, e.currency) }}</td>
+              <td class="card-hide" @click.stop>
                 <router-link :to="`/events/${e.id}`" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Open ${e.title}`"><i class="fa-solid fa-chevron-right"></i></router-link>
               </td>
             </tr>

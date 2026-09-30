@@ -6,7 +6,7 @@
           <div class="ui-eyebrow">Sale</div>
           <h2 id="txn-title">{{ txn?.transaction_number || 'Loading…' }}</h2>
           <div v-if="txn" class="sheet__sub">
-            <span class="ui-badge" :class="txn.status === 'voided' ? 'ui-badge--void' : 'ui-badge--paid'">{{ txn.status === 'voided' ? 'Voided' : 'Completed' }}</span>
+            <StatusBadge domain="pos" :status="txn.status || 'completed'" />
             <span>{{ dateTime(txn.created_at) }}</span>
           </div>
         </div>

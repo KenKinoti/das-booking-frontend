@@ -25,6 +25,8 @@
     </div>
     <CommandPalette :open="paletteOpen" @close="paletteOpen = false" />
     <AssistantPanel />
+    <BottomNav :drawer-open="mobileOpen" @more="mobileOpen = !mobileOpen" />
+    <InstallPrompt />
   </div>
 
   <div v-else class="auth-container">
@@ -45,13 +47,16 @@ import WhatsNew from './components/layout/WhatsNew.vue'
 import OrganizationContext from './components/OrganizationContext.vue'
 import AssistantPanel from './components/assistant/AssistantPanel.vue'
 import RegionSetupPrompt from './components/RegionSetupPrompt.vue'
+import BottomNav from './components/layout/BottomNav.vue'
+import InstallPrompt from './components/layout/InstallPrompt.vue'
+import { resetNotifications } from './composables/useNotifications'
 import { useAuthStore } from './stores/auth'
 import { globalTheme } from './composables/useTheme'
 import { APP_VERSION } from './version'
 
 export default {
   name: 'App',
-  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew, AssistantPanel, RegionSetupPrompt },
+  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew, AssistantPanel, RegionSetupPrompt, BottomNav, InstallPrompt },
   data() {
     let rail = false
     try {
@@ -76,6 +81,10 @@ export default {
   watch: {
     '$route.fullPath'() {
       this.mobileOpen = false
+    },
+    showShell(on) {
+      // Signed out: forget the previous user's notifications
+      if (!on) resetNotifications()
     },
     mobileOpen(open) {
       // Lock the page behind the off-canvas drawer
@@ -190,7 +199,7 @@ html.has-drawer-open body {
     margin-left: 0;
   }
   .app-content {
-    padding: 20px max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    padding: 20px max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom) + var(--bottom-nav-h, 0px)) max(16px, env(safe-area-inset-left));
   }
 }
 

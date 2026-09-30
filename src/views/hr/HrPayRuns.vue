@@ -20,7 +20,7 @@
       <button v-if="canManage && employees.length" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openCreate"><i class="fa-solid fa-plus"></i> New pay run</button>
     </div>
     <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-      <table class="ui-table">
+      <table class="ui-table" v-table-cards>
         <thead>
           <tr>
             <th>Pay run</th>
@@ -37,12 +37,12 @@
           <tr v-for="r in rows" :key="r.id" class="is-clickable" @click="openDetail(r)">
             <td><strong>{{ r.number }}</strong><small class="muted block">{{ cap(r.frequency) }}</small></td>
             <td class="nowrap">{{ date(r.period_start) }} – {{ date(r.period_end) }}</td>
-            <td class="hide-sm nowrap">{{ date(r.pay_date) }}</td>
-            <td class="num hide-sm tnum">{{ r.employee_count }}</td>
-            <td class="num hide-md tnum">{{ money(r.total_gross, r.currency) }}</td>
+            <td class="hide-sm nowrap card-show">{{ date(r.pay_date) }}</td>
+            <td class="num hide-sm tnum card-show">{{ r.employee_count }}</td>
+            <td class="num hide-md tnum card-show">{{ money(r.total_gross, r.currency) }}</td>
             <td class="num tnum"><strong>{{ money(r.total_net, r.currency) }}</strong></td>
-            <td><span class="ui-badge" :class="r.status === 'paid' ? 'ui-badge--paid' : 'ui-badge--draft'">{{ r.status === 'paid' ? 'Paid' : 'Draft' }}</span></td>
-            <td><button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Open ${r.number}`" @click.stop="openDetail(r)"><i class="fa-solid fa-chevron-right"></i></button></td>
+            <td><StatusBadge domain="payrun" :status="r.status === 'paid' ? 'paid' : 'draft'" /></td>
+            <td class="card-hide"><button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Open ${r.number}`" @click.stop="openDetail(r)"><i class="fa-solid fa-chevron-right"></i></button></td>
           </tr>
         </tbody>
       </table>
@@ -144,7 +144,7 @@
         <div class="ui-modal__head">
           <h2>
             {{ detail.number }}
-            <span class="ui-badge" :class="detail.status === 'paid' ? 'ui-badge--paid' : 'ui-badge--draft'" style="margin-left: 8px; vertical-align: middle">{{ detail.status === 'paid' ? 'Paid' : 'Draft' }}</span>
+            <StatusBadge domain="payrun" :status="detail.status === 'paid' ? 'paid' : 'draft'" style="margin-left: 8px" />
           </h2>
           <button class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Close" @click="detail = null"><i class="fa-solid fa-xmark"></i></button>
         </div>

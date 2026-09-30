@@ -93,6 +93,14 @@
             </select>
             <span class="ui-hint">{{ currencyHint }}</span>
           </div>
+          <div v-if="foreignCurrency" class="fx-note" role="status" data-testid="customer-fx-note">
+            <i class="fa-solid fa-right-left"></i>
+            <span>
+              Invoices and quotes for this customer will be issued in <strong>{{ effectiveCurrency }}</strong>, not your {{ orgDefault }}.
+              Catalog prices (in {{ orgDefault }}) are converted at the exchange rate on the day each document is created, and that rate is locked on the document.
+              <template v-if="fxRate"> Today: <strong class="tabular">{{ fxRate }}</strong> ({{ fxSource }}).</template>
+            </span>
+          </div>
         </div>
 
         <div class="section-label">
@@ -119,13 +127,14 @@
 </template>
 
 <script>
-import { orgCurrency } from '@/utils/orgDefaults'
+import { orgCurrency, orgCountry } from '@/utils/orgDefaults'
 import { customerService } from '@/services/customerService'
 import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { isoDate } from '@/utils/format'
-import { currencyGroups, countryName, countryCodeFromName, customerCurrency, currencyLabel } from '@/utils/currencies'
+import { currencyGroups, countryName, countryCodeFromName, customerCurrency, currencyLabel, rateText } from '@/utils/currencies'
+import { fxApi } from '@/services/invoicing'
 import CountryPicker from './customers/CountryPicker.vue'
 import CustomerContacts from './customers/CustomerContacts.vue'
 
@@ -152,9 +161,11 @@ const blank = () => ({
   date_of_birth: '',
   is_active: true,
   notes: '',
-  country_code: 'AU',
+  // New customers start in the organisation's own country (not a fixed
+  // default) so their invoice currency is the home currency unless changed.
+  country_code: orgCountry(),
   currency: '',
-  address: { street: '', suburb: '', state: '', postcode: '', country: 'Australia' }
+  address: { street: '', suburb: '', state: '', postcode: '', country: countryName(orgCountry()) }
 })
 
 export default {
@@ -172,6 +183,7 @@ export default {
       error: '',
       saving: false,
       orgDefault: orgCurrency(),
+      fxQuote: null,
       pendingContacts: [],
       contactsCount: 0,
       currencyGroups: currencyGroups(),
@@ -192,6 +204,19 @@ export default {
     autoCurrencyReason() {
       return this.autoCurrency.source === 'country' ? `from ${countryName(this.form.country_code)}` : 'organisation default'
     },
+    effectiveCurrency() {
+      return this.form.currency || this.autoCurrency.currency
+    },
+    foreignCurrency() {
+      return !!this.effectiveCurrency && !!this.orgDefault && this.effectiveCurrency !== this.orgDefault
+    },
+    fxRate() {
+      const q = this.fxQuote
+      return q && q.rate > 0 && q.to === this.effectiveCurrency && q.from === this.orgDefault ? rateText(q.from, q.to, q.rate) : ''
+    },
+    fxSource() {
+      return { live: 'live rate', fallback: 'approximate reference rate', manual: 'your manual rate' }[this.fxQuote?.source] || 'rate'
+    },
     currencyHint() {
       if (this.form.currency) return `New invoices and quotes for this customer use ${currencyLabel(this.form.currency)}.`
       if (this.autoCurrency.source === 'country') return `Follows the customer's country. Choose a currency to override it.`
@@ -201,6 +226,15 @@ export default {
     }
   },
   watch: {
+    foreignCurrency: {
+      immediate: true,
+      handler(v) {
+        if (v) this.loadRate()
+      }
+    },
+    effectiveCurrency() {
+      if (this.foreignCurrency) this.loadRate()
+    },
     show: {
       immediate: true,
       handler(v) {
@@ -231,6 +265,16 @@ export default {
     }
   },
   methods: {
+    async loadRate() {
+      const from = this.orgDefault
+      const to = this.effectiveCurrency
+      try {
+        const r = await fxApi.rate(from, to)
+        if (from === this.orgDefault && to === this.effectiveCurrency) this.fxQuote = r.quote
+      } catch {
+        this.fxQuote = null
+      }
+    },
     close() {
       if (!this.saving) this.$emit('close')
     },
@@ -277,6 +321,26 @@ export default {
 </script>
 
 <style scoped>
+.fx-note {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--info);
+  background: var(--info-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.fx-note i {
+  color: var(--info);
+  margin-top: 3px;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
 .sub {
   margin: 4px 0 0;
   color: var(--text-3);

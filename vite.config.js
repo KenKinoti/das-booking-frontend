@@ -1,9 +1,11 @@
 import { fileURLToPath, URL } from 'node:url'
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
+import { writePrecache } from './scripts/pwa-precache.mjs'
 
 // Release version: package.json "version" is the single source of truth.
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
@@ -22,6 +24,23 @@ export default defineConfig({
       name: 'dasyin-app-version',
       transformIndexHtml: (html) => html.replace(/%APP_VERSION%/g, APP_VERSION)
     },
+    (() => {
+      // PWA: after the build, list the app shell for the service worker to
+      // precache (dist/precache-manifest.json) and stamp dist/sw.js with a
+      // build id so browsers pick up each release.
+      let outDir = 'dist'
+      return {
+        name: 'dasyin-pwa-precache',
+        apply: 'build',
+        configResolved(cfg) {
+          outDir = resolve(cfg.root, cfg.build.outDir)
+        },
+        closeBundle() {
+          const { build, count } = writePrecache(outDir, { version: APP_VERSION })
+          console.log(`[pwa] precache-manifest.json: ${count} files, sw build ${build}`)
+        }
+      }
+    })(),
     vue({
       template: {
         compilerOptions: {

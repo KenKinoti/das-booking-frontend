@@ -37,7 +37,7 @@
 
     <div v-if="loaded && !smtpConfigured" class="ui-alert ui-alert--warning smtp-note">
       <i class="fa-solid fa-envelope-open-text"></i>
-      <span>Email isn't configured on the server (SMTP), so invites aren't emailed automatically. After scheduling you'll get a <strong>.ics file</strong> and a <strong>pre-filled email</strong> to send yourself.</span>
+      <span>Outgoing email isn't set up, so invites aren't emailed automatically. After scheduling you'll get a <strong>.ics file</strong> and a <strong>pre-filled email</strong> to send yourself. An administrator can connect an email account under <router-link to="/settings#email">Settings → Outgoing email</router-link>.</span>
     </div>
 
     <section class="ui-card">
@@ -103,7 +103,7 @@
                 </div>
               </div>
               <div class="row__side" @click.stop>
-                <span class="ui-badge" :class="`ui-badge--${displayStatus(m, now).cls}`">{{ displayStatus(m, now).label }}</span>
+                <StatusBadge domain="meeting" :status="displayStatus(m, now).key" />
                 <button v-if="canJoin(m)" class="ui-btn ui-btn--sm" :class="isLive(m, now) ? 'ui-btn--success' : ''" @click="join(m)"><i class="fa-solid fa-video"></i> <span class="hide-xs">Join</span></button>
                 <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Open ${m.title}`" @click="select(m)"><i class="fa-solid fa-chevron-right"></i></button>
               </div>

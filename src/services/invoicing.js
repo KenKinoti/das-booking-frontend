@@ -33,6 +33,16 @@ export const invoicingApi = {
   recipients: (id, kind) => api.get(`${base}/invoices/${id}/recipients`, { params: { kind } }).then(unwrap),
   runRecurring: () => api.post(`${base}/recurring/run`).then(unwrap),
   exportCsv: (type) => api.get(`${base}/export`, { params: { type }, responseType: 'blob' }).then((r) => r.data),
+  pdf: (id) => api.get(`${base}/invoices/${id}/pdf`, { params: { download: 1, app_url: window.location.origin }, responseType: 'blob', timeout: 45000 }).then((r) => r.data),
+  receipt: (id, paymentId) => api.get(`${base}/invoices/${id}/payments/${paymentId}/receipt`, { params: { download: 1 }, responseType: 'blob' }).then((r) => r.data),
+  payLink: (id) => api.get(`${base}/invoices/${id}/pay-link`, { params: { app_url: window.location.origin } }).then(unwrap),
+  // Pre-send checks + exact preview, test send, send log (see pkg/invoicing/emaildoc.go)
+  preflight: (id, payload) => api.post(`${base}/invoices/${id}/preflight`, { app_url: window.location.origin, ...payload }, { timeout: 45000 }).then(unwrap),
+  emailDraft: (id, kind, paymentId) => api.get(`${base}/invoices/${id}/email-draft`, { params: { kind, payment_id: paymentId || undefined, app_url: window.location.origin } }).then(unwrap),
+  sendTest: (id, payload) => api.post(`${base}/invoices/${id}/send-test`, { app_url: window.location.origin, ...payload }, { timeout: 45000 }).then(unwrap),
+  emailLog: (id) => api.get(`${base}/invoices/${id}/email-log`).then(unwrap),
+  // Exchange rate: lock today's rate ({}), or a manual one ({ exchange_rate })
+  lockRate: (id, body) => api.post(`${base}/invoices/${id}/rate`, body || {}).then(unwrap),
   publicView: (token) => api.get(`/public/invoices/${token}`).then(unwrap),
   publicAccept: (token) => api.post(`/public/invoices/${token}/accept`).then(unwrap)
 }
@@ -68,3 +78,20 @@ export const RECURRENCE = [
   { value: 'quarterly', label: 'Every 3 months' },
   { value: 'yearly', label: 'Every year' }
 ]
+
+/** Exchange rates (pkg/fxrates): quotes, the rate table and manual overrides. */
+export const fxApi = {
+  rate: (from, to) => api.get('/fx/rate', { params: { from, to } }).then(unwrap),
+  rates: (baseCur) => api.get('/fx/rates', { params: { base: baseCur } }).then(unwrap),
+  manual: () => api.get('/fx/manual-rates').then(unwrap),
+  saveManual: (payload) => api.put('/fx/manual-rates', payload).then(unwrap),
+  deleteManual: (id) => api.delete(`/fx/manual-rates/${id}`).then(unwrap)
+}
+
+export const RATE_SOURCES = {
+  live: { label: 'Live rate', badge: 'ui-badge--success', icon: 'fa-solid fa-signal' },
+  fallback: { label: 'Reference rate', badge: 'ui-badge--warning', icon: 'fa-solid fa-triangle-exclamation' },
+  manual: { label: 'Manual rate', badge: 'ui-badge--info', icon: 'fa-solid fa-hand' },
+  same: { label: 'Same currency', badge: 'ui-badge--draft', icon: 'fa-solid fa-equals' },
+  missing: { label: 'No rate', badge: 'ui-badge--danger', icon: 'fa-solid fa-circle-exclamation' }
+}

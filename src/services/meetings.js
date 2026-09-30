@@ -160,12 +160,12 @@ export function isLive(m, now = Date.now()) {
 }
 
 export function displayStatus(m, now = Date.now()) {
-  if (m.status === 'cancelled') return { label: 'Cancelled', cls: 'danger' }
-  if (m.status === 'completed') return { label: 'Completed', cls: 'paid' }
-  if (m.status === 'in_progress' && new Date(m.end_at).getTime() >= now) return { label: 'In progress', cls: 'info' }
-  if (isLive(m, now)) return { label: 'Starting now', cls: 'info' }
-  if (new Date(m.end_at).getTime() < now) return { label: 'Ended', cls: 'draft' }
-  return { label: 'Scheduled', cls: 'sent' }
+  if (m.status === 'cancelled') return { key: 'cancelled', label: 'Cancelled', cls: 'danger' }
+  if (m.status === 'completed') return { key: 'completed', label: 'Completed', cls: 'paid' }
+  if (m.status === 'in_progress' && new Date(m.end_at).getTime() >= now) return { key: 'in_progress', label: 'In progress', cls: 'info' }
+  if (isLive(m, now)) return { key: 'starting', label: 'Starting now', cls: 'info' }
+  if (new Date(m.end_at).getTime() < now) return { key: 'ended', label: 'Ended', cls: 'draft' }
+  return { key: 'scheduled', label: 'Scheduled', cls: 'sent' }
 }
 
 export function locationLabel(m) {

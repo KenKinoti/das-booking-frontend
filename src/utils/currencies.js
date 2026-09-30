@@ -327,3 +327,31 @@ export function currencyStep(code) {
   const d = currencyDecimals(code)
   return d === 0 ? '1' : (1 / 10 ** d).toFixed(d)
 }
+
+// ---------------------------------------------------------------------------
+// Exchange rates. A rate is "units of `to` per 1 `from`". Conversions round to
+// the target currency's minor units (mirrors fxrates.Convert on the server).
+
+/** amount × rate, rounded to the currency's decimals. */
+export function convertAmount(amount, rate, code) {
+  const p = 10 ** currencyDecimals(code)
+  return Math.round((Number(amount) || 0) * Number(rate) * p) / p
+}
+
+/** A rate with up to 6 significant digits (no float noise). */
+export function rateNumber(r) {
+  const n = Number(r)
+  if (!(n > 0)) return '—'
+  return String(Number(n.toPrecision(6)))
+}
+
+/**
+ * Human rate text, always with the bigger number on the right:
+ * rateText('KES', 'USD', 0.0077) → "1 USD = 129.87 KES".
+ */
+export function rateText(from, to, rate) {
+  const n = Number(rate)
+  if (!(n > 0)) return 'no rate'
+  if (n < 1) return `1 ${to} = ${rateNumber(1 / n)} ${from}`
+  return `1 ${from} = ${rateNumber(n)} ${to}`
+}

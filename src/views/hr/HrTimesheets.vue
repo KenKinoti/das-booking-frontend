@@ -36,7 +36,7 @@
       <button v-if="employees.length" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openCreate"><i class="fa-solid fa-plus"></i> Log hours</button>
     </div>
     <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-      <table class="ui-table">
+      <table class="ui-table" v-table-cards>
         <thead>
           <tr>
             <th v-if="canManage && selectable.length" style="width: 36px"></th>
@@ -45,20 +45,20 @@
             <th class="num">Hours</th>
             <th class="hide-md">Notes</th>
             <th>Status</th>
-            <th style="width: 1%"></th>
+            <th style="width: 1%" data-label=""></th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="t in rows" :key="t.id">
-            <td v-if="canManage && selectable.length">
-              <input v-if="t.status === 'submitted'" v-model="selected" type="checkbox" :value="t.id" :aria-label="`Select ${t.employee_name} ${t.date}`" />
+            <td v-if="canManage && selectable.length" class="card-check">
+              <label v-if="t.status === 'submitted'" class="ts-hit"><input v-model="selected" class="ts-check" type="checkbox" :value="t.id" :aria-label="`Select ${t.employee_name} ${t.date}`" /></label>
             </td>
             <td class="nowrap">{{ weekday(t.date) }} <span class="muted">{{ date(t.date) }}</span></td>
             <td class="strong">{{ t.employee_name || 'Former employee' }}</td>
             <td class="num tnum strong">{{ hrs(t.hours) }}</td>
-            <td class="hide-md muted notes">{{ t.notes || '—' }}</td>
+            <td class="hide-md muted notes card-show">{{ t.notes || '—' }}</td>
             <td>
-              <span class="ui-badge" :class="badge(t)">{{ label(t) }}</span>
+              <StatusBadge domain="timesheet" :status="t.pay_run_id ? 'paid' : t.status" :label="label(t)" />
             </td>
             <td>
               <div class="row-actions">
@@ -320,8 +320,24 @@ export default {
   border-bottom: 1px solid var(--border);
 }
 
+.ts-hit {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: -10px;
+  cursor: pointer;
+}
+
+.ts-check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
 .check {
   display: inline-flex;
+  min-height: 40px;
   gap: 8px;
   align-items: center;
   font-size: 13px;

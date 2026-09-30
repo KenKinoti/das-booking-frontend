@@ -7,7 +7,7 @@
           <h2 id="je-title">{{ readonly ? 'Journal entry' : entry ? 'Edit journal entry' : 'New journal entry' }}</h2>
         </div>
         <div class="head-right">
-          <span v-if="entry" class="ui-badge" :class="badge(entry.status)">{{ statusLabel(entry.status) }}</span>
+          <StatusBadge v-if="entry" domain="journal" :status="entry.status" />
           <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Close" @click="$emit('close')"><i class="fa-solid fa-xmark"></i></button>
         </div>
       </div>

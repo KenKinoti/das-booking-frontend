@@ -149,6 +149,30 @@
           </section>
         </fieldset>
 
+        <section id="email" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Outgoing email</h2>
+              <p class="sub">The account invoices, quotes, reminders and meeting invitations are sent from.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <EmailSettingsPanel scope="organisation" />
+          </div>
+        </section>
+
+        <section id="payments" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Online payments</h2>
+              <p class="sub">Let clients pay invoices by M-Pesa, mobile money, bank or card through Flutterwave.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <PaymentSettingsPanel />
+          </div>
+        </section>
+
         <section id="more" class="ui-card">
           <div class="ui-card__head">
             <div>
@@ -188,6 +212,8 @@ import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
 import api, { apiErrorMessage } from '@/services/api'
 import { currencyGroups, currencyForCountry, CURRENCY_CODES } from '@/utils/currencies'
 import CountryPicker from '@/components/customers/CountryPicker.vue'
+import EmailSettingsPanel from '@/components/settings/EmailSettingsPanel.vue'
+import PaymentSettingsPanel from '@/components/settings/PaymentSettingsPanel.vue'
 import { refreshOrgPrefs } from '@/composables/useOrgPrefs'
 import { orgDefaults } from '@/utils/orgDefaults'
 import { toast } from '@/composables/useToast'
@@ -201,7 +227,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
-  components: { AboutCard, OrgLogoUploader, CountryPicker },
+  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel },
   data() {
     return {
       org: blankOrg(),
@@ -219,6 +245,8 @@ export default {
         { id: 'business', label: 'Business details', icon: 'fa-regular fa-building' },
         { id: 'regional', label: 'Regional & formats', icon: 'fa-solid fa-globe' },
         { id: 'notifications', label: 'Notifications', icon: 'fa-regular fa-bell' },
+        { id: 'email', label: 'Outgoing email', icon: 'fa-regular fa-paper-plane' },
+        { id: 'payments', label: 'Online payments', icon: 'fa-regular fa-credit-card' },
         { id: 'more', label: 'More settings', icon: 'fa-solid fa-grip' },
         { id: 'about', label: 'About', icon: 'fa-solid fa-circle-info' }
       ],
@@ -311,6 +339,8 @@ export default {
         const { data } = await api.get('/account/organization')
         this.apply(data.data)
         this.loaded = true
+        const hash = (this.$route.hash || '').slice(1)
+        if (hash && this.sections.some((x) => x.id === hash)) setTimeout(() => this.scrollTo(hash), 300)
       } catch (e) {
         this.loadError = apiErrorMessage(e, 'Could not load settings')
       }
@@ -529,7 +559,8 @@ export default {
 .savebar {
   position: fixed;
   left: 50%;
-  bottom: 20px;
+  /* stay above the phone bottom navigation */
+  bottom: calc(20px + var(--bottom-nav-h, 0px) + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 1500;
   display: flex;
@@ -558,7 +589,7 @@ export default {
 
 @media (max-width: 1000px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .side {
     position: static;

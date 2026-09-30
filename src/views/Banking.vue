@@ -860,4 +860,14 @@ export default {
     gap: 8px;
   }
 }
+
+@media (max-width: 640px) {
+  .cat-select {
+    min-height: 40px;
+  }
+  .rec {
+    width: 40px;
+    height: 40px;
+  }
+}
 </style>

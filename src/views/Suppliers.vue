@@ -79,7 +79,7 @@
           <button v-if="!supplierSearch && !statusFilter" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openSupplierModal()"><i class="fa-solid fa-plus"></i> Add supplier</button>
         </div>
         <div v-else class="ui-table-wrap" :class="{ 'is-loading': suppliersLoading }">
-          <table class="ui-table">
+          <table class="ui-table" v-table-cards>
             <thead>
               <tr>
                 <th>Supplier</th>
@@ -107,13 +107,13 @@
                   <small v-if="s.phone && s.email" class="sub">{{ s.phone }}</small>
                 </td>
                 <td class="hide-lg muted">{{ s.payment_terms || '—' }}</td>
-                <td class="num hide-sm">
+                <td class="num hide-sm card-show">
                   {{ s.order_count || 0 }}
                   <small v-if="s.open_orders" class="sub open">{{ s.open_orders }} open</small>
                 </td>
                 <td class="num strong">{{ money(s.total_spend) }}</td>
-                <td class="hide-sm"><span class="ui-badge" :class="s.is_active ? 'ui-badge--success' : 'ui-badge--draft'">{{ s.is_active ? 'Active' : 'Inactive' }}</span></td>
-                <td class="actions-col hide-sm" @click.stop>
+                <td class="hide-sm card-show"><StatusBadge domain="supplier" :status="s.is_active ? 'active' : 'inactive'" /></td>
+                <td class="actions-col hide-sm card-show" @click.stop>
                   <div class="row-actions">
                     <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" :aria-label="`New purchase order for ${s.name}`" title="New purchase order" :disabled="!s.is_active" @click="openNewPO(s.id)"><i class="fa-solid fa-file-circle-plus"></i></button>
                     <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" :aria-label="`Edit ${s.name}`" title="Edit" @click="openSupplierModal(s)"><i class="fa-regular fa-pen-to-square"></i></button>
@@ -164,7 +164,7 @@
           <button v-if="!poFiltered" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openNewPO()"><i class="fa-solid fa-file-circle-plus"></i> New purchase order</button>
         </div>
         <div v-else class="ui-table-wrap" :class="{ 'is-loading': poLoading }">
-          <table class="ui-table">
+          <table class="ui-table" v-table-cards>
             <thead>
               <tr>
                 <th>Order</th>
@@ -181,11 +181,11 @@
               <tr v-for="po in orders" :key="po.id" class="is-clickable" @click="openPO(po.id)">
                 <td>
                   <span class="strong mono">{{ po.order_number }}</span>
-                  <small class="sub">{{ (po.items || []).length }} line{{ (po.items || []).length === 1 ? '' : 's' }}<span class="show-sm"> · {{ po.supplier?.name }}</span></small>
+                  <small class="sub">{{ (po.items || []).length }} line{{ (po.items || []).length === 1 ? '' : 's' }}<span class="show-sm card-hide"> · {{ po.supplier?.name }}</span></small>
                 </td>
-                <td class="hide-sm">{{ po.supplier?.name || '—' }}</td>
+                <td class="hide-sm card-show">{{ po.supplier?.name || '—' }}</td>
                 <td class="hide-md muted">{{ fmtDate(po.order_date) }}</td>
-                <td class="hide-sm">
+                <td class="hide-sm card-show">
                   <span :class="{ 'txt-danger': isOverdue(po) }">{{ po.expected_date ? fmtDate(po.expected_date) : '—' }}</span>
                   <small v-if="isOverdue(po)" class="sub txt-danger">{{ daysLate(po) }}d late</small>
                 </td>
@@ -195,9 +195,9 @@
                   </div>
                   <small class="sub">{{ received(po) }}/{{ ordered(po) }}</small>
                 </td>
-                <td><span class="ui-badge" :class="`ui-badge--${statusMeta(po.status).badge}`">{{ statusMeta(po.status).label }}</span></td>
+                <td><StatusBadge domain="po" :status="po.status" /></td>
                 <td class="num strong">{{ money(po.total_amount) }}</td>
-                <td class="actions-col hide-sm" @click.stop>
+                <td class="actions-col hide-sm card-show" @click.stop>
                   <div class="row-actions">
                     <button v-if="po.status === 'sent' || po.status === 'partially_received'" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" title="Receive stock" :aria-label="`Receive stock for ${po.order_number}`" @click="openReceive(po)"><i class="fa-solid fa-box-open"></i></button>
                     <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" :aria-label="`Open ${po.order_number}`" @click="openPO(po.id)"><i class="fa-solid fa-chevron-right"></i></button>

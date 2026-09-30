@@ -80,7 +80,7 @@
       </div>
 
       <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-        <table class="ui-table">
+        <table class="ui-table" v-table-cards>
           <thead>
             <tr>
               <th>Customer</th>
@@ -108,8 +108,8 @@
                   </span>
                 </div>
               </td>
-              <td class="hide-sm nowrap">{{ c.phone || '—' }}</td>
-              <td class="hide-md nowrap">
+              <td class="hide-sm nowrap card-hide">{{ c.phone || '—' }}</td>
+              <td class="hide-md nowrap card-hide">
                 <span class="loc">
                   <span v-if="c.country_code" class="loc__flag" aria-hidden="true">{{ flag(c.country_code) }}</span>
                   <span>
@@ -118,15 +118,15 @@
                   </span>
                 </span>
               </td>
-              <td class="hide-sm">
+              <td class="hide-sm card-show">
                 <span v-if="c.last_booking_at">{{ date(c.last_booking_at) }}</span>
                 <span v-else class="muted">Never</span>
                 <small v-if="c.next_booking_at" class="next">Next {{ date(c.next_booking_at, 'short') }}</small>
               </td>
-              <td class="num hide-md">{{ c.bookings_count || 0 }}</td>
-              <td v-if="showVehicles" class="num hide-lg">{{ c.vehicles_count || 0 }}</td>
-              <td class="num hide-lg">{{ c.total_spent ? money(c.total_spent) : '—' }}</td>
-              <td><span class="ui-badge" :class="c.is_active ? 'ui-badge--success' : 'ui-badge--draft'">{{ c.is_active ? 'Active' : 'Inactive' }}</span></td>
+              <td class="num hide-md card-show">{{ c.bookings_count || 0 }}</td>
+              <td v-if="showVehicles" class="num hide-lg card-show">{{ c.vehicles_count || 0 }}</td>
+              <td class="num hide-lg card-show">{{ c.total_spent ? money(c.total_spent) : '—' }}</td>
+              <td><StatusBadge domain="customer" :status="c.is_active ? 'active' : 'inactive'" /></td>
               <td class="actions-col" @click.stop>
                 <div class="row-actions">
                   <router-link :to="bookingLink(c)" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon hide-sm" title="New booking" aria-label="New booking"><i class="fa-regular fa-calendar-plus"></i></router-link>
@@ -586,6 +586,10 @@ export default {
 @media (max-width: 640px) {
   .hide-sm {
     display: none;
+  }
+  /* Cards: every quick action is one tap away */
+  .ui-table--cards .row-actions .hide-sm {
+    display: inline-flex;
   }
   .search,
   .sort {

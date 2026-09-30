@@ -174,7 +174,10 @@ export default {
       const o = this.s?.other_currencies || []
       if (!o.length) return ''
       const amt = (v, c) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: currencyDecimals(c), maximumFractionDigits: currencyDecimals(c) })
-      return 'excl. ' + o.map((x) => `${x.currency} ${amt(x.outstanding, x.currency)}`).join(', ')
+      const conv = this.s?.converted
+      const home = this.s?.currency
+      const converted = conv && conv.outstanding > 0 && home ? ` (≈ ${home} ${amt(conv.outstanding, home)} converted at each invoice's locked rate)` : ''
+      return 'excl. ' + o.map((x) => `${x.currency} ${amt(x.outstanding, x.currency)}`).join(', ') + converted
     },
     agingBuckets() {
       return [

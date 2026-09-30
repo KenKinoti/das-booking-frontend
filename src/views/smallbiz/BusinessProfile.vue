@@ -233,7 +233,8 @@ export default {
 
 .savebar {
   position: sticky;
-  bottom: 0;
+  /* stay above the phone bottom navigation */
+  bottom: calc(var(--bottom-nav-h, 0px) + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: flex-end;
   align-items: center;

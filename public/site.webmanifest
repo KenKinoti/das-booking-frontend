@@ -1,18 +1,92 @@
 {
+  "id": "/",
   "name": "DASYIN ERP",
   "short_name": "DASYIN",
   "description": "Bookings, invoicing, POS, inventory and operations in one place.",
-  "id": "/",
-  "start_url": "/dashboard",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/dashboard?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "any",
-  "theme_color": "#5b4cf0",
+  "theme_color": "#f6f7fb",
   "background_color": "#f6f7fb",
+  "user_preferences": {
+    "color_scheme_dark": {
+      "theme_color": "#0b0d14",
+      "background_color": "#0b0d14"
+    }
+  },
+  "categories": ["business", "productivity", "finance"],
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
   "icons": [
     { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
     { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
     { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
-    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+    { "src": "/icon-maskable-192.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" },
+    { "src": "/icon-monochrome-512.png", "type": "image/png", "sizes": "512x512", "purpose": "monochrome" }
+  ],
+  "shortcuts": [
+    {
+      "name": "New invoice",
+      "short_name": "Invoice",
+      "description": "Create and send an invoice",
+      "url": "/invoices/new?source=pwa-shortcut",
+      "icons": [{ "src": "/shortcuts/invoice-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Point of sale",
+      "short_name": "POS",
+      "description": "Open the till and ring up a sale",
+      "url": "/pos?source=pwa-shortcut",
+      "icons": [{ "src": "/shortcuts/pos-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "New booking",
+      "short_name": "Booking",
+      "description": "Schedule an appointment",
+      "url": "/bookings?new=1&source=pwa-shortcut",
+      "icons": [{ "src": "/shortcuts/booking-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Ask DASYIN",
+      "short_name": "Ask",
+      "description": "Ask the AI assistant about your business",
+      "url": "/assistant?source=pwa-shortcut",
+      "icons": [{ "src": "/shortcuts/ask-96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard-narrow.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Dashboard on a phone: today's sales, bookings and invoices"
+    },
+    {
+      "src": "/screenshots/pos-narrow.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Point of sale on a phone"
+    },
+    {
+      "src": "/screenshots/dashboard-wide.png",
+      "sizes": "1440x900",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Dashboard on desktop"
+    },
+    {
+      "src": "/screenshots/invoices-wide.png",
+      "sizes": "1440x900",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Invoices on desktop"
+    }
   ]
 }

@@ -4,10 +4,9 @@
       <div>
         <div class="ui-eyebrow">Platform admin</div>
         <h1>Database</h1>
-        <p>Live PostgreSQL health and per-table statistics for the application schema.</p>
+        <p>Live PostgreSQL health and per-table statistics for the application schema.<template v-if="data"> · Checked {{ timeAgo(data.checked_at) }}</template></p>
       </div>
       <div class="ui-actions">
-        <span v-if="data" class="pf-muted pf-small">Checked {{ timeAgo(data.checked_at) }}</span>
         <button class="ui-btn" :disabled="loading" @click="load"><i :class="loading ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-rotate'"></i> Refresh</button>
         <button class="ui-btn ui-btn--primary" :disabled="analyzing || !data" @click="analyze">
           <i :class="analyzing ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-chart-simple'"></i> Update statistics
@@ -264,12 +263,15 @@ export default {
       if (!ok) return
       this.analyzing = true
       try {
-        const res = await platformAPI.analyze()
-        if (res.failed) toast.warning(`Statistics updated for ${res.tables - res.failed} tables; ${res.failed} failed`)
-        else toast.success(`Statistics updated for ${res.tables} tables in ${(res.duration_ms / 1000).toFixed(1)}s`)
+        const res = await toast.promise(platformAPI.analyze(), {
+          loading: `Running ANALYZE on ${this.data.table_count} tables…`,
+          success: (r) => (r.failed ? false : { title: 'Statistics updated', message: `${r.tables} tables in ${(r.duration_ms / 1000).toFixed(1)}s` }),
+          error: (e) => ({ title: 'Could not update statistics', message: apiErrorMessage(e, 'The database did not respond'), action: { label: 'Retry', icon: 'fa-solid fa-rotate-right', run: () => this.analyze() } })
+        })
+        if (res.failed) toast.warning(`Statistics updated for ${res.tables - res.failed} tables; ${res.failed} failed`, { title: 'Partly updated' })
         this.load()
-      } catch (e) {
-        toast.error(apiErrorMessage(e, 'Could not update statistics'))
+      } catch {
+        /* the toast already shows the error with Retry */
       } finally {
         this.analyzing = false
       }

@@ -309,7 +309,7 @@
                 <strong>{{ b.customer || 'Customer' }}</strong>
                 <small>{{ b.services || 'Appointment' }}</small>
               </div>
-              <span class="ui-badge" :class="statusBadge(b.status)">{{ statusLabel(b.status) }}</span>
+              <StatusBadge domain="booking" :status="b.status" size="sm" />
             </li>
           </ul>
         </template>
@@ -396,9 +396,7 @@
                 <strong>{{ p.name }}</strong>
                 <small>{{ p.sku }} · reorder at {{ Math.max(p.min_stock, p.reorder_point) }}</small>
               </div>
-              <span class="ui-badge" :class="p.current_stock <= 0 ? 'ui-badge--danger' : 'ui-badge--warning'">
-                {{ p.current_stock <= 0 ? 'Out of stock' : `${p.current_stock} left` }}
-              </span>
+              <StatusBadge domain="stock" :status="p.current_stock <= 0 ? 'out_of_stock' : 'low_stock'" :label="p.current_stock <= 0 ? 'Out of stock' : `${p.current_stock} left`" size="sm" />
             </li>
           </ul>
         </template>

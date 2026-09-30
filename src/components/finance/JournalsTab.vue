@@ -64,7 +64,7 @@
               <small v-if="e.reference" class="muted">Ref {{ e.reference }}</small>
             </td>
             <td class="hide-lg accounts">{{ accountSummary(e) }}</td>
-            <td><span class="ui-badge" :class="badge(e.status)">{{ statusLabel(e.status) }}</span></td>
+            <td><StatusBadge domain="journal" :status="e.status" /></td>
             <td class="num"><strong>{{ money(e.total_debit) }}</strong></td>
             <td class="row-actions" @click.stop>
               <template v-if="e.status === 'draft'">

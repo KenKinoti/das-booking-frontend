@@ -226,7 +226,7 @@
                     <span v-else class="muted">Not set yet (full access)</span>
                   </td>
                   <td>{{ o.plan ? industryName(o.plan.industry) : '—' }}</td>
-                  <td><span v-if="o.plan" class="ui-badge" :class="statusBadge(o.plan.status)">{{ statusLabel(o.plan.status) }}</span></td>
+                  <td><StatusBadge v-if="o.plan" domain="plan" :status="o.plan.status" :label="statusLabel(o.plan.status)" /></td>
                   <td class="num">{{ o.plan ? money(o.plan.price, o.plan.currency) : '—' }}<div v-if="o.plan" class="muted small">{{ o.plan.cycle }}</div></td>
                   <td class="num"><button class="ui-btn ui-btn--sm" @click.stop="openOrg(o)">Set plan</button></td>
                 </tr>

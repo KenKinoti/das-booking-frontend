@@ -97,7 +97,7 @@
       </div>
 
       <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-        <table class="ui-table">
+        <table class="ui-table" v-table-cards>
           <thead>
             <tr>
               <th>Receipt</th>
@@ -115,17 +115,17 @@
               <td class="nowrap">
                 {{ shortDate(t.created_at) }} <span class="muted">{{ time(t.created_at) }}</span>
               </td>
-              <td class="hide-md">
+              <td class="hide-md card-show">
                 <span v-if="t.customer" class="nowrap">{{ name(t.customer) }}</span>
                 <span v-else class="muted">Walk-in</span>
               </td>
-              <td class="hide-lg items-cell">
+              <td class="hide-lg items-cell card-show">
                 <span class="muted">{{ qty(t) }} ×</span> {{ itemsLabel(t) }}
               </td>
-              <td class="hide-sm">
+              <td class="hide-sm card-show">
                 <span class="pay"><i :class="payIcon(t)"></i> {{ payLabel(t) }}</span>
               </td>
-              <td><span class="ui-badge" :class="t.status === 'voided' ? 'ui-badge--void' : 'ui-badge--paid'">{{ t.status === 'voided' ? 'Voided' : 'Completed' }}</span></td>
+              <td><StatusBadge domain="pos" :status="t.status || 'completed'" /></td>
               <td class="num"><strong :class="{ struck: t.status === 'voided' }">{{ money(t.total_amount) }}</strong></td>
             </tr>
           </tbody>

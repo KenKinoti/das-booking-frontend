@@ -21,7 +21,7 @@
           <h1>{{ meeting.title }}</h1>
           <p class="head-meta">
             <span><i class="fa-regular fa-clock"></i> {{ range }}</span>
-            <span class="ui-badge" :class="`ui-badge--${status.cls}`">{{ status.label }}</span>
+            <StatusBadge domain="meeting" :status="status.key" />
             <span v-if="phase === 'in'" class="live"><span class="dot"></span> {{ elapsed }}</span>
           </p>
           <div v-if="(meeting.participants || []).length" class="head-people" :title="meeting.participants.map((p) => p.name || p.email).join(', ')">

@@ -61,7 +61,7 @@
               <h3>{{ c.name }}</h3>
               <a :href="c.store_url" target="_blank" rel="noopener noreferrer" class="muted small">{{ c.store_url.replace(/^https?:\/\//, '') }} <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
             </div>
-            <span class="ui-badge" :class="statusBadge(c.status)">{{ statusLabel(c.status) }}</span>
+            <StatusBadge domain="connection" :status="c.status || 'untested'" :label="statusLabel(c.status)" />
           </div>
           <dl class="store__meta">
             <div><dt>Platform</dt><dd>{{ c.platform === 'shopify' ? 'Shopify' : 'WooCommerce' }}</dd></div>
@@ -137,7 +137,7 @@
               <td class="num hide-sm tnum">{{ o.items_count }}</td>
               <td class="num tnum"><strong>{{ money(o.total, o.currency) }}</strong></td>
               <td>
-                <span class="ui-badge" :class="orderBadge(o.status)">{{ cap(o.status) }}</span>
+                <StatusBadge domain="order" :status="o.status" />
               </td>
             </tr>
           </tbody>
@@ -222,7 +222,7 @@
     <div v-if="order" class="ui-modal-backdrop" @mousedown.self="order = null">
       <div class="ui-modal" style="max-width: 680px" role="dialog" :aria-label="`Order ${order.number}`">
         <div class="ui-modal__head">
-          <h2>Order {{ order.number }} <span class="ui-badge" :class="orderBadge(order.status)" style="margin-left: 8px; vertical-align: middle">{{ cap(order.status) }}</span></h2>
+          <h2>Order {{ order.number }} <StatusBadge domain="order" :status="order.status" style="margin-left: 8px" /></h2>
           <button class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Close" @click="order = null"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="ui-modal__body">
@@ -443,13 +443,16 @@ export default {
     },
     async sync(c, quiet = false) {
       this.busy = { ...this.busy, [c.id]: 'sync' }
+      const tid = quiet ? 0 : toast.loading(`Importing orders from ${c.name}…`, { title: 'Import running' })
       try {
         const { data } = await api.post(`/ecom/connections/${c.id}/sync`)
         const { created, updated } = data.data
-        if (!quiet) toast.success(`Imported from ${c.name}: ${created} new, ${updated} updated`)
+        if (tid) toast.update(tid, { type: 'success', title: `Imported from ${c.name}`, message: `${created} new, ${updated} updated` })
         return true
       } catch (e) {
-        toast.error(`${c.name}: ${apiErrorMessage(e, 'Import failed')}`)
+        const msg = { title: `${c.name}: import failed`, message: apiErrorMessage(e, 'The store did not respond'), action: { label: 'Retry', icon: 'fa-solid fa-rotate-right', run: () => this.sync(c) } }
+        if (tid) toast.update(tid, { type: 'error', ...msg })
+        else toast.error(msg.message, { title: msg.title, action: msg.action })
         return false
       } finally {
         this.busy = { ...this.busy, [c.id]: '' }

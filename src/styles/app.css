@@ -1596,3 +1596,563 @@ video {
     background: var(--surface-hover);
   }
 }
+
+/* ==========================================================================
+   App shell v2.4 — installable app, bottom navigation, page widths,
+   responsive tables (cards on phones), sticky form actions.
+   ========================================================================== */
+:root {
+  --bottom-nav-h: 0px;
+  --page-narrow: 720px; /* single forms, settings sub-pages */
+  --page-medium: 980px; /* detail pages */
+  --gutter: 32px;
+}
+
+@media (max-width: 767px) {
+  html.has-bottom-nav {
+    --bottom-nav-h: 60px;
+  }
+
+  /* "More" in the bottom navigation opens the drawer */
+  html.has-bottom-nav .tb__menu {
+    display: none !important;
+  }
+}
+
+html.has-sheet-open,
+html.has-sheet-open body {
+  overflow: hidden;
+}
+
+/* Installed app (display-mode: standalone): no browser chrome, so respect
+   notches/home indicators and avoid accidental text selection on chrome UI */
+html.is-standalone .tb,
+html.is-standalone .sb {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html.is-standalone body {
+  overscroll-behavior-y: none;
+}
+
+/* Page width tokens */
+.ui-page--form {
+  max-width: var(--page-narrow);
+}
+
+.ui-page--medium {
+  max-width: var(--page-medium);
+}
+
+/* Section header inside a page (h2 + actions) */
+.ui-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 28px 0 12px;
+}
+
+.ui-section-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+/* Form building blocks */
+.ui-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ui-field__error,
+.ui-error {
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.ui-field.is-invalid .ui-input,
+.ui-field.is-invalid .ui-select,
+.ui-field.is-invalid .ui-textarea,
+.ui-select.is-invalid,
+.ui-textarea.is-invalid {
+  border-color: var(--danger);
+}
+
+.ui-req::after,
+.ui-label.is-required::after {
+  content: ' *';
+  color: var(--danger);
+}
+
+/* Action row at the end of a long form. Sticks to the bottom on phones. */
+.ui-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Floating action button (primary action on phones) */
+.ui-fab {
+  display: none;
+}
+
+/* Overflow menu (⋯) used for secondary page actions */
+.ui-overflow {
+  position: relative;
+  display: inline-flex;
+}
+
+.ui-overflow__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+}
+
+.ui-overflow__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-overflow__item i {
+  width: 16px;
+  color: var(--text-3);
+}
+
+.ui-overflow__item:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ui-overflow__item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ui-overflow__item.is-danger,
+.ui-overflow__item.is-danger i {
+  color: var(--danger);
+}
+
+/* Screen-reader-only helper (global) */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 991px) {
+  :root {
+    --gutter: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Long forms: keep Save/Cancel reachable */
+  .ui-form-actions {
+    position: sticky;
+    bottom: calc(var(--bottom-nav-h, 0px) + env(safe-area-inset-bottom));
+    z-index: 5;
+    margin: 16px calc(-1 * var(--gutter)) 0;
+    padding: 12px var(--gutter);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border);
+  }
+
+  html:not(.has-bottom-nav) .ui-form-actions {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .ui-form-actions > .ui-btn {
+    flex: 1 1 0;
+  }
+
+  .ui-fab {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(var(--bottom-nav-h, 0px) + env(safe-area-inset-bottom) + 16px);
+    z-index: 1010;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 54px;
+    min-width: 54px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font: inherit;
+    font-weight: 650;
+    font-size: 15px;
+    box-shadow: 0 10px 24px -6px color-mix(in srgb, var(--accent) 55%, transparent), var(--shadow);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .ui-fab i {
+    font-size: 18px;
+  }
+
+  .ui-overflow__menu {
+    position: fixed;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    top: auto;
+    bottom: calc(var(--bottom-nav-h, 0px) + env(safe-area-inset-bottom) + 10px);
+    min-width: 0;
+    border-radius: 16px;
+    padding: 8px;
+    animation: ui-sheet 0.2s var(--ease);
+  }
+
+  .ui-overflow__item {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  /* Tables → cards (opt-in with v-table-cards) */
+  .ui-table-wrap:has(> .ui-table--cards) {
+    overflow: visible;
+  }
+
+  .ui-table.ui-table--cards,
+  .ui-table.ui-table--cards > tbody {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .ui-table.ui-table--cards > thead {
+    display: none;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 4px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ui-table.ui-table--cards > tbody > tr:last-child {
+    border-bottom: 0;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    flex: 1 1 100%;
+    min-width: 0;
+    padding: 3px 0 !important;
+    border: 0 !important;
+    white-space: normal !important;
+    text-align: right;
+    position: static !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    font-size: 14px;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    max-width: 45%;
+    margin-right: auto;
+    padding-right: 12px;
+    color: var(--text-3);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td[data-label='']::before,
+  .ui-table.ui-table--cards > tbody > tr > td:not([data-label])::before {
+    display: none;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td:first-child {
+    justify-content: flex-start;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 600;
+    padding-bottom: 6px !important;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td:first-child::before {
+    display: none;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td:first-child > * {
+    min-width: 0;
+  }
+
+  /* Leading checkbox column: sits next to the title */
+  .ui-table.ui-table--cards > tbody > tr > td.card-check,
+  .ui-table.ui-table--cards > tbody > tr > td:first-child:has(> input[type='checkbox']:only-child) {
+    flex: 0 0 auto;
+    padding: 0 !important;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td.card-check + td,
+  .ui-table.ui-table--cards > tbody > tr > td:first-child:has(> input[type='checkbox']:only-child) + td {
+    flex: 1 1 0;
+    justify-content: flex-start;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td.card-check + td::before,
+  .ui-table.ui-table--cards > tbody > tr > td:first-child:has(> input[type='checkbox']:only-child) + td::before {
+    display: none;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td.is-card-actions {
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 8px !important;
+    flex-wrap: wrap;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td.is-card-actions::before {
+    display: none;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td[colspan] {
+    display: block;
+    text-align: center;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td[colspan]::before {
+    display: none;
+  }
+
+  .ui-table.ui-table--cards > tfoot {
+    display: block;
+  }
+
+  .ui-table.ui-table--cards > tfoot > tr {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 16px;
+  }
+
+  .ui-table.ui-table--cards > tfoot td,
+  .ui-table.ui-table--cards > tfoot th {
+    border: 0;
+    padding: 0;
+  }
+
+  .ui-table.ui-table--cards tbody tr.is-clickable:active {
+    background: var(--surface-hover);
+  }
+
+  /* Legacy containers: never wider than the screen */
+  .app-content .container,
+  .app-content .container-fluid {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: 100%;
+  }
+}
+
+@media print {
+  .bn,
+  .ui-fab,
+  .ip-banner,
+  .toasts {
+    display: none !important;
+  }
+}
+
+/* Touch targets & form legibility on phones (≥ 40px, 16px text in fields) */
+@media (max-width: 640px) {
+  .ui-tab {
+    height: 40px;
+    padding: 0 14px;
+  }
+
+  .ui-switch {
+    min-height: 40px;
+  }
+
+  .app-content button.chip,
+  .ui-modal button.chip {
+    min-height: 40px;
+  }
+
+  .ui-btn--sm,
+  .ui-btn.ui-btn--sm {
+    min-height: 40px;
+  }
+
+  .ui-input--sm,
+  .ui-select--sm,
+  .ui-select.sm,
+  .ui-input.sm {
+    min-height: 40px;
+  }
+
+  /* Fields never below 16px — stops iOS zooming into them */
+  .app-content input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+  .app-content select,
+  .app-content textarea,
+  .ui-modal input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+  .ui-modal select,
+  .ui-modal textarea,
+  .ui-input,
+  .ui-select,
+  .ui-textarea {
+    font-size: 16px !important;
+  }
+
+  /* Invisible hit area for small icon controls that can't grow visually */
+  .ui-hit {
+    position: relative;
+  }
+
+  .ui-hit::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
+}
+
+/* Card-mode visibility helpers for v-table-cards (phones) */
+@media (max-width: 640px) {
+  .ui-table.ui-table--cards > tbody > tr > td.card-show,
+  .ui-table.ui-table--cards > tbody > tr > td.card-show.hide-sm,
+  .ui-table.ui-table--cards > tbody > tr > td.card-show.hide-md,
+  .ui-table.ui-table--cards > tbody > tr > td.card-show.hide-lg,
+  .ui-table.ui-table--cards > tbody > tr > td.card-show.hide-xs {
+    display: flex !important;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td.card-hide,
+  .ui-table.ui-table--cards .card-hide {
+    display: none !important;
+  }
+
+  .ui-table.ui-table--cards .card-only {
+    display: revert !important;
+  }
+
+  /* Half-width cells: two small facts side by side */
+  .ui-table.ui-table--cards > tbody > tr > td.card-half {
+    flex: 1 1 calc(50% - 6px);
+  }
+}
+
+.card-only {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  /* A cell other than the first can be the card title */
+  .ui-table.ui-table--cards > tbody > tr > td.card-title {
+    order: -1;
+    justify-content: flex-start;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 600;
+    padding-bottom: 6px !important;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr > td.card-title::before {
+    display: none;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr:has(> td.card-title) > td:first-child:not(.card-title) {
+    justify-content: flex-end;
+    text-align: right;
+    font-size: 14px;
+    font-weight: inherit;
+    padding-bottom: 3px !important;
+  }
+
+  .ui-table.ui-table--cards > tbody > tr:has(> td.card-title) > td:first-child:not(.card-title)::before {
+    display: block;
+  }
+}
+
+/* Page header on phones: one row — secondary actions collapse to icon
+   buttons (their text stays as the accessible name), the primary action
+   fills the rest of the row. Pages with many secondary actions use
+   <OverflowMenu> (⋯). */
+@media (max-width: 640px) {
+  .ui-page-head .ui-actions:has(> .ui-btn--primary):not(:has(> :not(.ui-btn):not(.ui-overflow):not(.menu))) {
+    flex-wrap: nowrap;
+  }
+
+  .ui-page-head .ui-actions:has(> .ui-btn--primary) > .ui-btn:not(.ui-btn--primary):has(> i:first-child) {
+    flex: 0 0 42px;
+    width: 42px;
+    min-width: 42px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+    overflow: hidden;
+  }
+
+  .ui-page-head .ui-actions:has(> .ui-btn--primary) > .ui-btn:not(.ui-btn--primary):has(> i:first-child) > i {
+    font-size: 15px;
+    margin: 0;
+  }
+
+  .ui-page-head .ui-actions:has(> .ui-btn--primary) > .ui-btn:not(.ui-btn--primary):has(> i:first-child) > :not(i) {
+    display: none;
+  }
+
+  .ui-page-head .ui-actions > .ui-btn--primary {
+    order: 5;
+    min-width: 0;
+  }
+
+  .ui-page-head .ui-actions > .ui-btn--primary > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

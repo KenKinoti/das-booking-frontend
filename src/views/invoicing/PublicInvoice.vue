@@ -24,7 +24,9 @@
           </div>
           <div class="ui-actions">
             <button v-if="canAccept" class="ui-btn ui-btn--success" :disabled="busy" @click="accept"><i class="fa-solid fa-check"></i> Accept quote</button>
-            <button class="ui-btn" @click="print"><i class="fa-solid fa-download"></i> Download PDF</button>
+            <router-link v-if="canPay" :to="`/pay/${token}`" class="ui-btn ui-btn--primary" data-testid="public-pay"><i class="fa-solid fa-credit-card"></i> Pay now</router-link>
+            <a class="ui-btn" :href="pdfURL" data-testid="public-pdf"><i class="fa-solid fa-download"></i> Download PDF</a>
+            <button class="ui-btn ui-btn--icon" title="Print" aria-label="Print" @click="print"><i class="fa-solid fa-print"></i></button>
           </div>
         </div>
         <div v-if="accepted" class="ui-alert ui-alert--success mb"><i class="fa-solid fa-circle-check"></i><span>Thanks! You've accepted this quote — {{ business.business_name || 'the sender' }} will see it right away.</span></div>
@@ -41,13 +43,14 @@ import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import { formatCurrency } from '@/utils/currencies'
+import { apiURL } from '@/services/payments'
 
 export default {
   name: 'PublicInvoice',
   components: { InvoiceDocument },
   props: { token: { type: String, required: true } },
   data() {
-    return { doc: null, business: {}, error: null, busy: false, accepted: false }
+    return { doc: null, business: {}, error: null, busy: false, accepted: false, payEnabled: false }
   },
   computed: {
     isQuote() {
@@ -55,6 +58,12 @@ export default {
     },
     label() {
       return STATUS_LABELS[this.doc.display_status] || this.doc.display_status
+    },
+    canPay() {
+      return this.payEnabled && !this.isQuote && this.doc.balance_due > 0
+    },
+    pdfURL() {
+      return apiURL(`/api/v1/public/invoices/${this.token}/pdf?download=1`)
     },
     canAccept() {
       return this.isQuote && this.doc.status === 'sent' && this.doc.display_status !== 'expired' && !this.accepted
@@ -65,6 +74,7 @@ export default {
       const res = await invoicingApi.publicView(this.token)
       this.doc = res.invoice
       this.business = res.business || {}
+      this.payEnabled = !!res.pay_enabled
       document.title = `${this.isQuote ? 'Quote' : 'Invoice'} ${this.doc.number}${this.business.business_name ? ' · ' + this.business.business_name : ''}`
     } catch (e) {
       this.error = e.response?.status === 404 ? 'This link is invalid or has been replaced. Ask the sender for a new one.' : apiErrorMessage(e)

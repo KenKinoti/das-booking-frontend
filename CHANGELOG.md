@@ -6,6 +6,135 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.4.0] - 2026-09-30
+
+### Correct amounts in every email, exchange rates per customer, pre-send checks and a new email design
+
+- **Email amount bugs fixed.** (1) The send dialog filled `{{total}}` in the browser with
+  the *balance due* and the sender's own locale, so a part-paid invoice was emailed as
+  "invoice for A$3,213.98" while its PDF said Total A$3,313.98 (and KES showed as "KES"
+  in the email but "KSh" in the PDF, dates in US format). Subject and message are now
+  filled on the server from the stored, recalculated document: `{{total}}` is the total,
+  `{{amount_due}}` the balance, plus `{{amount_paid}}`, `{{deposit}}`, `{{currency}}`,
+  `{{pay_link}}` … (2) Shipping and fixed discounts were stored unrounded (12.345 in AUD
+  printed as A$12.35 but added 12.345), so printed lines did not add up — they are now
+  rounded to the currency's minor units. (3) Catalog prices (in your home currency) were
+  copied unconverted onto invoices in a customer's currency (KSh 1,500 became $1,500).
+- **Exchange rates.** `GET /api/v1/fx/rate` quotes live (ECB / ExchangeRate-API),
+  reference-table or your **manual** rate (Invoice settings → Exchange rates). Every
+  invoice / quote stores its **locked** rate, source and date, the home currency and
+  the total in it; converted lines keep their original catalog price. The editor shows
+  a notice ("Prices from your catalog are in KES and will be converted to USD at 1 KES
+  = … USD") with **Change rate**, **Keep KES** and, on drafts, **Update rate**; catalog
+  lines show "converted from KSh 1,500.00"; switching currency asks whether to convert
+  the amounts. Stale (> 24 h), reference and manual rates are flagged. Customers get a
+  notice when their currency differs from yours, and new customers now start in your
+  own country instead of Australia. POS and bookings stay in your home currency.
+- **Pre-send check + exact preview.** Before an invoice, quote, reminder or receipt is
+  emailed (or marked as sent) the server checks recipients, the sending account, that
+  totals recalculate to the stored amounts, currency decimals, the exchange rate, due
+  date, tax number, logo, pay link, the PDF, unresolved `{{placeholders}}`, amounts
+  typed in the message against the document, balance due and duplicate sends. Errors
+  block sending; warnings need **Send anyway**. The dialog shows the exact email
+  (HTML and plain text), subject, recipients and attachment (**View PDF**), and
+  **Send test to me**.
+- **Email log.** Every send, test and failed or blocked attempt is recorded
+  (`invoice_email_log`: recipients, subject, Message-ID, server response or SMTP error,
+  checks and the amounts shown) under the invoice's **Emails** tab.
+- **New email design** — responsive, table-based (Gmail / Outlook / Apple Mail),
+  dark-mode aware: logo header, amount-due card with status ("Part-paid — KSh 5,000.00
+  received", "Overdue by 15 days"), **View invoice** / **Pay now** buttons, the first
+  five lines and totals, and a footer with your address, contacts, tax number and a
+  reply note. Quotes, reminders and the new **payment receipt** email use the same
+  template; the plain-text part mirrors it.
+- Invoicing overview: other-currency balances are also shown converted to your
+  currency at each invoice's locked rate (clearly labelled; not added to the totals).
+- Installable web app, notification centre, mobile polish
+
+## [2.3.0] - 2026-09-30
+
+### Invoice PDFs, View / Pay now links in every email, and online payments with Flutterwave
+
+- **PDF copy of every invoice and quote** — made on the server, laid out like the
+  on-screen document: company logo (PNG/JPEG; an SVG logo falls back to the business
+  name), business details, Tax invoice / Invoice / Quote title and number, bill-to,
+  dates, amount-due box, line items with wrapping descriptions (long lists continue
+  on the next page with the table header), subtotal, discount, tax per rate,
+  shipping, total, deposit / payments and balance due, notes, payment instructions,
+  a **Pay online** link and page numbers. Every currency symbol prints (₦ ₵ ₹ € £ ¥
+  KSh …; embedded DejaVu Sans) with the right decimals (JPY/UGX none, KWD three).
+  **Download PDF** on the invoice page and on the client's link (Print is still there);
+  payments have a **receipt** PDF.
+- **Emails carry the PDF and two buttons** — invoices, quotes and payment reminders are
+  sent with `INV-1005.pdf` attached, a **View invoice** button (quotes: **View &
+  accept quote**) and, when online payments are on and a balance is due, a **Pay now**
+  button; the plain-text version has the same links. The send dialog shows what will
+  be included. Sends without a subject or message (API, Ask DASYIN) use the templates
+  from Invoice settings.
+- **Online payments with Flutterwave** (Settings → **Online payments**, administrators):
+  test / live mode, public, secret and encryption keys and the webhook secret hash
+  (encrypted at rest, never shown again), the webhook URL to paste into Flutterwave
+  with a copy button, **Test connection**, the payment methods to offer (M-Pesa,
+  mobile money in Ghana / Uganda / Tanzania / Rwanda / Zambia, bank transfer, USSD,
+  cards), who pays the fee (your business, or added for the client as a processing-fee
+  line shown before paying), part payments with a minimum, tax on fees, and an
+  editable **fee table** pre-filled with Flutterwave's published prices (checked
+  30 Sep 2026 — verify them against your Flutterwave dashboard).
+- **Lowest-fee method first** — the client's pay page (`/pay/…`, no sign-in) works out
+  the fee of every method for the invoice's currency and amount (local vs international
+  cards by the client's country), lists them cheapest first and preselects the cheapest
+  ("Recommended — lowest fee"), e.g. M-Pesa for KES. Flutterwave's checkout opens on
+  the chosen method.
+- **Recorded once, only when verified** — after the client pays, the payment is
+  checked with Flutterwave (status successful, full amount, same currency) before it is
+  recorded on the invoice as “Flutterwave · M-Pesa” etc.; the redirect back and the
+  webhook (checked against your secret hash, then re-verified) can't record it twice.
+  The client sees a success page with a receipt, or a clear failed / cancelled page
+  with **Try again**.
+- **On the invoice** — an **Online payments** card with the pay link (**Copy pay
+  link**), every attempt (paid, failed, cancelled) with the fee Flutterwave charged,
+  and activity entries. Platform admins see which organisations take online payments
+  under System settings.
+- **Profit & loss** — Flutterwave's fees appear as **Payment processing fees**
+  (operating expense) and fees paid by clients as **Payment surcharges collected**.
+- **Ask DASYIN / MCP** — new `invoices_payment_link` tool; `invoices_send` reports
+  the attachment and the View / Pay links.
+
+## [2.2.1] - 2026-09-30
+
+### Outgoing email that uses the settings you save (Gmail works)
+
+- **Email settings now actually send** — invoices, quotes, payment reminders, meeting
+  invitations, test emails and the Ask DASYIN / MCP `invoices_send` tool all use one
+  sender that reads the SMTP account saved in the app. Previously only the server's
+  `SMTP_*` environment variables were used, so a Gmail account saved in System settings
+  still showed “Email sending isn't set up on this server”. Which account is used:
+  the organisation's own settings (**Settings → Outgoing email**, when switched on) →
+  the platform default (**System settings → Email**, set by a super admin) → the
+  server's `SMTP_*` variables → not set up (only then does the send dialog offer
+  “Open in email app”).
+- **Gmail / Outlook quick setup** — one click fills smtp.gmail.com : 587 (STARTTLS) or
+  smtp.office365.com, with a reminder that Gmail needs an **App Password** (spaces are
+  removed automatically) and that the From address must be the Gmail account or a
+  verified alias. STARTTLS (587) and SSL/TLS (465) are both supported, with clear
+  errors (“Gmail rejected the username/app password — use an App Password”, connection
+  refused, wrong port/TLS mode, recipient refused).
+- **Multiple recipients in the email settings** — **Always CC**, **Always BCC** (e.g. an
+  accounts@ address for your records), a single **Reply-to**, and **Notification
+  recipients** (who receive test emails), each entered one address per row (paste
+  several separated by commas). Always CC/BCC are added to every invoice, quote and
+  reminder, merged and de-duplicated with the customer's CC contacts and shown in the
+  send dialog, where they can be removed for one send. The dialog also has a BCC field
+  and shows **Sending from: Name &lt;email&gt;**.
+- **Correct sender in the overview** — System settings → Overview, Settings → Outgoing
+  email and Invoice settings show the account really in use: source (Organisation /
+  Platform default / Server environment), From name and address, server, security, last
+  successful send and last error, and a clear **Ready to send** state.
+- **Test before saving** — “Send test email” uses the saved settings (to the
+  notification recipients or a typed address); with unsaved changes it tests those
+  instead. “Check connection” signs in without sending.
+- SMTP passwords saved from now on are stored encrypted.
+
 ## [2.2.0] - 2026-09-25
 
 ### Where the business is based, deposits, profit & loss and duplicate organisations

@@ -91,7 +91,7 @@
       </div>
 
       <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-        <table class="ui-table">
+        <table class="ui-table" v-table-cards>
           <thead>
             <tr>
               <th>Number</th>
@@ -101,7 +101,7 @@
               <th>Status</th>
               <th class="num">Total</th>
               <th v-if="!isQuote" class="num hide-sm">Balance</th>
-              <th style="width: 44px"></th>
+              <th style="width: 44px" data-label=""></th>
             </tr>
           </thead>
           <tbody>
@@ -126,10 +126,10 @@
                 <span :class="{ 'txt-danger': inv.display_status === 'overdue' }">{{ date(inv.due_date) }}</span>
                 <small v-if="inv.display_status === 'overdue'" class="due-note">{{ inv.days_overdue }}d late</small>
               </td>
-              <td><span class="ui-badge" :class="`ui-badge--${inv.display_status}`">{{ label(inv.display_status) }}</span></td>
+              <td><StatusBadge :domain="isQuote ? 'quote' : 'invoice'" :status="inv.display_status" :label="label(inv.display_status)" /></td>
               <td class="num"><strong>{{ money(inv.total, inv.currency) }}</strong></td>
               <td v-if="!isQuote" class="num hide-sm" :class="{ muted: inv.balance_due <= 0 }">{{ money(inv.balance_due, inv.currency) }}</td>
-              <td @click.stop>
+              <td class="row-go" @click.stop>
                 <router-link :to="`${basePath}/${inv.id}`" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Open ${inv.number}`"><i class="fa-solid fa-chevron-right"></i></router-link>
               </td>
             </tr>
@@ -154,9 +154,11 @@ import { apiErrorMessage } from '@/services/api'
 import { formatDate, downloadBlob, isoDate } from '@/utils/format'
 import { formatCurrency, currencyDecimals } from '@/utils/currencies'
 import { toast } from '@/composables/useToast'
+import StatusBadge from '@/components/ui/StatusBadge.vue'
 
 export default {
   name: 'InvoiceList',
+  components: { StatusBadge },
   props: { docType: { type: String, default: 'invoice' } },
   data() {
     return {
@@ -501,6 +503,12 @@ export default {
 
 @media (max-width: 1100px) {
   .hide-md { display: none; }
+}
+
+/* Phones: rows become cards (v-table-cards); the whole card opens the document */
+@media (max-width: 640px) {
+  .ui-table--cards td.row-go,
+  .ui-table--cards td.hide-md { display: none !important; }
 }
 
 @media (max-width: 700px) {

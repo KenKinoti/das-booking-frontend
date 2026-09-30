@@ -3,7 +3,7 @@
     <aside class="drawer" role="dialog" aria-modal="true" aria-label="Booking details">
       <header class="drawer__head">
         <div class="drawer__title">
-          <span class="ui-badge" :class="`ui-badge--${meta.badge}`">{{ meta.label }}</span>
+          <StatusBadge domain="booking" :status="booking.status" />
           <h2>{{ customerName || 'Booking' }}</h2>
           <p>{{ whenLong }}</p>
         </div>

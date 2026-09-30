@@ -611,4 +611,11 @@ td.num {
     gap: 12px;
   }
 }
+
+@media (max-width: 640px) {
+  .sort {
+    min-height: 40px;
+    margin: -11px 0;
+  }
+}
 </style>

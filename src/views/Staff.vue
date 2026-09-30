@@ -83,7 +83,7 @@
       </div>
 
       <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-        <table class="ui-table">
+        <table class="ui-table" v-table-cards>
           <thead>
             <tr>
               <th>Name</th>
@@ -109,13 +109,13 @@
               </td>
               <td><span class="ui-badge" :class="roleInfo(u.role).badge">{{ roleInfo(u.role).label }}</span></td>
               <td v-if="allOrgs" class="hide-md muted">{{ orgNames[u.organization_id] || '—' }}</td>
-              <td class="hide-md nowrap">{{ u.phone || '—' }}</td>
-              <td class="hide-sm">
+              <td class="hide-md nowrap card-show">{{ u.phone || '—' }}</td>
+              <td class="hide-sm card-show">
                 <span v-if="u.last_login_at" :title="dateTime(u.last_login_at)">{{ ago(u.last_login_at) }}</span>
                 <span v-else class="muted">Never</span>
               </td>
               <td class="hide-lg muted">{{ date(u.created_at) }}</td>
-              <td><span class="ui-badge" :class="u.is_active ? 'ui-badge--success' : 'ui-badge--draft'">{{ u.is_active ? 'Active' : 'Deactivated' }}</span></td>
+              <td><StatusBadge domain="staff" :status="u.is_active ? 'active' : 'inactive'" /></td>
               <td class="actions-col" @click.stop>
                 <div v-if="canEdit(u)" class="row-actions">
                   <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Edit" :aria-label="`Edit ${name(u)}`" @click="openEdit(u)"><i class="fa-regular fa-pen-to-square"></i></button>
@@ -896,6 +896,11 @@ export default {
   }
   .ui-kpi__meta {
     display: none;
+  }
+}
+@media (max-width: 640px) {
+  .ui-table--cards .row-actions .hide-sm {
+    display: inline-flex;
   }
 }
 </style>

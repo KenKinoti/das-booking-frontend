@@ -124,7 +124,7 @@
               <tr v-for="r in rates" :key="r.id || r._tmp">
                 <td><input v-model="r.name" class="ui-input" aria-label="Tax name" /></td>
                 <td class="num"><input v-model.number="r.rate" type="number" min="0" max="100" step="any" class="ui-input r rate-in" aria-label="Rate" /></td>
-                <td><input type="radio" name="defrate" :checked="r.is_default" @change="setDefault(r)" aria-label="Default tax rate" /></td>
+                <td><label class="defrate"><input type="radio" name="defrate" :checked="r.is_default" @change="setDefault(r)" aria-label="Default tax rate" /></label></td>
                 <td class="num">
                   <button class="ui-btn ui-btn--sm" :disabled="r._saving" @click="saveRate(r)">Save</button>
                   <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" @click="deleteRate(r)" aria-label="Delete tax rate"><i class="fa-regular fa-trash-can"></i></button>
@@ -154,6 +154,8 @@
         </div>
       </section>
 
+      <FxRatesCard />
+
       <section class="ui-card mb">
         <div class="ui-card__head">
           <h2>Email template</h2>
@@ -170,8 +172,12 @@
             <span class="ui-hint">
               Placeholders: <code v-for="p in placeholders" :key="p" v-text="ph(p)"></code>
             </span>
+            <span class="ui-hint">
+              <code v-text="ph('total')"></code> is the document total, <code v-text="ph('amount_due')"></code> what is still to pay (after deposits and payments). Amounts are filled in on the server in the document's currency when the email is sent, and every email is checked before it goes out.
+            </span>
           </div>
-          <p v-if="!emailEnabled" class="ui-hint mt">To send directly from the app, set <code>SMTP_HOST</code>, <code>SMTP_USERNAME</code>, <code>SMTP_PASSWORD</code> and <code>SMTP_FROM</code> on the backend.</p>
+          <p v-if="sender && sender.ready" class="ui-hint mt" data-testid="invoice-sender"><i class="fa-regular fa-paper-plane"></i> Emails are sent from <strong>{{ sender.from }}</strong><template v-if="sender.always_cc.length"> · always CC {{ sender.always_cc.join(', ') }}</template><template v-if="sender.always_bcc.length"> · always BCC {{ sender.always_bcc.join(', ') }}</template>. <router-link to="/settings#email">Change</router-link></p>
+          <p v-else-if="!emailEnabled" class="ui-hint mt">To send directly from the app, connect an email account (e.g. Gmail) under <router-link to="/settings#email">Settings → Outgoing email</router-link>. Until then, “Open in email app” is used.</p>
         </div>
       </section>
     </template>
@@ -185,12 +191,13 @@ import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
+import FxRatesCard from '@/components/invoicing/FxRatesCard.vue'
 
 let tmp = 0
 
 export default {
   name: 'InvoiceSettings',
-  components: { OrgLogoUploader },
+  components: { OrgLogoUploader, FxRatesCard },
   data() {
     return {
       s: null,
@@ -198,9 +205,10 @@ export default {
       emailEnabled: false,
       saving: false,
       error: null,
+      sender: null,
       currencyGroups: currencyGroups(),
       swatches: ['#5b4cf0', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#db2777', '#111827'],
-      placeholders: ['client', 'number', 'type', 'type_lower', 'total', 'due_date', 'business', 'link']
+      placeholders: ['client', 'number', 'type', 'type_lower', 'total', 'amount_due', 'amount_paid', 'deposit', 'currency', 'issue_date', 'due_date', 'business', 'link', 'pay_link']
     }
   },
   async created() {
@@ -208,6 +216,7 @@ export default {
       const [res, rates] = await Promise.all([invoicingApi.getSettings(), invoicingApi.taxRates()])
       this.s = res.settings
       this.emailEnabled = res.email_enabled
+      this.sender = res.sender || null
       this.rates = rates
     } catch (e) {
       this.error = apiErrorMessage(e, 'Could not load settings')
@@ -328,6 +337,34 @@ export default {
 
 .swatch.on {
   box-shadow: 0 0 0 2px var(--text);
+}
+
+/* Phones / touch: 40px tap targets for the colour swatches */
+@media (max-width: 860px), (pointer: coarse) {
+  .swatches {
+    gap: 8px;
+  }
+  .swatch {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.defrate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.defrate input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .preview {

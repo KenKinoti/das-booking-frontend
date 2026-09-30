@@ -59,7 +59,7 @@
               <strong>{{ po.order_number }}</strong>
               <small>{{ fmtDate(po.order_date) }} · {{ (po.items || []).length }} item{{ (po.items || []).length === 1 ? '' : 's' }}</small>
             </span>
-            <span class="ui-badge" :class="`ui-badge--${statusMeta(po.status).badge}`">{{ statusMeta(po.status).label }}</span>
+            <StatusBadge domain="po" :status="po.status" size="sm" />
             <span class="po-total">{{ money(po.total_amount) }}</span>
             <i class="fa-solid fa-chevron-right chev"></i>
           </button>

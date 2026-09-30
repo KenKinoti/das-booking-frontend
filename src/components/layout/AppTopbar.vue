@@ -45,7 +45,9 @@
         </transition>
       </div>
 
-      <button class="tb__btn" @click="toggleTheme" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" aria-label="Toggle theme">
+      <NotificationCenter />
+
+      <button class="tb__btn tb__theme" @click="toggleTheme" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" aria-label="Toggle theme">
         <i :class="isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
       </button>
 
@@ -67,6 +69,11 @@
             <router-link to="/profile" class="tb__menu-item tb__menu-item--compact" @click="userOpen = false"><i class="fa-solid fa-user"></i> My profile</router-link>
             <router-link to="/settings" class="tb__menu-item tb__menu-item--compact" @click="userOpen = false"><i class="fa-solid fa-gear"></i> Settings</router-link>
             <router-link to="/faq" class="tb__menu-item tb__menu-item--compact" @click="userOpen = false"><i class="fa-solid fa-circle-question"></i> Help</router-link>
+            <button class="tb__menu-item tb__menu-item--compact tb__show-sm" type="button" @click="toggleTheme"><i :class="isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i> {{ isDark ? 'Light mode' : 'Dark mode' }}</button>
+            <button v-if="installVisible" class="tb__menu-item tb__menu-item--compact tb__install" type="button" @click="install">
+              <i class="fa-solid fa-mobile-screen-button"></i>
+              <span>Install app<small>{{ installHint }}</small></span>
+            </button>
             <div class="tb__menu-sep"></div>
             <button class="tb__menu-item tb__menu-item--compact tb__danger" @click="logout"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign out</button>
             <router-link to="/faq#about" class="tb__menu-ver" @click="userOpen = false" :title="`About ${appName} ${versionLabel}`">
@@ -89,9 +96,12 @@ import { entitlements, hasModule } from '@/composables/useEntitlements'
 import { APP_NAME } from '@/config'
 import { VERSION_LABEL } from '@/version'
 import { assistant, toggleAssistant } from '@/composables/useAssistant'
+import { pwa, canInstall, promptInstall } from '@/composables/usePwa'
+import NotificationCenter from './NotificationCenter.vue'
 
 export default {
   name: 'AppTopbar',
+  components: { NotificationCenter },
   emits: ['toggle-menu', 'open-search'],
   data() {
     return {
@@ -113,6 +123,13 @@ export default {
     },
     isDark() {
       return globalTheme.isDark.value
+    },
+    installVisible() {
+      void (pwa.installable, pwa.standalone)
+      return canInstall()
+    },
+    installHint() {
+      return pwa.isIOS ? 'Add to Home Screen' : 'Use DASYIN like a native app'
     },
     askOpen() {
       return assistant.open
@@ -165,6 +182,10 @@ export default {
   methods: {
     toggleTheme() {
       globalTheme.toggleTheme()
+    },
+    install() {
+      this.userOpen = false
+      promptInstall()
     },
     toggleAsk() {
       if (this.$route.path === '/assistant') assistant.focusTick++
@@ -544,6 +565,31 @@ export default {
   font-size: 10px;
 }
 
+.tb__show-sm {
+  display: none !important;
+}
+
+.tb__install {
+  color: var(--accent) !important;
+}
+
+.tb__install i {
+  color: var(--accent) !important;
+}
+
+.tb__install span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.tb__install small {
+  font-weight: 400;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
 .pop-enter-active,
 .pop-leave-active {
   transition: opacity 0.14s, transform 0.14s var(--ease);
@@ -584,8 +630,12 @@ export default {
     gap: 10px;
   }
   .tb__hide-sm,
-  .tb__search span {
+  .tb__search span,
+  .tb__theme {
     display: none;
+  }
+  .tb__show-sm {
+    display: flex !important;
   }
   .tb__crumb-page {
     font-size: 15px;

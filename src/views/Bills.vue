@@ -103,7 +103,7 @@
         </div>
 
         <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-          <table class="ui-table">
+          <table class="ui-table" v-table-cards>
             <thead>
               <tr>
                 <th>Bill</th>
@@ -113,7 +113,7 @@
                 <th>Status</th>
                 <th class="num">Total</th>
                 <th class="num hide-sm">Amount due</th>
-                <th style="width: 120px"></th>
+                <th style="width: 120px" data-label=""></th>
               </tr>
             </thead>
             <tbody>
@@ -122,7 +122,7 @@
                   <strong class="mono">{{ b.bill_number }}</strong>
                   <small v-if="b.reference" class="sub">{{ b.reference }}</small>
                 </td>
-                <td>
+                <td class="card-title">
                   <div class="v-cell">
                     <span class="avatar">{{ initials(b.vendor_name) }}</span>
                     <span class="v-name">{{ b.vendor_name || '—' }}</span>
@@ -134,9 +134,9 @@
                   <small v-if="b.display_status === 'overdue'" class="due-note">{{ b.days_overdue }}d late</small>
                   <small v-else-if="b.amount_due > 0 && b.status !== 'draft' && isSoon(b)" class="soon-note">{{ rel(b.due_date) }}</small>
                 </td>
-                <td><span class="ui-badge" :class="`ui-badge--${badge(b)}`">{{ statusLabel(b) }}</span></td>
+                <td><StatusBadge domain="bill" :status="b.display_status" /></td>
                 <td class="num"><strong>{{ money(b.total) }}</strong></td>
-                <td class="num hide-sm" :class="{ muted: b.amount_due <= 0 }">{{ money(b.amount_due) }}</td>
+                <td class="num hide-sm card-show" :class="{ muted: b.amount_due <= 0 }">{{ money(b.amount_due) }}</td>
                 <td class="row-actions" @click.stop>
                   <button v-if="b.status === 'draft'" class="ui-btn ui-btn--sm" @click="approve(b)"><i class="fa-solid fa-check"></i> Approve</button>
                   <button v-else-if="b.amount_due > 0" class="ui-btn ui-btn--sm ui-btn--success" @click="pay(b)"><i class="fa-solid fa-money-bill-wave"></i> Pay</button>

@@ -7,7 +7,7 @@
           <h2 id="bd-title">{{ bill.vendor_name || 'Unknown vendor' }}</h2>
         </div>
         <div class="head-right">
-          <span class="ui-badge" :class="`ui-badge--${badge}`">{{ statusLabel }}</span>
+          <StatusBadge domain="bill" :status="bill.display_status" />
           <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Close" @click="$emit('close')"><i class="fa-solid fa-xmark"></i></button>
         </div>
       </div>

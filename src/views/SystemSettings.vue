@@ -32,29 +32,60 @@
       <!-- Overview -->
       <div v-else-if="tab === 'overview'" class="ui-card__body">
         <div class="overview">
-          <div class="panel">
+          <div class="panel" data-testid="overview-email">
             <div class="panel__head">
               <span class="panel__icon"><i class="fa-solid fa-paper-plane"></i></span>
               <div>
                 <h3>Outgoing email</h3>
-                <p class="pf-muted pf-small">Used for invoices, quotes and meeting invitations. Configured on the server with <code>SMTP_*</code> environment variables.</p>
+                <p class="pf-muted pf-small">Used for invoices, quotes, reminders and meeting invitations. Organisations without their own account use this platform default.</p>
               </div>
-              <span class="ui-badge" :class="runtime.smtp.configured ? 'ui-badge--success' : 'ui-badge--warning'">{{ runtime.smtp.configured ? 'Configured' : 'Not configured' }}</span>
+              <span class="ui-badge" :class="mailStatus.ready ? 'ui-badge--success' : 'ui-badge--warning'">{{ mailStatus.ready ? 'Ready to send' : 'Not set up' }}</span>
             </div>
             <dl class="pf-kv">
-              <dt>SMTP server</dt><dd>{{ runtime.smtp.host ? `${runtime.smtp.host}:${runtime.smtp.port}` : '—' }}</dd>
-              <dt>From address</dt><dd>{{ runtime.smtp.from || '—' }}</dd>
-              <dt>Authentication</dt><dd>{{ runtime.smtp.auth ? 'Username & password' : 'None' }}</dd>
+              <dt>Source</dt><dd data-testid="overview-email-source">{{ sourceLabel(mailStatus.source) }}</dd>
+              <dt>From</dt><dd data-testid="overview-email-from">{{ mailStatus.from || '—' }}</dd>
+              <dt>SMTP server</dt><dd>{{ mailStatus.host ? `${mailStatus.host}:${mailStatus.port} · ${securityLabel(mailStatus.security)}` : '—' }}</dd>
+              <dt>Authentication</dt><dd>{{ mailStatus.auth ? 'Username & password' : 'None' }}</dd>
+              <template v-if="mailStatus.reply_to"><dt>Reply-to</dt><dd>{{ mailStatus.reply_to }}</dd></template>
+              <template v-if="(mailStatus.always_cc || []).length"><dt>Always CC</dt><dd>{{ mailStatus.always_cc.join(', ') }}</dd></template>
+              <template v-if="(mailStatus.always_bcc || []).length"><dt>Always BCC</dt><dd>{{ mailStatus.always_bcc.join(', ') }}</dd></template>
+              <dt>Last sent</dt><dd>{{ mailStatus.last_success_at ? formatDateTime(mailStatus.last_success_at) : '—' }}</dd>
+              <template v-if="mailStatus.last_error_at"><dt>Last error</dt><dd class="pf-danger-text">{{ formatDateTime(mailStatus.last_error_at) }} — {{ mailStatus.last_error }}</dd></template>
             </dl>
+            <div v-if="mailStatus.problem" class="ui-alert ui-alert--danger" style="margin-top: 12px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ mailStatus.problem }}</span></div>
             <form class="test-row" @submit.prevent="sendTestEmail">
-              <input v-model.trim="testTo" class="ui-input" type="email" placeholder="you@example.com" aria-label="Send test email to" />
-              <button class="ui-btn" type="submit" :disabled="!runtime.smtp.configured || sendingTest">
+              <input v-model.trim="testTo" class="ui-input" type="email" :placeholder="(mailStatus.notification_recipients || []).length ? 'Notification recipients' : 'you@example.com'" aria-label="Send test email to" />
+              <button class="ui-btn" type="submit" :disabled="!mailStatus.ready || sendingTest">
                 <i :class="sendingTest ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-envelope'"></i> Send test email
               </button>
+              <button class="ui-btn ui-btn--ghost" type="button" @click="setTab('email')">Configure <i class="fa-solid fa-chevron-right"></i></button>
             </form>
             <div v-if="testResult" class="ui-alert" :class="testResult.success ? 'ui-alert--success' : 'ui-alert--danger'" style="margin-top: 12px">
               <i :class="testResult.success ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'"></i><span>{{ testResult.message }}</span>
             </div>
+          </div>
+
+          <div class="panel" data-testid="overview-payments">
+            <div class="panel__head">
+              <span class="panel__icon"><i class="fa-regular fa-credit-card"></i></span>
+              <div>
+                <h3>Online payments (Flutterwave)</h3>
+                <p class="pf-muted pf-small">Each organisation connects its own Flutterwave account under Settings → Online payments.</p>
+              </div>
+              <span class="ui-badge" :class="payReady ? 'ui-badge--success' : 'ui-badge--draft'">{{ payReady }} taking payments</span>
+            </div>
+            <dl class="pf-kv">
+              <dt>API</dt><dd>{{ payStatus.api_base_url || '—' }}</dd>
+              <dt>Webhook URL</dt><dd class="pf-small">{{ payStatus.webhook_url || '—' }}</dd>
+            </dl>
+            <ul v-if="(payStatus.organizations || []).length" class="pay-orgs">
+              <li v-for="o in payStatus.organizations" :key="o.organization_id">
+                <span>{{ o.name || o.organization_id }}</span>
+                <span class="ui-badge" :class="o.ready ? (o.mode === 'live' ? 'ui-badge--success' : 'ui-badge--warning') : 'ui-badge--draft'">{{ o.ready ? (o.mode === 'live' ? 'Live' : 'Test') : 'Off' }}</span>
+                <span class="pf-muted pf-small">{{ o.successful_payments }} paid<template v-if="o.last_test_at"> · test {{ o.last_test_ok ? 'OK' : 'failed' }}</template></span>
+              </li>
+            </ul>
+            <p v-else class="pf-muted pf-small" style="margin: 10px 0 0">No organisation has set up online payments yet.</p>
           </div>
 
           <div class="panel">
@@ -99,6 +130,17 @@
             </ul>
           </div>
         </div>
+      </div>
+
+      <!-- Email: platform default sender (shared component with Settings → Outgoing email) -->
+      <div v-else-if="tab === 'email'" class="ui-card__body form-body">
+        <div class="form-head">
+          <div>
+            <h2>Email (SMTP)</h2>
+            <p class="pf-muted">The platform default sender. Organisations can override it under Settings → Outgoing email.</p>
+          </div>
+        </div>
+        <EmailSettingsPanel scope="platform" @saved="load" />
       </div>
 
       <!-- Integration forms -->
@@ -236,33 +278,12 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatDateTime } from '@/utils/format'
 import { currencyGroups } from '@/utils/currencies'
-import { useAuthStore } from '@/stores/auth'
 import { platformAPI, ensurePlatformSession } from '@/services/platform'
+import EmailSettingsPanel from '@/components/settings/EmailSettingsPanel.vue'
+import { paymentsApi } from '@/services/payments'
+import { SOURCE_LABELS, SECURITY_LABELS } from '@/services/emailSettings'
 
 const SECTIONS = {
-  email: {
-    section: 'email_settings',
-    title: 'Email (SMTP)',
-    description: 'SMTP account stored for the platform organisation.',
-    test: 'email',
-    fields: [
-      { key: 'provider', label: 'Provider', type: 'select', options: [
-        { value: 'smtp', label: 'Custom SMTP' }, { value: 'gmail', label: 'Google Workspace / Gmail' }, { value: 'outlook', label: 'Microsoft 365 / Outlook' },
-        { value: 'sendgrid', label: 'SendGrid' }, { value: 'mailgun', label: 'Mailgun' }
-      ] },
-      { key: 'smtp_security', label: 'Security', type: 'select', options: [
-        { value: 'tls', label: 'STARTTLS (port 587)' }, { value: 'ssl', label: 'SSL/TLS (port 465)' }, { value: 'none', label: 'None (not recommended)' }
-      ] },
-      { key: 'smtp_host', label: 'SMTP host', placeholder: 'smtp.example.com' },
-      { key: 'smtp_port', label: 'Port', type: 'number', placeholder: '587' },
-      { key: 'smtp_username', label: 'Username' },
-      { key: 'smtp_password', label: 'Password', type: 'secret' },
-      { type: 'section', key: 's1', label: 'Sender' },
-      { key: 'from_name', label: 'From name' },
-      { key: 'from_email', label: 'From email', type: 'email' },
-      { key: 'reply_to_email', label: 'Reply-to email', type: 'email', wide: true }
-    ]
-  },
   stripe: {
     section: 'stripe_settings',
     title: 'Payments (Stripe)',
@@ -309,9 +330,11 @@ const SECTIONS = {
 
 export default {
   name: 'SystemSettings',
+  components: { EmailSettingsPanel },
   data() {
     return {
       settings: null,
+      payStatus: {},
       draft: {},
       original: {},
       clear: [],
@@ -321,7 +344,7 @@ export default {
       testing: false,
       error: '',
       tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
-      testTo: useAuthStore().user?.email || '',
+      testTo: '',
       sendingTest: false,
       testResult: null,
       testOutcome: null,
@@ -330,7 +353,7 @@ export default {
       currencyGroups: currencyGroups(),
       tabs: [
         { value: 'overview', label: 'Overview', icon: 'fa-solid fa-gauge' },
-        { value: 'email', label: 'Email', icon: 'fa-solid fa-envelope', section: 'email_settings' },
+        { value: 'email', label: 'Email', icon: 'fa-solid fa-envelope' },
         { value: 'stripe', label: 'Payments', icon: 'fa-solid fa-credit-card', section: 'stripe_settings' },
         { value: 'twilio', label: 'SMS', icon: 'fa-solid fa-comment-sms', section: 'twilio_settings' },
         { value: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', section: 'whatsapp_settings' },
@@ -339,11 +362,17 @@ export default {
     }
   },
   computed: {
+    payReady() {
+      return (this.payStatus.organizations || []).filter((o) => o.ready).length
+    },
     current() {
       return SECTIONS[this.tab] || null
     },
     runtime() {
       return this.settings?.runtime || { smtp: {} }
+    },
+    mailStatus() {
+      return this.runtime.smtp?.status || {}
     },
     integrationSummary() {
       const s = this.settings || {}
@@ -352,7 +381,7 @@ export default {
       const tw = s.twilio_settings || {}
       const wa = s.whatsapp_settings || {}
       return [
-        { key: 'email', label: 'Email (SMTP)', icon: 'fa-solid fa-envelope', enabled: e.enabled, verified: null, tested: !!e.last_tested_at, detail: e.smtp_host ? `${e.smtp_host}:${e.smtp_port}` : 'No SMTP server saved' },
+        { key: 'email', label: 'Email (SMTP)', icon: 'fa-solid fa-envelope', enabled: e.enabled, verified: null, tested: !!e.last_tested_at, detail: e.smtp_host ? `${e.smtp_host}:${e.smtp_port}${e.from_email ? ` · from ${e.from_email}` : ''}` : 'No SMTP server saved' },
         { key: 'stripe', label: 'Stripe', icon: 'fa-solid fa-credit-card', enabled: st.enabled, verified: !!st.connection_verified, tested: !!st.last_tested_at, detail: st.publishable_key ? `${st.test_mode ? 'Test' : 'Live'} mode · ${st.currency}` : 'No keys saved' },
         { key: 'twilio', label: 'Twilio SMS', icon: 'fa-solid fa-comment-sms', enabled: tw.enabled, verified: !!tw.connection_verified, tested: !!tw.last_tested_at, detail: tw.account_sid ? `From ${tw.from_phone_number || '—'}` : 'No account saved' },
         { key: 'whatsapp', label: 'WhatsApp Business', icon: 'fa-brands fa-whatsapp', enabled: wa.enabled, verified: !!wa.connection_verified, tested: !!wa.last_tested_at, detail: wa.phone_number_id ? `Phone number ID ${wa.phone_number_id}` : 'No credentials saved' }
@@ -374,6 +403,12 @@ export default {
   },
   methods: {
     formatDateTime,
+    sourceLabel(s) {
+      return SOURCE_LABELS[s || ''] || s
+    },
+    securityLabel(s) {
+      return SECURITY_LABELS[s] || s
+    },
     apply(res) {
       this.settings = res
       const draft = {}
@@ -391,9 +426,17 @@ export default {
       for (const f of sec.fields) if (f.type !== 'section') out[f.key] = obj[f.key] ?? ''
       return out
     },
+    async loadPayStatus() {
+      try {
+        this.payStatus = await paymentsApi.platformStatus()
+      } catch {
+        this.payStatus = {}
+      }
+    },
     async load() {
       this.loading = true
       this.error = ''
+      this.loadPayStatus()
       try {
         this.apply(await platformAPI.integrations())
       } catch (e) {
@@ -530,6 +573,7 @@ export default {
       this.testResult = null
       try {
         this.testResult = await platformAPI.sendTestEmail(this.testTo)
+        this.settings = { ...this.settings, runtime: (await platformAPI.integrations()).runtime }
       } catch (e) {
         this.testResult = { success: false, message: apiErrorMessage(e, 'Could not send the test email') }
       } finally {
@@ -541,6 +585,22 @@ export default {
 </script>
 
 <style scoped>
+.pay-orgs {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.pay-orgs li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
 .overview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

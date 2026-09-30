@@ -93,7 +93,7 @@
         <button v-else class="ui-btn" style="margin-top: 12px" @click="resetFilters">Clear filters</button>
       </div>
       <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-        <table class="ui-table">
+        <table class="ui-table" v-table-cards>
           <thead>
             <tr>
               <th>Product</th>
@@ -118,16 +118,16 @@
                   </span>
                 </div>
               </td>
-              <td class="hide-sm mono muted nowrap">{{ p.sku }}</td>
+              <td class="hide-sm mono muted nowrap card-show">{{ p.sku }}</td>
               <td class="num">
                 <strong :class="stockClass(p)">{{ p.current_stock }}</strong>
                 <small class="unit">{{ p.unit_of_measure || 'each' }}</small>
               </td>
               <td class="num hide-lg muted">{{ threshold(p) || '—' }}</td>
               <td class="num hide-md">{{ money(p.cost_price) }}</td>
-              <td class="num hide-md">{{ money(p.selling_price) }}</td>
-              <td class="num hide-lg strong">{{ money(p.stock_value) }}</td>
-              <td class="hide-sm"><span class="ui-badge" :class="`ui-badge--${status(p).badge}`">{{ status(p).label }}</span></td>
+              <td class="num hide-md card-show">{{ money(p.selling_price) }}</td>
+              <td class="num hide-lg strong card-show">{{ money(p.stock_value) }}</td>
+              <td class="hide-sm card-show"><StatusBadge domain="stock" :status="p.stock_status || 'in_stock'" :label="status(p).label" /></td>
               <td class="actions-col" @click.stop>
                 <div class="row-actions">
                   <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" title="Adjust stock" :aria-label="`Adjust stock for ${p.name}`" @click="openAdjust(p)"><i class="fa-solid fa-sliders"></i></button>
@@ -589,6 +589,11 @@ tr.is-off td {
 @media (max-width: 480px) {
   .hide-xs {
     display: none;
+  }
+}
+@media (max-width: 640px) {
+  .ui-table--cards .row-actions .hide-xs {
+    display: inline-flex;
   }
 }
 </style>

@@ -7,7 +7,7 @@
             <span class="key">{{ project.key }}</span>
             <span v-if="isJira" class="src src--jira"><i class="fa-brands fa-jira"></i> Jira</span>
             <span v-else class="src"><i class="fa-solid fa-house"></i> Local</span>
-            <span class="ui-badge" :class="`ui-badge--${statusMeta.badge}`">{{ statusMeta.label }}</span>
+            <StatusBadge domain="project" :status="project.status" />
           </div>
           <h2>{{ project.name }}</h2>
           <p v-if="project.description" class="desc">{{ project.description }}</p>
@@ -158,7 +158,7 @@
               <tr v-for="t in filtered" :key="t.id" class="is-clickable" @click="openTask(t)">
                 <td class="nowrap"><i :class="typeIcon(t.type)" class="muted"></i> <strong>{{ t.key }}</strong></td>
                 <td>{{ t.title }} <i v-if="t.source === 'jira'" class="fa-solid fa-arrow-up-right-from-square ext"></i></td>
-                <td class="nowrap"><span class="ui-badge" :class="`ui-badge--${catBadge(t.status_category)}`">{{ t.status || catLabel(t.status_category) }}</span></td>
+                <td class="nowrap"><StatusBadge domain="task" :status="t.status_category" :label="t.status || catLabel(t.status_category)" size="sm" /></td>
                 <td class="hide-sm">{{ t.assignee_name || '—' }}</td>
                 <td class="hide-sm"><span v-if="prio(t)" class="prio" :class="`tone-${prio(t).tone}`"><i :class="prio(t).icon"></i> {{ prio(t).label }}</span><span v-else class="muted">—</span></td>
                 <td class="nowrap" :class="{ 'txt-danger': overdue(t) }">{{ t.due_date ? shortDate(t.due_date) : '—' }}</td>

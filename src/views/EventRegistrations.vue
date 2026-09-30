@@ -115,8 +115,8 @@
                   {{ r.ticket_type_name || '—' }}<span v-if="r.quantity > 1" class="muted"> ×{{ r.quantity }}</span>
                   <small class="ref">#{{ r.qr_code }}</small>
                 </td>
-                <td class="hide-md"><span class="ui-badge" :class="`ui-badge--${regMeta(r).badge}`">{{ regMeta(r).label }}</span></td>
-                <td class="hide-md"><span class="ui-badge" :class="`ui-badge--${payMeta(r).badge}`">{{ payMeta(r).label }}</span></td>
+                <td class="hide-md card-show"><StatusBadge domain="registration" :status="r.status || 'pending'" /></td>
+                <td class="hide-md card-show"><StatusBadge domain="event_payment" :status="r.payment_status || 'pending'" /></td>
                 <td class="num hide-sm">{{ r.total_amount > 0 ? money(r.total_amount) : '—' }}</td>
                 <td class="hide-lg muted nowrap">{{ dateTime(r.registration_date || r.created_at) }}</td>
                 <td>

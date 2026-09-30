@@ -124,7 +124,7 @@
         </div>
 
         <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-          <table class="ui-table bk-table">
+          <table class="ui-table bk-table" v-table-cards>
             <thead>
               <tr>
                 <th>
@@ -137,7 +137,7 @@
                 <th class="hide-sm">Staff</th>
                 <th class="hide-xs">Status</th>
                 <th class="num hide-xs">Price</th>
-                <th style="width: 44px"></th>
+                <th style="width: 44px" data-label=""></th>
               </tr>
             </thead>
             <tbody>
@@ -153,28 +153,28 @@
                     <strong>{{ formatTime(b.start_time) }}</strong>
                     <small>{{ formatDuration(minutesBetween(b.start_time, b.end_time)) }}</small>
                   </td>
-                  <td>
+                  <td class="card-title">
                     <div class="client-cell">
                       <span class="avatar">{{ initials(personName(b.customer)) }}</span>
                       <span class="client-text">
                         <span class="client-name">{{ personName(b.customer) || 'Unknown customer' }}</span>
                         <small>{{ b.customer?.phone || b.customer?.email || '' }}<template v-if="b.vehicle"> · {{ vehicleLabel(b.vehicle) }}</template></small>
-                        <small class="show-md">{{ serviceNames(b) }}</small>
-                        <span class="ui-badge show-xs" :class="`ui-badge--${statusMeta(b.status).badge}`">{{ statusMeta(b.status).label }} · {{ money(b.total_price) }}</span>
+                        <small class="show-md card-hide">{{ serviceNames(b) }}</small>
+                        <span class="show-xs card-hide"><StatusBadge domain="booking" :status="b.status" size="sm" /> · {{ money(b.total_price) }}</span>
                       </span>
                     </div>
                   </td>
-                  <td class="hide-md svc-cell">
+                  <td class="hide-md svc-cell card-show">
                     <span v-if="b.services?.length">{{ serviceNames(b) }}</span>
                     <span v-else class="muted">—</span>
                   </td>
-                  <td class="hide-sm">
+                  <td class="hide-sm card-show">
                     <span v-if="b.staff" class="staff-chip"><span class="dot">{{ initials(personName(b.staff)) }}</span>{{ personName(b.staff) }}</span>
                     <span v-else class="muted">Unassigned</span>
                   </td>
-                  <td class="hide-xs"><span class="ui-badge" :class="`ui-badge--${statusMeta(b.status).badge}`">{{ statusMeta(b.status).label }}</span></td>
-                  <td class="num hide-xs"><strong>{{ money(b.total_price) }}</strong></td>
-                  <td @click.stop>
+                  <td class="hide-xs card-show"><StatusBadge domain="booking" :status="b.status" /></td>
+                  <td class="num hide-xs card-show"><strong>{{ money(b.total_price) }}</strong></td>
+                  <td class="card-hide" @click.stop>
                     <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Open booking for ${personName(b.customer)}`" @click="openDrawer(b)"><i class="fa-solid fa-chevron-right"></i></button>
                   </td>
                 </tr>
@@ -219,7 +219,7 @@
               <span class="agenda__main">
                 <span class="agenda__top">
                   <strong>{{ personName(b.customer) || 'Booking' }}</strong>
-                  <span class="ui-badge" :class="`ui-badge--${statusMeta(b.status).badge}`">{{ statusMeta(b.status).label }}</span>
+                  <StatusBadge domain="booking" :status="b.status" size="sm" />
                 </span>
                 <small>{{ serviceNames(b) || 'No services' }}</small>
                 <small v-if="b.staff || b.vehicle" class="agenda__extra">
@@ -1111,5 +1111,18 @@ tr.is-dim td:nth-child(5) { opacity: 1; }
   .view-switch { width: 100%; }
   .view-switch .ui-tab { flex: 1; justify-content: center; }
   .client-text small { max-width: 160px; }
+}
+
+/* Phone cards */
+@media (max-width: 640px) {
+  .bk-table.ui-table--cards tr.group-row { padding: 10px 16px; background: var(--bg-subtle); }
+  .bk-table.ui-table--cards tr.group-row td { display: flex !important; justify-content: space-between; text-align: left; background: transparent !important; padding: 0 !important; }
+  .bk-table.ui-table--cards .when { display: flex; }
+  .bk-table.ui-table--cards .when strong,
+  .bk-table.ui-table--cards .when small { display: inline; }
+  .bk-table.ui-table--cards .when small::before { content: ' · '; }
+  .bk-table.ui-table--cards .client-cell .avatar { display: grid; }
+  .bk-table.ui-table--cards .client-text small { max-width: none; }
+  .bk-table.ui-table--cards tr.is-dim { opacity: 0.7; }
 }
 </style>

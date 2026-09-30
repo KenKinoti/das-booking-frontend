@@ -53,7 +53,7 @@
           <div class="ui-kpi__label"><span class="ui-kpi__icon"><i :class="tierIcon(sub.tier)"></i></span>Current plan</div>
           <div class="ui-kpi__value"><span v-if="!plan" class="ui-skeleton sk"></span><template v-else>{{ plan.tier.name }}</template></div>
           <div class="ui-kpi__meta">
-            <span v-if="plan" class="ui-badge" :class="statusInfo.badge">{{ statusInfo.label }}</span>
+            <StatusBadge v-if="plan" domain="plan" :status="sub.status" :label="statusInfo.label" />
             <span v-if="plan && sub.grandfathered" class="meta-note">Legacy full access</span>
           </div>
         </div>

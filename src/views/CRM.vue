@@ -1351,4 +1351,10 @@ export default {
     display: none;
   }
 }
+
+@media (max-width: 640px) {
+  .col__add {
+    min-height: 40px;
+  }
+}
 </style>

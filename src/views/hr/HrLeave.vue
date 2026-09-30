@@ -25,7 +25,7 @@
       <button v-if="employees.length" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openCreate"><i class="fa-solid fa-plus"></i> Request leave</button>
     </div>
     <div v-else class="ui-table-wrap" :class="{ 'is-loading': loading }">
-      <table class="ui-table">
+      <table class="ui-table" v-table-cards>
         <thead>
           <tr>
             <th>Employee</th>
@@ -34,7 +34,7 @@
             <th class="num">Days</th>
             <th class="hide-md">Reason</th>
             <th>Status</th>
-            <th style="width: 1%"></th>
+            <th style="width: 1%" data-label=""></th>
           </tr>
         </thead>
         <tbody>
@@ -46,8 +46,8 @@
               <small v-if="isCurrent(l)" class="now-pill">Now</small>
             </td>
             <td class="num tnum">{{ l.days }}</td>
-            <td class="hide-md muted reason">{{ l.reason || '—' }}</td>
-            <td><span class="ui-badge" :class="badge(l.status)">{{ cap(l.status) }}</span></td>
+            <td class="hide-md muted reason card-show">{{ l.reason || '—' }}</td>
+            <td><StatusBadge domain="leave" :status="l.status" /></td>
             <td>
               <div class="row-actions">
                 <template v-if="l.status === 'pending' && canManage">

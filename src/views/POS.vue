@@ -1567,4 +1567,10 @@ export default {
     display: none;
   }
 }
+
+@media (max-width: 640px) {
+  .drawer-pill {
+    min-height: 40px;
+  }
+}
 </style>

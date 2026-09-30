@@ -74,6 +74,7 @@ const InvoiceEditor = () => import('../views/invoicing/InvoiceEditor.vue')
 const InvoiceDetail = () => import('../views/invoicing/InvoiceDetail.vue')
 const InvoiceSettings = () => import('../views/invoicing/InvoiceSettings.vue')
 const PublicInvoice = () => import('../views/invoicing/PublicInvoice.vue')
+const PayInvoice = () => import('../views/invoicing/PayInvoice.vue')
 const NotFound = () => import('../views/NotFound.vue')
 const BusinessHub = () => import('../views/smallbiz/BusinessHub.vue')
 const Meetings = () => import('../views/meetings/Meetings.vue')
@@ -332,6 +333,20 @@ const routes = [
     component: PublicInvoice,
     props: true,
     meta: { requiresAuth: false, public: true, title: 'Invoice' }
+  },
+  {
+    path: '/pay/:token',
+    name: 'PayInvoice',
+    component: PayInvoice,
+    props: (route) => ({ token: route.params.token, returning: false }),
+    meta: { requiresAuth: false, public: true, title: 'Pay invoice' }
+  },
+  {
+    path: '/pay/:token/return',
+    name: 'PayInvoiceReturn',
+    component: PayInvoice,
+    props: (route) => ({ token: route.params.token, returning: true }),
+    meta: { requiresAuth: false, public: true, title: 'Payment' }
   },
   {
     path: '/business',

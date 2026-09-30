@@ -24,7 +24,7 @@ export function calculate(doc) {
   const net = round2(items.reduce((s, i) => s + i._net, 0))
   let docDiscount = 0
   const dv = Math.max(0, Number(doc.discount_value) || 0)
-  if (dv > 0) docDiscount = doc.discount_type === 'amount' ? dv : (net * Math.min(dv, 100)) / 100
+  if (dv > 0) docDiscount = doc.discount_type === 'amount' ? round2(dv) : (net * Math.min(dv, 100)) / 100
   docDiscount = round2(Math.min(docDiscount, net))
 
   let lastIdx = -1
@@ -56,7 +56,8 @@ export function calculate(doc) {
   const subtotal = round2(items.reduce((s, i) => s + i._sub, 0))
   const lineDiscounts = round2(items.reduce((s, i) => s + i._disc, 0))
   const discountTotal = round2(lineDiscounts + docDiscount)
-  const shipping = Math.max(0, Number(doc.shipping_amount) || 0)
+  // Shipping is money in the document currency: rounded like every other amount.
+  const shipping = round2(Math.max(0, Number(doc.shipping_amount) || 0))
   tax = round2(tax)
   const total = doc.prices_include_tax ? round2(subtotal - discountTotal + shipping) : round2(subtotal - discountTotal + tax + shipping)
   const paid = Number(doc.amount_paid) || 0
@@ -74,6 +75,11 @@ export function calculate(doc) {
   }
 }
 
+/**
+ * Local placeholder fill — for previews only. Emails are always rendered by
+ * the server (GET /invoicing/invoices/:id/email-draft, POST …/preflight) so
+ * the amounts that go out use the document's stored, recalculated values.
+ */
 export function renderTemplate(template, vars) {
   return String(template || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (vars[k] ?? ''))
 }

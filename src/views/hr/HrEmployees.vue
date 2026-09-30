@@ -42,7 +42,7 @@
     </div>
 
     <div v-else class="ui-table-wrap">
-      <table class="ui-table">
+      <table class="ui-table" v-table-cards>
         <thead>
           <tr>
             <th>Employee</th>
@@ -51,7 +51,7 @@
             <th class="hide-md">Type</th>
             <th class="num">Pay</th>
             <th>Status</th>
-            <th style="width: 90px"></th>
+            <th style="width: 90px" data-label=""></th>
           </tr>
         </thead>
         <tbody>
@@ -72,7 +72,7 @@
               <strong>{{ money(e.pay_rate, e.currency) }}</strong>
               <small class="muted"> {{ e.pay_type === 'salary' ? '/ yr' : '/ hr' }}</small>
             </td>
-            <td><span class="ui-badge" :class="statusBadge(e.status)">{{ statusLabel(e.status) }}</span></td>
+            <td><StatusBadge domain="employee" :status="e.status" /></td>
             <td @click.stop>
               <div v-if="canManage" class="row-actions">
                 <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Edit ${e.full_name}`" title="Edit" @click="openEdit(e)"><i class="fa-regular fa-pen-to-square"></i></button>

@@ -136,7 +136,7 @@
               </div>
               <div class="ui-field">
                 <label for="currency">Currency</label>
-                <select id="currency" v-model="doc.currency" class="ui-select" @change="onCurrencyManual">
+                <select id="currency" :value="doc.currency" class="ui-select" data-testid="doc-currency" @change="onCurrencySelect($event)">
                   <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region"><option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }} — {{ c.name }}</option></optgroup>
                 </select>
                 <p v-if="currencyHint" class="cur-hint" role="status"><i class="fa-solid fa-earth-africa"></i> {{ currencyHint }}</p>
@@ -152,6 +152,22 @@
             </div>
           </div>
         </section>
+
+        <FxNotice
+          v-if="isForeign"
+          :base="baseCurrency"
+          :currency="doc.currency"
+          :rate="Number(doc.exchange_rate) || 0"
+          :source="doc.rate_source || ''"
+          :date="doc.rate_date || ''"
+          :locked="rateLocked"
+          :can-update="!isNew && doc.status === 'draft'"
+          :loading="fx.loading"
+          :doc-word="isQuote ? 'quote' : 'invoice'"
+          @change-rate="openRateModal"
+          @keep-base="keepBase"
+          @update-rate="updateRate"
+        />
 
         <!-- Items -->
         <section class="ui-card">
@@ -194,7 +210,8 @@
                 </div>
                 <div class="item__price">
                   <label class="m-label">Price</label>
-                  <input v-model.number="it.unit_price" type="number" :step="step" class="ui-input r" :aria-label="`Item ${i + 1} price`" />
+                  <input v-model.number="it.unit_price" type="number" :step="step" class="ui-input r" :aria-label="`Item ${i + 1} price`" @input="clearOriginal(it)" />
+                  <small v-if="convertedFrom(it)" class="conv-hint" data-testid="converted-hint" :title="`Catalog price ${convertedFrom(it)}, converted at the rate shown above`">converted from {{ convertedFrom(it) }}</small>
                 </div>
                 <div class="item__disc">
                   <label class="m-label">Disc %</label>
@@ -223,7 +240,7 @@
                 <div class="catalog__list">
                   <button v-for="c in catalogMatches" :key="c.type + c.id" type="button" class="catalog__row" @click="addFromCatalog(c)">
                     <span><strong>{{ c.name }}</strong><small>{{ c.type === 'product' ? 'Product' : 'Service' }}{{ c.meta ? ' · ' + c.meta : '' }}</small></span>
-                    <span class="tabular">{{ money(c.price) }}</span>
+                    <span class="tabular cat-price">{{ baseMoney(c.price) }}<small v-if="isForeign && doc.exchange_rate > 0">≈ {{ money(convertCatalog(c.price)) }}</small></span>
                   </button>
                   <div v-if="!catalogMatches.length" class="muted pad">No matches</div>
                 </div>
@@ -328,6 +345,7 @@
               <div v-for="(v, k) in calc.taxByRate" :key="k"><dt>{{ k }}{{ doc.prices_include_tax ? ' (incl.)' : '' }}</dt><dd>{{ money(v) }}</dd></div>
               <div v-if="!Object.keys(calc.taxByRate).length"><dt>Tax</dt><dd>{{ money(0) }}</dd></div>
               <div class="grand"><dt>Total</dt><dd>{{ money(calc.total) }}</dd></div>
+              <div v-if="isForeign && doc.exchange_rate > 0" class="sub base-total" data-testid="summary-base-total"><dt>In {{ baseCurrency }}</dt><dd>≈ {{ baseMoney(calc.total / doc.exchange_rate) }}</dd></div>
               <template v-if="doc.amount_paid > 0 || depositAmount > 0">
                 <div v-if="doc.amount_paid > 0"><dt>Paid</dt><dd>−{{ money(doc.amount_paid) }}</dd></div>
                 <div v-if="depositAmount > 0" data-testid="summary-deposit"><dt>Deposit received</dt><dd>−{{ money(depositAmount) }}</dd></div>
@@ -342,6 +360,31 @@
           </div>
         </div>
       </aside>
+    </div>
+
+    <div v-if="rateModal" class="ui-modal-backdrop" @mousedown.self="rateModal = null">
+      <form class="ui-modal" style="max-width: 520px" role="dialog" aria-label="Exchange rate" data-testid="rate-modal" @submit.prevent="applyManualRate">
+        <div class="ui-modal__head">
+          <h2>Exchange rate</h2>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" title="Close" @click="rateModal = null"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <p class="muted m0">Catalog prices are in {{ baseCurrency }}. Enter the rate to convert them to {{ doc.currency }} on this {{ isQuote ? 'quote' : 'invoice' }}. It is locked on the document.</p>
+          <div class="rate-row">
+            <span>1 {{ rateModal.inverse ? doc.currency : baseCurrency }} =</span>
+            <input id="rate_value" v-model.number="rateModal.value" type="number" step="any" min="0" class="ui-input r" aria-label="Exchange rate" data-testid="rate-input" required />
+            <span>{{ rateModal.inverse ? baseCurrency : doc.currency }}</span>
+            <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Swap direction" aria-label="Swap direction" @click="swapRateDirection"><i class="fa-solid fa-right-left"></i></button>
+          </div>
+          <p v-if="rateModal.value > 0" class="ui-hint">Example: {{ baseMoney(1000) }} → {{ money(convertAmountLocal(1000, modalRate)) }}<template v-if="rateModal.market"> · market {{ rateModal.market.source === 'live' ? 'live' : 'reference' }} rate: 1 {{ baseCurrency }} = {{ rateNum(rateModal.market.rate) }} {{ doc.currency }}</template></p>
+          <p v-if="rateModal.error" class="field-error">{{ rateModal.error }}</p>
+        </div>
+        <div class="ui-modal__foot">
+          <button v-if="rateModal.market" type="button" class="ui-btn ui-btn--ghost" @click="useMarketRate">Use market rate</button>
+          <button type="button" class="ui-btn" @click="rateModal = null">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" data-testid="rate-apply"><i class="fa-solid fa-check"></i> Use this rate</button>
+        </div>
+      </form>
     </div>
 
     <div v-if="newClient" class="ui-modal-backdrop" @mousedown.self="newClient = null">
@@ -382,10 +425,11 @@
 
 <script>
 import { orgCurrency } from '@/utils/orgDefaults'
-import { currencyGroups, currencyLabel, countryFlag, countryName, customerCurrency, formatCurrency, currencyStep, currencyDecimals } from '@/utils/currencies'
+import { currencyGroups, currencyLabel, countryFlag, countryName, customerCurrency, formatCurrency, currencyStep, currencyDecimals, convertAmount, rateNumber, rateText } from '@/utils/currencies'
+import FxNotice from '@/components/invoicing/FxNotice.vue'
 import CountryPicker from '@/components/customers/CountryPicker.vue'
 import EmailChips from '@/components/invoicing/EmailChips.vue'
-import { invoicingApi, STATUS_LABELS, RECURRENCE, PAYMENT_METHODS } from '@/services/invoicing'
+import { invoicingApi, fxApi, STATUS_LABELS, RECURRENCE, PAYMENT_METHODS } from '@/services/invoicing'
 import { CURRENCY_CODES } from '@/utils/currencies'
 import api, { apiErrorMessage } from '@/services/api'
 import { calculate } from '@/utils/invoiceMath'
@@ -398,7 +442,7 @@ const blankItem = (tax) => ({ _key: ++keySeq, description: '', quantity: 1, unit
 
 export default {
   name: 'InvoiceEditor',
-  components: { CountryPicker, EmailChips },
+  components: { CountryPicker, EmailChips, FxNotice },
   props: {
     id: { type: String, default: null },
     docType: { type: String, default: 'invoice' }
@@ -425,6 +469,10 @@ export default {
       currencyTouched: false,
       currencyHint: '',
       ccNames: {},
+      fx: { loading: false },
+      rateModal: null,
+      updateRateFlag: false,
+      lockedRate: null,
       ccFromCustomer: '',
       snapshot: '',
       doc: this.emptyDoc(),
@@ -511,6 +559,22 @@ export default {
     step() {
       return currencyStep(this.doc.currency)
     },
+    /** The organisation's home currency — catalog prices are in it. */
+    baseCurrency() {
+      return (this.doc.base_currency || this.settings.currency || orgCurrency()).toUpperCase()
+    },
+    isForeign() {
+      return this.doc.currency !== this.baseCurrency
+    },
+    /** The rate saved on an existing document (unchanged in this edit). */
+    rateLocked() {
+      return !!this.lockedRate && this.lockedRate.currency === this.doc.currency && this.lockedRate.rate === Number(this.doc.exchange_rate) && !this.updateRateFlag
+    },
+    modalRate() {
+      const m = this.rateModal
+      if (!m || !(m.value > 0)) return 0
+      return m.inverse ? 1 / m.value : m.value
+    },
     // Money already received can be entered on new, draft and unpaid invoices.
     canTakeDeposit() {
       if (this.isQuote) return false
@@ -568,16 +632,173 @@ export default {
     money(v) {
       return formatCurrency(v, this.doc.currency)
     },
+    baseMoney(v) {
+      return formatCurrency(v, this.baseCurrency)
+    },
+    rateNum: rateNumber,
+    convertAmountLocal(v, rate) {
+      return convertAmount(v, rate, this.doc.currency)
+    },
+    convertCatalog(price) {
+      return convertAmount(price, Number(this.doc.exchange_rate) || 0, this.doc.currency)
+    },
+    convertedFrom(it) {
+      if (it.original_unit_price === null || it.original_unit_price === undefined || !it.original_currency || it.original_currency === this.doc.currency) return ''
+      return formatCurrency(it.original_unit_price, it.original_currency)
+    },
+    clearOriginal(it) {
+      it.original_unit_price = null
+      it.original_currency = ''
+    },
+    setRate(q) {
+      this.doc.exchange_rate = q && q.rate > 0 ? q.rate : 0
+      this.doc.rate_source = q && q.rate > 0 ? q.source : 'missing'
+      this.doc.rate_date = q && q.rate > 0 ? q.as_of || new Date().toISOString() : ''
+    },
+    /** Fetch today's rate base → document currency (manual rates win). */
+    async fetchRate() {
+      if (!this.isForeign) {
+        this.setRate({ rate: 1, source: 'same', as_of: new Date().toISOString() })
+        return
+      }
+      this.fx.loading = true
+      try {
+        const r = await fxApi.rate(this.baseCurrency, this.doc.currency)
+        this.setRate(r.quote)
+      } catch (e) {
+        this.setRate(null)
+        toast.error(apiErrorMessage(e, 'Could not get the exchange rate'))
+      } finally {
+        this.fx.loading = false
+      }
+    },
+    /** Re-price lines that came from the catalog at the document's rate. */
+    reconvertLines() {
+      for (const it of this.doc.items) {
+        if (it.original_unit_price === null || it.original_unit_price === undefined || !it.original_currency) continue
+        if (it.original_currency === this.doc.currency) it.unit_price = Number(it.original_unit_price)
+        else if (it.original_currency === this.baseCurrency && this.doc.exchange_rate > 0) it.unit_price = this.convertCatalog(it.original_unit_price)
+      }
+    },
+    async updateRate() {
+      await this.fetchRate()
+      if (this.doc.exchange_rate > 0) {
+        this.updateRateFlag = true
+        this.reconvertLines()
+        toast.success(`Rate updated: ${rateText(this.baseCurrency, this.doc.currency, this.doc.exchange_rate)}`)
+      }
+    },
+    async openRateModal() {
+      const cur = Number(this.doc.exchange_rate) || 0
+      const inverse = cur > 0 ? cur < 1 : true
+      this.rateModal = { value: cur > 0 ? Number(rateNumber(inverse ? 1 / cur : cur)) : '', inverse, market: null, error: '' }
+      try {
+        const r = await fxApi.rate(this.baseCurrency, this.doc.currency)
+        if (this.rateModal && r.quote?.rate > 0) {
+          this.rateModal.market = r.quote
+          if (!(this.rateModal.value > 0)) this.rateModal.value = Number(rateNumber(inverse ? 1 / r.quote.rate : r.quote.rate))
+        }
+      } catch {
+        /* the user can still type a rate */
+      }
+    },
+    swapRateDirection() {
+      const m = this.rateModal
+      if (m.value > 0) m.value = Number(rateNumber(1 / m.value))
+      m.inverse = !m.inverse
+    },
+    useMarketRate() {
+      const q = this.rateModal.market
+      this.setRate(q)
+      this.updateRateFlag = true
+      this.rateModal = null
+      this.reconvertLines()
+    },
+    applyManualRate() {
+      const r = this.modalRate
+      if (!(r > 0)) return (this.rateModal.error = 'Enter a rate greater than zero.')
+      this.doc.exchange_rate = Number(r.toPrecision(8))
+      this.doc.rate_source = 'manual'
+      this.doc.rate_date = new Date().toISOString()
+      this.updateRateFlag = true
+      this.rateModal = null
+      this.reconvertLines()
+      toast.success(`Using ${rateText(this.baseCurrency, this.doc.currency, this.doc.exchange_rate)} (manual)`)
+    },
+    /** "Keep KES": issue the document in the home currency, catalog prices unchanged. */
+    async keepBase() {
+      await this.changeCurrency(this.baseCurrency, { ask: false, convert: true })
+    },
+    onCurrencySelect(e) {
+      const target = e.target.value
+      e.target.value = this.doc.currency // stays until the change is confirmed
+      this.currencyTouched = true
+      this.currencyHint = ''
+      this.changeCurrency(target)
+    },
+    /**
+     * Change the document currency. When lines already have prices, ask
+     * whether to convert them (at the market rate) or keep the numbers as typed.
+     */
+    async changeCurrency(target, { ask = true, convert = null } = {}) {
+      const from = this.doc.currency
+      if (!target || target === from) return
+      const priced = this.doc.items.filter((i) => Number(i.unit_price))
+      let doConvert = convert
+      let pair = null
+      if (priced.length || Number(this.doc.shipping_amount) || (this.doc.discount_type === 'amount' && Number(this.doc.discount_value))) {
+        try {
+          pair = (await fxApi.rate(from, target)).quote
+        } catch {
+          pair = null
+        }
+        if (doConvert === null && ask) {
+          const ex = priced[0]
+          const example = ex && pair?.rate > 0 ? ` For example ${formatCurrency(ex.unit_price, from)} → ${formatCurrency(convertAmount(ex.unit_price, pair.rate, target), target)}.` : ''
+          doConvert = await confirmDialog({
+            title: `Convert prices from ${from} to ${target}?`,
+            message:
+              pair?.rate > 0
+                ? `Convert converts every amount at ${rateText(from, target, pair.rate)} (${pair.source === 'live' ? 'live' : pair.source === 'manual' ? 'manual' : 'approximate reference'} rate).${example} Cancel keeps the numbers exactly as typed (${formatCurrency(ex?.unit_price || 0, from)} becomes ${formatCurrency(ex?.unit_price || 0, target)}).`
+                : `No exchange rate is available for ${from} → ${target}, so amounts can't be converted automatically. Cancel keeps the numbers as typed.`,
+            confirmText: 'Convert amounts'
+          })
+          if (doConvert && !(pair?.rate > 0)) doConvert = false
+        }
+      }
+      for (const it of this.doc.items) {
+        const hasOrig = it.original_unit_price !== null && it.original_unit_price !== undefined && it.original_currency
+        if (doConvert) {
+          if (hasOrig && it.original_currency === target) {
+            it.unit_price = Number(it.original_unit_price)
+          } else if (!hasOrig && Number(it.unit_price) && pair?.rate > 0) {
+            it.original_unit_price = Number(it.unit_price)
+            it.original_currency = from
+            it.unit_price = convertAmount(it.unit_price, pair.rate, target)
+          } else if (hasOrig && it.original_currency === from && pair?.rate > 0) {
+            it.unit_price = convertAmount(it.original_unit_price, pair.rate, target)
+          }
+          // lines from the catalog (base currency) are re-priced below at the document rate
+        } else {
+          this.clearOriginal(it)
+        }
+      }
+      if (doConvert && pair?.rate > 0) {
+        this.doc.shipping_amount = convertAmount(this.doc.shipping_amount, pair.rate, target)
+        if (this.doc.discount_type === 'amount') this.doc.discount_value = convertAmount(this.doc.discount_value, pair.rate, target)
+      }
+      this.doc.currency = target
+      await this.fetchRate()
+      if (doConvert) this.reconvertLines()
+      if (doConvert && priced.length) toast.info(`Prices converted to ${target}`)
+    },
     flag: countryFlag,
     countryName,
     clientCurrencyTitle(c) {
       const why = { customer: 'set on the customer', country: `from ${c.country_name || 'their country'}`, default: 'your default currency', last_used: 'last used for this client' }[c.currency_source]
       return `${currencyLabel(c.currency)}${why ? ' — ' + why : ''}`
     },
-    onCurrencyManual() {
-      this.currencyTouched = true
-      this.currencyHint = ''
-    },
+
     /**
      * Switch the document to the client's currency. Asks first when the user
      * already picked a currency by hand; line amounts are kept (they're entered
@@ -599,7 +820,7 @@ export default {
         })
         if (!ok) return
       }
-      this.doc.currency = target
+      await this.changeCurrency(target)
       this.currencyTouched = false
       this.currencyHint = hint
     },
@@ -650,6 +871,9 @@ export default {
         issue_date: today,
         due_date: addDays(today, 14),
         currency: orgCurrency(),
+        exchange_rate: 1,
+        rate_source: 'same',
+        rate_date: '',
         prices_include_tax: false,
         discount_type: 'percent',
         discount_value: 0,
@@ -702,6 +926,7 @@ export default {
               this.currencyHint = this.currencyHintFor(cd, d.currency)
             }
           }
+          await this.fetchRate()
         } else {
           const inv = await invoicingApi.get(this.id)
           if (['void', 'converted'].includes(inv.status)) {
@@ -720,6 +945,7 @@ export default {
           }
           // An existing document's currency was chosen deliberately.
           this.currencyTouched = true
+          this.lockedRate = { currency: inv.currency, rate: Number(inv.exchange_rate) || 0 }
           if (!this.doc.items.length) this.doc.items = [blankItem(this.defaultTax)]
         }
         this.loadCatalog()
@@ -855,7 +1081,22 @@ export default {
       })
     },
     addFromCatalog(c) {
-      const data = { description: c.description ? `${c.name} — ${c.description}` : c.name, unit_price: c.price, unit: c.unit || '', item_type: c.type, reference_id: c.id }
+      // Catalog prices are in the home currency: convert at the document rate.
+      if (this.isForeign && !(this.doc.exchange_rate > 0)) {
+        toast.warning(`Enter the ${this.baseCurrency} → ${this.doc.currency} exchange rate first — catalog prices are in ${this.baseCurrency}.`)
+        this.openRateModal()
+        return
+      }
+      const price = this.isForeign ? this.convertCatalog(c.price) : c.price
+      const data = {
+        description: c.description ? `${c.name} — ${c.description}` : c.name,
+        unit_price: price,
+        original_unit_price: c.price,
+        original_currency: this.baseCurrency,
+        unit: c.unit || '',
+        item_type: c.type,
+        reference_id: c.id
+      }
       const last = this.doc.items[this.doc.items.length - 1]
       if (last && !last.description.trim() && !Number(last.unit_price)) Object.assign(last, data)
       else this.doc.items.push({ ...blankItem(this.defaultTax), ...data })
@@ -899,6 +1140,7 @@ export default {
         issue_date: d.issue_date,
         due_date: d.due_date,
         currency: d.currency,
+        ...(this.isForeign && Number(d.exchange_rate) > 0 ? { exchange_rate: Number(d.exchange_rate), rate_source: d.rate_source || 'manual', rate_date: d.rate_date || '' } : {}),
         prices_include_tax: !!d.prices_include_tax,
         discount_type: d.discount_type,
         discount_value: Number(d.discount_value) || 0,
@@ -920,6 +1162,7 @@ export default {
             quantity: Number(i.quantity) || 0,
             unit: i.unit || '',
             unit_price: Number(i.unit_price) || 0,
+            ...(i.original_unit_price !== null && i.original_unit_price !== undefined && i.original_currency ? { original_unit_price: Number(i.original_unit_price), original_currency: i.original_currency } : {}),
             discount_percent: Number(i.discount_percent) || 0,
             tax_rate: Number(i.tax_rate) || 0,
             tax_name: i.tax_name || '',
@@ -969,6 +1212,47 @@ export default {
 </script>
 
 <style scoped>
+.conv-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: right;
+  white-space: nowrap;
+}
+.cat-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.cat-price small {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.base-total dt,
+.base-total dd {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.rate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 6px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+.rate-row .ui-input {
+  width: 160px;
+}
+.m0 {
+  margin: 0;
+}
+.field-error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 6px 0 0;
+}
 .dep-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1431,6 +1715,15 @@ export default {
 .seg button.on {
   background: var(--accent);
   color: #fff;
+}
+
+/* Phones / touch: the %/$ toggle needs a 40px tap target */
+@media (max-width: 860px), (pointer: coarse) {
+  .seg button {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
 }
 
 .w-full {
