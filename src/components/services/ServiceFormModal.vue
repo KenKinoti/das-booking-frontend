@@ -37,11 +37,15 @@
           </div>
           <div class="ui-field">
             <label for="sf-price">Price <span class="req">*</span></label>
-            <div class="ui-input-group">
-              <i class="fa-solid fa-dollar-sign"></i>
-              <input id="sf-price" v-model.number="form.price" type="number" min="0" step="0.01" class="ui-input" :class="{ 'is-invalid': errors.price }" />
+            <div class="price-row">
+              <input id="sf-price" v-model.number="form.price" type="number" min="0" step="any" class="ui-input" :class="{ 'is-invalid': errors.price }" />
+              <select v-model="form.currency" class="ui-select price-cur" aria-label="Price currency" data-testid="sf-currency">
+                <optgroup v-for="g in currencyGroups" :key="g.region" :label="g.region">
+                  <option v-for="c in g.items" :key="c.code" :value="c.code">{{ c.code }}</option>
+                </optgroup>
+              </select>
             </div>
-            <span class="ui-hint">Including tax, as charged to the customer.</span>
+            <span class="ui-hint"><template v-if="form.currency !== homeCurrency">Priced in {{ form.currency }} — converted when added to an invoice in another currency.</template><template v-else>As charged to the customer.</template></span>
             <span v-if="errors.price" class="field-error">{{ errors.price }}</span>
           </div>
           <div class="ui-field span-4">
@@ -52,6 +56,10 @@
             <label class="ui-switch">
               <input v-model="form.is_active" type="checkbox" />
               <span><strong>Active</strong> <small>Can be booked and sold</small></span>
+            </label>
+            <label class="ui-switch">
+              <input v-model="form.price_includes_tax" type="checkbox" />
+              <span><strong>Price includes tax</strong> <small>The price already contains the tax</small></span>
             </label>
             <label class="ui-switch">
               <input v-model="form.requires_vehicle" type="checkbox" />
@@ -75,6 +83,8 @@
 import { serviceService } from '@/services/serviceService'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
+import { currencyGroups } from '@/utils/currencies'
+import { orgCurrency } from '@/utils/orgDefaults'
 
 export default {
   name: 'ServiceFormModal',
@@ -87,11 +97,14 @@ export default {
   },
   emits: ['close', 'saved'],
   data() {
-    return { form: {}, errors: {}, error: '', saving: false }
+    return { form: {}, errors: {}, error: '', saving: false, currencyGroups: currencyGroups() }
   },
   computed: {
     title() {
       return this.service?.id ? 'Edit service' : 'New service'
+    },
+    homeCurrency() {
+      return orgCurrency()
     },
     categoryOptions() {
       return [...new Set([...this.categories, this.presetCategory].filter(Boolean))].sort()
@@ -108,6 +121,8 @@ export default {
           category: s.category || this.presetCategory || '',
           duration: s.duration || 60,
           price: s.price ?? '',
+          currency: (s.currency || orgCurrency() || 'AUD').toUpperCase(),
+          price_includes_tax: !!s.price_includes_tax,
           description: s.description || '',
           is_active: s.id ? s.is_active !== false : true,
           requires_vehicle: s.id ? !!s.requires_vehicle : this.presetVehicle
@@ -177,6 +192,21 @@ export default {
 
 .suffix {
   position: relative;
+}
+
+.price-row {
+  display: flex;
+  gap: 8px;
+}
+
+.price-row .ui-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.price-cur {
+  width: 96px;
+  flex-shrink: 0;
 }
 
 .suffix span {

@@ -240,7 +240,8 @@
                 <div class="catalog__list">
                   <button v-for="c in catalogMatches" :key="c.type + c.id" type="button" class="catalog__row" @click="addFromCatalog(c)">
                     <span><strong>{{ c.name }}</strong><small>{{ c.type === 'product' ? 'Product' : 'Service' }}{{ c.meta ? ' · ' + c.meta : '' }}</small></span>
-                    <span class="tabular cat-price">{{ baseMoney(c.price) }}<small v-if="isForeign && doc.exchange_rate > 0">≈ {{ money(convertCatalog(c.price)) }}</small></span>
+                    <span v-if="c.currency && c.currency !== baseCurrency" class="tabular cat-price">{{ curMoney(c.price, c.currency) }}</span>
+                    <span v-else class="tabular cat-price">{{ baseMoney(c.price) }}<small v-if="isForeign && doc.exchange_rate > 0">≈ {{ money(convertCatalog(c.price)) }}</small></span>
                   </button>
                   <div v-if="!catalogMatches.length" class="muted pad">No matches</div>
                 </div>
@@ -654,6 +655,9 @@ export default {
     money(v) {
       return formatCurrency(v, this.doc.currency)
     },
+    curMoney(v, cur) {
+      return formatCurrency(v, cur)
+    },
     baseMoney(v) {
       return formatCurrency(v, this.baseCurrency)
     },
@@ -700,6 +704,19 @@ export default {
         if (it.original_unit_price === null || it.original_unit_price === undefined || !it.original_currency) continue
         if (it.original_currency === this.doc.currency) it.unit_price = Number(it.original_unit_price)
         else if (it.original_currency === this.baseCurrency && this.doc.exchange_rate > 0) it.unit_price = this.convertCatalog(it.original_unit_price)
+      }
+    },
+    /** Catalog lines priced in their own currency (neither document nor home): market rate → document currency. */
+    async reconvertOwnCurrencyLines() {
+      for (const it of this.doc.items) {
+        const oc = it.original_currency
+        if (it.original_unit_price === null || it.original_unit_price === undefined || !oc || oc === this.doc.currency || oc === this.baseCurrency) continue
+        try {
+          const q = (await fxApi.rate(oc, this.doc.currency)).quote
+          if (q?.rate > 0) it.unit_price = convertAmount(it.original_unit_price, q.rate, this.doc.currency)
+        } catch {
+          // keep the price as it is
+        }
       }
     },
     async updateRate() {
@@ -812,6 +829,7 @@ export default {
       this.doc.currency = target
       await this.fetchRate()
       if (doConvert) this.reconvertLines()
+      if (doConvert) await this.reconvertOwnCurrencyLines()
       if (doConvert && priced.length) toast.info(`Prices converted to ${target}`)
     },
     flag: countryFlag,
@@ -1003,7 +1021,7 @@ export default {
       if (svc.status === 'fulfilled') {
         for (const s of svc.value.data?.services || []) {
           if (s.is_active === false) continue
-          out.push({ type: 'service', id: s.id, name: s.name, price: Number(s.price) || 0, description: s.description, meta: s.duration ? `${s.duration} min` : s.category })
+          out.push({ type: 'service', id: s.id, name: s.name, price: Number(s.price) || 0, currency: (s.currency || '').toUpperCase(), description: s.description, meta: s.duration ? `${s.duration} min` : s.category })
         }
       }
       if (prod.status === 'fulfilled') {
@@ -1119,19 +1137,40 @@ export default {
         rows[rows.length - 1]?.focus()
       })
     },
-    addFromCatalog(c) {
+    async addFromCatalog(c) {
+      // A service priced in its own currency (e.g. kept in AUD from a Zoho
+      // import): same as the document → as is; else convert at the market rate.
+      if (c.currency && c.currency !== this.baseCurrency) {
+        let price = c.price
+        if (c.currency !== this.doc.currency) {
+          let q = null
+          try {
+            q = (await fxApi.rate(c.currency, this.doc.currency)).quote
+          } catch {
+            q = null
+          }
+          if (!(q?.rate > 0)) {
+            toast.warning(`No ${c.currency} → ${this.doc.currency} exchange rate is available — enter the price by hand.`)
+            return
+          }
+          price = convertAmount(c.price, q.rate, this.doc.currency)
+        }
+        return this.placeCatalogLine(c, price, c.currency)
+      }
       // Catalog prices are in the home currency: convert at the document rate.
       if (this.isForeign && !(this.doc.exchange_rate > 0)) {
         toast.warning(`Enter the ${this.baseCurrency} → ${this.doc.currency} exchange rate first — catalog prices are in ${this.baseCurrency}.`)
         this.openRateModal()
         return
       }
-      const price = this.isForeign ? this.convertCatalog(c.price) : c.price
+      this.placeCatalogLine(c, this.isForeign ? this.convertCatalog(c.price) : c.price, this.baseCurrency)
+    },
+    placeCatalogLine(c, price, originalCurrency) {
       const data = {
         description: c.description ? `${c.name} — ${c.description}` : c.name,
         unit_price: price,
         original_unit_price: c.price,
-        original_currency: this.baseCurrency,
+        original_currency: originalCurrency,
         unit: c.unit || '',
         item_type: c.type,
         reference_id: c.id

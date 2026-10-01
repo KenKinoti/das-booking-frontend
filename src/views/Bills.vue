@@ -8,6 +8,7 @@
       </div>
       <div class="ui-actions">
         <button class="ui-btn" :disabled="!bills.length" @click="exportCsv"><i class="fa-solid fa-download"></i> Export</button>
+        <button class="ui-btn" data-testid="header-new-recurring" @click="newRecurring()"><i class="fa-solid fa-repeat"></i> <span class="hide-xs">Recurring bill</span></button>
         <button class="ui-btn ui-btn--primary" @click="newBill()"><i class="fa-solid fa-plus"></i> New bill</button>
       </div>
     </header>
@@ -40,13 +41,40 @@
         <button class="card-tab" :class="{ 'is-active': view === 'bills' }" role="tab" :aria-selected="view === 'bills'" @click="setView('bills')">
           <i class="fa-solid fa-file-invoice"></i> Bills
         </button>
+        <button class="card-tab" :class="{ 'is-active': view === 'upcoming' }" role="tab" :aria-selected="view === 'upcoming'" data-testid="tab-upcoming" @click="setView('upcoming')">
+          <i class="fa-regular fa-calendar-days"></i> Upcoming
+        </button>
+        <button class="card-tab" :class="{ 'is-active': view === 'recurring' }" role="tab" :aria-selected="view === 'recurring'" data-testid="tab-recurring" @click="setView('recurring')">
+          <i class="fa-solid fa-repeat"></i> Recurring <span v-if="recurringCount" class="count">{{ recurringCount }}</span>
+        </button>
         <button class="card-tab" :class="{ 'is-active': view === 'vendors' }" role="tab" :aria-selected="view === 'vendors'" @click="setView('vendors')">
           <i class="fa-solid fa-truck-field"></i> Vendors <span class="count">{{ activeVendors.length }}</span>
         </button>
       </div>
 
+      <UpcomingTab
+        v-if="view === 'upcoming'"
+        :currency="currency"
+        :refresh-key="upcomingKey"
+        @pay="pay"
+        @open-bill="(id) => openDetail({ id })"
+        @edit-bill="(b) => (editing = { bill: b })"
+        @changed="refresh"
+      />
+
+      <RecurringTab
+        v-else-if="view === 'recurring'"
+        :currency="currency"
+        :refresh-key="upcomingKey"
+        :convert-key="convertKey"
+        @new="newRecurring()"
+        @edit="editRecurring"
+        @changed="refresh"
+        @loaded="(l) => (recurringCount = l.length)"
+      />
+
       <VendorsTab
-        v-if="view === 'vendors'"
+        v-else-if="view === 'vendors'"
         :vendors="vendors"
         :accounts="accounts"
         :loading="vendorsLoading"
@@ -178,6 +206,17 @@
       @changed="onDetailChanged"
     />
     <PaymentModal v-if="paying" :bill="paying" :banks="banks" :currency="currency" @close="paying = null" @saved="onPaid" />
+    <RecurringBillModal
+      v-if="recurring"
+      :schedule="recurring.schedule"
+      :prefill="recurring.prefill"
+      :vendors="activeVendorsFor(recurring.schedule)"
+      :accounts="accounts"
+      :currency="currency"
+      :default-leads="reminderLeads"
+      @close="recurring = null"
+      @saved="onRecurringSaved"
+    />
   </div>
 </template>
 
@@ -187,6 +226,10 @@ import BillModal from '@/components/finance/BillModal.vue'
 import BillDetailModal from '@/components/finance/BillDetailModal.vue'
 import PaymentModal from '@/components/finance/PaymentModal.vue'
 import VendorsTab from '@/components/finance/VendorsTab.vue'
+import UpcomingTab from '@/components/finance/UpcomingTab.vue'
+import RecurringTab from '@/components/finance/RecurringTab.vue'
+import RecurringBillModal from '@/components/finance/RecurringBillModal.vue'
+import { recurringApi } from '@/services/recurringBills'
 import { financeApi, BILL_STATUS_LABELS, BILL_BADGE, toCents } from '@/services/finance'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDate, relativeDays, isoDate, addDays, downloadBlob } from '@/utils/format'
@@ -197,11 +240,11 @@ const STATUSES = ['all', 'draft', 'unpaid', 'due_soon', 'overdue', 'paid']
 
 export default {
   name: 'Bills',
-  components: { BillModal, BillDetailModal, PaymentModal, VendorsTab },
+  components: { BillModal, BillDetailModal, PaymentModal, VendorsTab, UpcomingTab, RecurringTab, RecurringBillModal },
   data() {
     const qs = this.$route.query
     return {
-      view: qs.view === 'vendors' ? 'vendors' : 'bills',
+      view: ['vendors', 'upcoming', 'recurring'].includes(qs.view) ? qs.view : 'bills',
       status: STATUSES.includes(qs.status) ? qs.status : 'all',
       q: '',
       vendorId: qs.vendor || '',
@@ -217,7 +260,12 @@ export default {
       banks: [],
       editing: null,
       detail: null,
-      paying: null
+      paying: null,
+      recurring: null,
+      recurringCount: 0,
+      upcomingKey: 0,
+      convertKey: qs.convert || '',
+      reminderLeads: [7, 1]
     }
   },
   computed: {
@@ -294,6 +342,8 @@ export default {
     this.loadSummary()
     this.loadVendors()
     this.loadRefs()
+    this.loadRecurringMeta()
+    this.handleDeepLink()
   },
   methods: {
     money(v) {
@@ -329,7 +379,7 @@ export default {
     },
     syncQuery() {
       const query = {}
-      if (this.view === 'vendors') query.view = 'vendors'
+      if (this.view !== 'bills') query.view = this.view
       if (this.status !== 'all') query.status = this.status
       if (this.vendorId) query.vendor = this.vendorId
       for (const [k, v] of Object.entries(this.dates)) if (v) query[k] = v
@@ -407,13 +457,74 @@ export default {
       this.loadBills()
       this.loadSummary()
       this.loadVendors()
+      this.upcomingKey++
+    },
+    async loadRecurringMeta() {
+      try {
+        const [list, st] = await Promise.all([recurringApi.list(), recurringApi.settings()])
+        this.recurringCount = (list || []).length
+        if (st?.settings?.lead_days) this.reminderLeads = st.settings.lead_days
+      } catch {
+        /* the tab shows its own error */
+      }
+    },
+    // Links from reminder emails: ?bill=<id> opens the bill, ?pay=<id> opens
+    // the payment form, ?paid=<schedule>:<period> marks a period paid,
+    // ?schedule=<id> opens a recurring bill, ?convert=<key> converts an
+    // Expenses subscription.
+    async handleDeepLink() {
+      const qs = this.$route.query
+      try {
+        if (qs.pay) {
+          const b = await financeApi.bill(qs.pay)
+          if (b.status === 'draft') {
+            this.detail = b
+            toast.info('This bill is a draft — approve it, then record the payment.')
+          } else if (b.amount_due > 0) {
+            this.pay(b)
+          } else {
+            this.detail = b
+            toast.info(`${b.bill_number} is already paid`)
+          }
+        } else if (qs.bill) {
+          this.openDetail({ id: qs.bill })
+        } else if (qs.schedule) {
+          const r = await recurringApi.get(qs.schedule)
+          this.recurring = { schedule: r.schedule }
+        } else if (qs.paid && String(qs.paid).includes(':')) {
+          const [id, period] = String(qs.paid).split(':')
+          const ok = await confirmDialog({ title: 'Mark as paid?', message: `Record the ${formatDate(period)} payment as paid? Reminders stop.`, confirmText: 'Mark as paid' })
+          if (ok) {
+            await recurringApi.markPaid(id, period)
+            toast.success('Marked as paid')
+            this.upcomingKey++
+          }
+        }
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not open that link'))
+      }
+      const rest = { ...this.$route.query }
+      for (const k of ['pay', 'bill', 'schedule', 'paid', 'convert']) delete rest[k]
+      if (Object.keys(rest).length !== Object.keys(this.$route.query).length) this.$router.replace({ query: rest })
+    },
+    newRecurring(prefill = null) {
+      this.recurring = { schedule: null, prefill }
+    },
+    editRecurring(r) {
+      this.recurring = { schedule: r }
+    },
+    onRecurringSaved() {
+      this.recurring = null
+      this.convertKey = ''
+      this.loadRecurringMeta()
+      this.refresh()
     },
     newBill(vendor) {
       this.detail = null
       this.editing = { bill: null, vendorId: vendor ? vendor.id : this.vendorId || '' }
     },
     async openDetail(b) {
-      this.detail = b
+      if (b.bill_number) this.detail = b
       try {
         this.detail = await financeApi.bill(b.id)
       } catch (e) {
@@ -437,6 +548,7 @@ export default {
     pay(b) {
       if (!this.banks.length) this.loadRefs()
       this.detail = null
+      this.editing = null
       this.paying = b
     },
     onPaid(bill) {
@@ -707,6 +819,12 @@ export default {
     font-size: 13.5px;
   }
   .card-tab i {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .hide-xs {
     display: none;
   }
 }

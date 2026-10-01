@@ -67,25 +67,12 @@
           <span>{{ loading ? 'Signing in…' : 'Sign in' }}</span>
         </button>
 
-        <div v-if="demoAccounts.length" class="demo">
-          <div class="demo__title"><span>Quick sign-in · test accounts</span></div>
-          <div class="demo__grid">
-            <button
-              v-for="a in demoAccounts"
-              :key="a.email"
-              type="button"
-              class="demo__btn"
-              :disabled="loading"
-              @click="quickLogin(a)"
-            >
-              <span class="demo__icon"><i :class="a.icon"></i></span>
-              <span class="demo__text">
-                <strong>{{ a.label }}</strong>
-                <small>{{ a.email }}</small>
-              </span>
-            </button>
+        <template v-if="providers.length">
+          <div class="login__or" role="separator"><span>or</span></div>
+          <div class="login__sso" data-testid="sso-buttons">
+            <ProviderButton v-for="p in providers" :key="p.id" :provider="p.id" :href="startUrl(p.id)" :busy="leaving === p.id" @click="leaving = p.id" />
           </div>
-        </div>
+        </template>
 
         <p class="login__secure"><i class="fa-solid fa-shield-halved"></i> Secured with encrypted sessions</p>
         <p class="login__version">
@@ -102,22 +89,17 @@ import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
 import { APP_VERSION, VERSION_LABEL } from '../version'
 import BrandMark from '../components/layout/BrandMark.vue'
+import ProviderButton from '../components/auth/ProviderButton.vue'
+import { ssoApi } from '../services/sso'
 
 export default {
   name: 'LoginView',
-  components: { BrandMark },
+  components: { BrandMark, ProviderButton },
   data() {
     return {
-      // Test accounts are shown unless VITE_SHOW_TEST_LOGINS=false
-      demoAccounts:
-        import.meta.env.VITE_SHOW_TEST_LOGINS === 'false'
-          ? []
-          : [
-              { label: 'Super admin', email: 'kennedy@dasyin.com.au', password: 'Test123!@#', icon: 'fa-solid fa-crown' },
-              { label: 'Organisation admin', email: 'Michael.Thomas75@test.com', password: 'Test123!@#', icon: 'fa-solid fa-user-shield' },
-              { label: 'Support coordinator', email: 'David.Jones20@test.com', password: 'Test123!@#', icon: 'fa-solid fa-user-tie' },
-              { label: 'Care worker', email: 'Jane.Jones90@test.com', password: 'Test123!@#', icon: 'fa-solid fa-user' }
-            ],
+      // Sign in with Google / Microsoft — only the providers enabled in System settings
+      providers: [],
+      leaving: '',
       form: { email: '', password: '' },
       showPassword: false,
       showHelp: false,
@@ -132,13 +114,30 @@ export default {
   computed: {
     expired() {
       return this.$route.query.expired === '1' && !this.error
+    },
+    redirectTarget() {
+      const r = this.$route.query.redirect
+      return typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : ''
     }
   },
+  async mounted() {
+    // Back from the provider via the browser's back button: clear the spinner.
+    window.addEventListener('pageshow', this.onPageShow)
+    try {
+      this.providers = await ssoApi.providers()
+    } catch {
+      this.providers = []
+    }
+  },
+  beforeUnmount() {
+    window.removeEventListener('pageshow', this.onPageShow)
+  },
   methods: {
-    quickLogin(account) {
-      this.form.email = account.email
-      this.form.password = account.password
-      this.handleLogin()
+    onPageShow() {
+      this.leaving = ''
+    },
+    startUrl(provider) {
+      return ssoApi.startUrl(provider, this.redirectTarget)
     },
     async handleLogin() {
       this.error = null
@@ -150,8 +149,7 @@ export default {
       const auth = useAuthStore()
       try {
         await auth.login(this.form)
-        const redirect = typeof this.$route.query.redirect === 'string' && this.$route.query.redirect.startsWith('/') ? this.$route.query.redirect : '/dashboard'
-        await this.$router.replace(redirect)
+        await this.$router.replace(this.redirectTarget || '/dashboard')
       } catch {
         this.error = auth.error || 'Sign in failed. Please try again.'
       } finally {
@@ -383,104 +381,27 @@ export default {
   margin-top: 4px;
 }
 
-.demo {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.demo__title {
+.login__or {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  font-weight: 600;
+  gap: 12px;
+  font-size: 12.5px;
   color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  margin: 2px 0 -4px;
 }
 
-.demo__title::before,
-.demo__title::after {
+.login__or::before,
+.login__or::after {
   content: '';
   flex: 1;
   height: 1px;
   background: var(--border);
 }
 
-.demo__grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.demo__btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  min-width: 0;
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
-}
-
-.demo__btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.demo__btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.demo__btn:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.demo__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: var(--accent-soft);
-  color: var(--accent);
-  flex-shrink: 0;
-  font-size: 13px;
-}
-
-.demo__text {
+.login__sso {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  line-height: 1.25;
-}
-
-.demo__text strong {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.demo__text small {
-  font-size: 11.5px;
-  color: var(--text-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 420px) {
-  .demo__grid {
-    grid-template-columns: 1fr;
-  }
+  gap: 10px;
 }
 
 .login__ver {

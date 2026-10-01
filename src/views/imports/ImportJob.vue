@@ -138,6 +138,8 @@
           </div>
         </section>
 
+        <ItemPricingCard v-if="pv.item_pricing && options.items_to_catalog !== false && options.entities?.items !== false" v-model="options.item_prices" :pricing="pv.item_pricing" :files="job.source === 'csv'" />
+
         <section class="ui-card">
           <div class="ui-card__head"><h2>Options</h2></div>
           <div class="ui-card__body">
@@ -262,12 +264,13 @@ import { confirmDialog } from '@/composables/useConfirm'
 import { formatDateTime, downloadBlob } from '@/utils/format'
 import { formatCurrency } from '@/utils/currencies'
 import ImportOptions, { DEFAULT_OPTIONS } from '@/components/imports/ImportOptions.vue'
+import ItemPricingCard from './ItemPricingCard.vue'
 
 const ACTIVE = ['previewing', 'running', 'queued']
 
 export default {
   name: 'ImportJob',
-  components: { ImportOptions },
+  components: { ImportOptions, ItemPricingCard },
   props: { id: { type: String, required: true } },
   data() {
     return { job: null, loadError: '', busy: false, timer: null, options: DEFAULT_OPTIONS(), savedOptions: '', issues: [], sampleTab: '', labels: {} }
@@ -347,9 +350,10 @@ export default {
       return formatCurrency(v, c)
     },
     stripDecisions(o) {
-      const { decisions, ...rest } = o || {}
+      const { decisions, item_prices: ip, ...rest } = o || {}
       void decisions
-      return rest
+      // Only the source currency of item prices changes the preview (keep/convert/rate don't).
+      return { ...rest, item_prices_currency: ip?.currency || '' }
     },
     undoText(m) {
       const names = { documents: 'documents', customers: 'customers', contact_people: 'contact people', payments: 'payments', items: 'items', numbering_restored: 'numbering restored' }
@@ -368,6 +372,8 @@ export default {
         this.loadError = ''
         if (firstPreview) {
           this.options = { ...DEFAULT_OPTIONS(), ...(j.options || {}), decisions: { ...(j.options?.decisions || {}) } }
+          const ip = j.preview?.item_pricing
+          if (ip) this.options.item_prices = { ...(this.options.item_prices || {}), currency: this.options.item_prices?.currency || ip.source_currency }
           this.savedOptions = JSON.stringify(this.stripDecisions(this.options))
         }
         if (this.showProgress && j.error_count && !this.isActive) this.loadIssues()
@@ -403,6 +409,11 @@ export default {
       }
     },
     async start() {
+      const ip = this.options.item_prices
+      if (ip?.mode === 'convert' && !(ip.rate > 0) && this.pv?.item_pricing && this.pv.item_pricing.source_currency !== this.pv.item_pricing.home_currency) {
+        toast.error('Enter the exchange rate for item prices, or keep them in ' + this.pv.item_pricing.source_currency)
+        return
+      }
       this.busy = true
       try {
         this.job = await importsApi.start(this.id, this.options)

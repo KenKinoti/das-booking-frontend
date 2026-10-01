@@ -4,7 +4,7 @@
       <div>
         <div class="ui-eyebrow">Account</div>
         <h1>My profile</h1>
-        <p>Your personal details, sign-in password and session.</p>
+        <p>Your personal details, password, sign-in methods and session.</p>
       </div>
       <div class="ui-actions">
         <router-link to="/settings" class="ui-btn"><i class="fa-solid fa-sliders"></i> Organisation settings</router-link>
@@ -99,6 +99,10 @@
             <button type="submit" class="ui-btn ui-btn--primary" :disabled="pwSaving || !pw.current || !pw.next || !pw.confirm"><i :class="pwSaving ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-lock'"></i> Change password</button>
           </div>
         </form>
+
+        <LinkedAccounts :email="me ? me.email : ''" />
+
+        <MyBookingEmailsCard />
       </div>
     </div>
   </div>
@@ -111,11 +115,14 @@ import { useAuthStore } from '@/stores/auth'
 import { formatDate, formatDateTime } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
+import LinkedAccounts from '@/components/auth/LinkedAccounts.vue'
+import MyBookingEmailsCard from '@/components/bookings/MyBookingEmailsCard.vue'
 
 const ROLES = { super_admin: 'Super admin', admin: 'Admin', manager: 'Manager', owner: 'Owner', care_worker: 'Staff', support_coordinator: 'Coordinator' }
 
 export default {
   name: 'Profile',
+  components: { LinkedAccounts, MyBookingEmailsCard },
   data() {
     return {
       me: null,
@@ -348,7 +355,7 @@ export default {
 
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .who {
     position: static;

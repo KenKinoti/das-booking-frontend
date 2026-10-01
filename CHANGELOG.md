@@ -6,6 +6,54 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.8.0] - 2026-10-01
+
+### Recurring bills and bill reminders — keep services online
+
+- **Recurring bills** (Finance → Bills → **Recurring**, or **Repeat this bill** on a new / edited bill): weekly,
+  monthly, every 3 months, yearly or every N months from a start date; ends never, after N bills or on a date.
+  Month-end dates clamp without drifting (31 Jan → 28/29 Feb → 31 Mar). Each schedule has a vendor, category
+  account, amount (fixed, or an estimate that is always created as a draft to confirm), tax rate, currency (the
+  organisation's by default; foreign amounts are converted with the exchange-rate service when each bill is
+  created), due days, how many days ahead to create the bill, draft or approved, auto-pay (card / direct debit)
+  or manual payment, and the service it keeps online (free text + Synergy domain).
+- **Scheduler**: runs every 10 minutes in the server with a Postgres advisory lock per organisation (one
+  instance at a time); occurrences are unique per schedule + period so a period is never billed twice, missed
+  runs are caught up (capped at 24 periods), paused periods are not back-filled on resume, and a period can be
+  skipped / restored. **Run now** on the Upcoming tab (`POST /api/v1/finance/recurring/run`, admins only).
+- **Upcoming bills** tab: next 30/60/90 days plus everything overdue, a 30-day calendar strip, totals per month,
+  **Mark paid** (opens the payment form; creates the bill first when needed), **Skip**, **Snooze reminders**.
+- **Expenses integration**: a subscription detected in Expenses can be converted (**Make recurring bill** on
+  Expenses → Subscriptions or Bills → Recurring). Converted schedules run in *track* mode: Expenses keeps
+  turning the supplier's invoices into bills, the schedule creates none — it reminds and matches the imported
+  bill to the period, so nothing is counted twice. Generated drafts don't reach the P&L until approved (the
+  existing count-once rules apply unchanged).
+- **Reminder emails** (Settings → **Bill reminders**): to organisation admins, the outgoing-email "Notification
+  recipients", extra addresses and per-bill recipients, from the organisation's sender, in the shared email
+  template (logo, key facts card — vendor, amount, due date, service, auto-pay or manual, last paid — and
+  **Mark as paid** / **View bill** deep links). Default schedule: 7 and 1 days before, on the due date, then
+  every 3 days up to 3 times while overdue (urgent tone); only the latest reached stage is sent and every
+  send is logged once per bill + stage (`finance_bill_reminder_log`). **Weekly digest** (Monday 08:00 in the
+  organisation's time zone by default): next 14 days, overdue bills and Synergy low-balance / runway warnings.
+  In-app notifications mirror every email.
+
+### Staff booking emails
+
+- The assigned staff member is emailed when a booking is created, rescheduled, reassigned (the previous
+  person gets "no longer yours"), cancelled / deleted or marked no-show — customer, phone, services, date and
+  time in the organisation's time zone, duration, vehicle, location, notes and **Open booking** — with a
+  `booking.ics` (METHOD:REQUEST / CANCEL, stable UID per booking, increasing SEQUENCE) so calendars update.
+  Sent in the background with retries (the booking API never waits for SMTP), logged per booking and shown
+  in the booking drawer; staff without an email are skipped with a logged warning.
+- Optional daily agenda at 07:00 (Settings → **Staff booking emails**, off by default) and a per-user
+  **Email me about my bookings** switch on My profile. Customer contacts flagged `cc_bookings` are not
+  emailed: no customer-facing booking email exists yet.
+
+### Also in this release
+
+- Sign in with Google or Microsoft (replaces the quick sign-in buttons); Zoho item prices imported in the
+  right currency.
+
 ## [2.7.0] - 2026-10-01
 
 ### Synergy Wholesale analytics — upload, monitor, decide

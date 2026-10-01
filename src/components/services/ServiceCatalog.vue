@@ -127,7 +127,7 @@
                 </td>
                 <td class="hide-sm"><span class="cat-pill">{{ row.s.category }}</span></td>
                 <td class="num">{{ duration(row.s.duration) }}</td>
-                <td class="num"><strong>{{ money(row.s.price) }}</strong></td>
+                <td class="num"><strong>{{ money(row.s.price, row.s.currency) }}</strong><small v-if="row.s.currency && row.s.currency !== home" class="cur-tag" :title="`Priced in ${row.s.currency}`">{{ row.s.currency }}</small><small v-if="row.s.price_includes_tax" class="incl" title="Price includes tax">incl. tax</small></td>
                 <td class="hide-md" @click.stop>
                   <label class="ui-switch" :title="row.s.is_active ? 'Deactivate' : 'Activate'">
                     <input type="checkbox" :checked="row.s.is_active" :disabled="busy === row.s.id" :aria-label="`${row.s.name} active`" @change="toggle(row.s)" />
@@ -167,6 +167,7 @@ import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatMoney, downloadBlob, isoDate } from '@/utils/format'
+import { orgCurrency } from '@/utils/orgDefaults'
 
 export default {
   name: 'ServiceCatalog',
@@ -201,8 +202,12 @@ export default {
     categoryNames() {
       return [...new Set(this.all.map((s) => s.category).filter(Boolean))].sort((a, b) => a.localeCompare(b))
     },
+    home() {
+      return orgCurrency()
+    },
     avgPrice() {
-      const a = this.all.filter((s) => s.is_active)
+      // home-currency prices only (services kept in e.g. AUD don't mix in)
+      const a = this.all.filter((s) => s.is_active && (!s.currency || s.currency === this.home))
       return a.length ? a.reduce((t, s) => t + Number(s.price || 0), 0) / a.length : 0
     },
     avgDuration() {
@@ -269,7 +274,7 @@ export default {
     if (this.$route.query.new) this.openCreate()
   },
   methods: {
-    money: (v) => formatMoney(v),
+    money: (v, cur) => formatMoney(v, cur || undefined),
     duration: formatDuration,
     iconFor(s) {
       return groupForCategory(s.category + ' ' + s.name)?.icon || 'fa-solid fa-bell-concierge'
@@ -359,8 +364,8 @@ export default {
     },
     exportCsv() {
       const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-      const head = ['Name', 'Category', 'Duration (min)', 'Price', 'Active', 'Requires vehicle', 'Description']
-      const lines = this.filtered.map((s) => [s.name, s.category, s.duration, Number(s.price).toFixed(2), s.is_active ? 'Yes' : 'No', s.requires_vehicle ? 'Yes' : 'No', s.description].map(esc).join(','))
+      const head = ['Name', 'Category', 'Duration (min)', 'Price', 'Currency', 'Price includes tax', 'Active', 'Requires vehicle', 'Description']
+      const lines = this.filtered.map((s) => [s.name, s.category, s.duration, Number(s.price).toFixed(2), s.currency || this.home, s.price_includes_tax ? 'Yes' : 'No', s.is_active ? 'Yes' : 'No', s.requires_vehicle ? 'Yes' : 'No', s.description].map(esc).join(','))
       downloadBlob(new Blob([[head.map(esc).join(','), ...lines].join('\n')], { type: 'text/csv' }), `services-${isoDate()}.csv`)
     }
   }
@@ -609,5 +614,16 @@ export default {
   .ui-kpi__meta {
     display: none;
   }
+}
+.cur-tag,
+.incl {
+  display: block;
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+.cur-tag {
+  color: var(--info);
+  font-weight: 600;
 }
 </style>

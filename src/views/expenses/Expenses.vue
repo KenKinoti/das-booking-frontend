@@ -231,7 +231,7 @@
         </div>
         <div v-else class="ui-table-wrap">
           <table class="ui-table" data-testid="exp-subs">
-            <thead><tr><th>Service</th><th>Every</th><th class="num">Last charge</th><th class="num">Change</th><th>Next expected</th><th class="num">Annualised ({{ cur }})</th><th>Status</th></tr></thead>
+            <thead><tr><th>Service</th><th>Every</th><th class="num">Last charge</th><th class="num">Change</th><th>Next expected</th><th class="num">Annualised ({{ cur }})</th><th>Status</th><th>Bills</th></tr></thead>
             <tbody>
               <tr v-for="s in d.subscriptions" :key="s.key" class="is-clickable" @click="s.vendor_id && (vendorId = s.vendor_id)">
                 <td><div class="vcell"><strong>{{ s.vendor }}</strong><small>{{ s.service }}</small></div></td>
@@ -241,10 +241,14 @@
                 <td>{{ formatDate(s.next_date) }}<small class="block muted">{{ money(s.next_amount, cur) }}</small></td>
                 <td class="num"><strong>{{ money(s.annualised, cur) }}</strong></td>
                 <td><span class="ui-badge" :class="{ active: 'ui-badge--success', overdue: 'ui-badge--warning', lapsed: 'ui-badge--draft' }[s.status]">{{ s.status }}</span></td>
+                <td @click.stop>
+                  <router-link v-if="s.recurring_bill_id" class="ui-btn ui-btn--ghost ui-btn--sm" :to="`/bills?view=recurring&schedule=${s.recurring_bill_id}`" title="Linked to a recurring bill — reminders on, counted once"><i class="fa-solid fa-link"></i> Recurring</router-link>
+                  <router-link v-else-if="s.status !== 'lapsed'" class="ui-btn ui-btn--sm" :to="`/bills?view=recurring&convert=${encodeURIComponent(s.key)}`" data-testid="exp-make-recurring"><i class="fa-solid fa-repeat"></i> Make recurring bill</router-link>
+                </td>
               </tr>
             </tbody>
             <tfoot>
-              <tr><td colspan="5"><strong>Total active</strong></td><td class="num"><strong>{{ money(k.subscriptions_annual, cur) }}</strong></td><td></td></tr>
+              <tr><td colspan="5"><strong>Total active</strong></td><td class="num"><strong>{{ money(k.subscriptions_annual, cur) }}</strong></td><td></td><td></td></tr>
             </tfoot>
           </table>
         </div>

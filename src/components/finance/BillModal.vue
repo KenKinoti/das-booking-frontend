@@ -100,6 +100,15 @@
             <div v-if="bill && bill.paid_amount > 0" class="paid"><span>Paid</span><span>− {{ money(bill.paid_amount) }}</span></div>
           </div>
         </div>
+
+        <div class="repeat" data-testid="bill-repeat">
+          <div class="repeat__head">
+            <i class="fa-solid fa-repeat"></i>
+            <strong>Repeat this bill</strong>
+            <small>Creates the next bill automatically and reminds admins before it's due.</small>
+          </div>
+          <RecurrenceFields v-model="repeat" allow-none :show-start="false" :start-date="form.bill_date" />
+        </div>
       </div>
 
       <div class="ui-modal__foot">
@@ -125,12 +134,14 @@
 <script>
 import { orgCurrency } from '@/utils/orgDefaults'
 import AccountSelect from './AccountSelect.vue'
+import RecurrenceFields from './RecurrenceFields.vue'
+import { recurringApi } from '@/services/recurringBills'
 import { financeApi, PAYMENT_TERMS, termDays, toCents } from '@/services/finance'
 import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage, listFrom } from '@/services/api'
 import supplierService from '@/services/supplierService'
 import { hasModule } from '@/composables/useEntitlements'
-import { formatMoney, isoDate, addDays } from '@/utils/format'
+import { formatMoney, formatDate, isoDate, addDays } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 
 let key = 0
@@ -138,7 +149,7 @@ const blank = (rate = 10) => ({ key: ++key, description: '', account_id: '', qua
 
 export default {
   name: 'BillModal',
-  components: { AccountSelect },
+  components: { AccountSelect, RecurrenceFields },
   props: {
     bill: { type: Object, default: null },
     vendorId: { type: String, default: '' },
@@ -170,7 +181,8 @@ export default {
       pos: [],
       saving: '',
       touched: false,
-      error: ''
+      error: '',
+      repeat: { frequency: '', interval: 2, end_mode: 'never', end_after: 12, end_date: '', create_as: 'draft', auto_pay: false }
     }
   },
   computed: {
@@ -295,6 +307,30 @@ export default {
       if (this.totals.total <= 0) return 'The bill total must be more than zero.'
       return ''
     },
+    // "Repeat this bill": the saved bill becomes the first of a schedule.
+    async makeRecurring(saved) {
+      const v = this.vendorList.find((x) => x.id === saved.vendor_id)
+      const first = saved.line_items?.[0]?.description || ''
+      const name = [v?.name, first].filter(Boolean).join(' — ').slice(0, 200)
+      try {
+        const r = await recurringApi.create({
+          source_bill_id: saved.id,
+          name,
+          vendor_id: saved.vendor_id,
+          reference: saved.reference || '',
+          frequency: this.repeat.frequency,
+          interval: Number(this.repeat.interval) || 1,
+          end_mode: this.repeat.end_mode,
+          end_after: Number(this.repeat.end_after) || 0,
+          end_date: this.repeat.end_date,
+          create_as: this.repeat.create_as,
+          auto_pay: this.repeat.auto_pay
+        })
+        toast.success(`Repeats: ${r.summary}. Next bill ${r.next_date ? formatDate(r.next_date) : 'scheduled'}.`)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'The bill was saved, but the repeat schedule could not be created'))
+      }
+    },
     async save(status) {
       this.touched = true
       this.error = this.validate()
@@ -321,6 +357,7 @@ export default {
       try {
         const saved = this.bill ? await financeApi.updateBill(this.bill.id, payload) : await financeApi.createBill(payload)
         toast.success(this.bill ? 'Bill updated' : status === 'draft' ? 'Draft bill saved' : `Bill ${saved.bill_number} approved`)
+        if (this.repeat.frequency) await this.makeRecurring(saved)
         this.$emit('saved', saved)
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not save the bill')
@@ -333,6 +370,27 @@ export default {
 </script>
 
 <style scoped>
+.repeat {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.repeat__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.repeat__head i {
+  color: var(--accent);
+}
+.repeat__head small {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
 .top {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 160px 160px;

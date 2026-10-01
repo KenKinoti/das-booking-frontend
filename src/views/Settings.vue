@@ -17,7 +17,7 @@
 
     <div class="layout">
       <nav class="side" aria-label="Settings sections">
-        <a v-for="s in sections" :key="s.id" :href="`#${s.id}`" :class="{ 'is-active': active === s.id }" @click.prevent="scrollTo(s.id)"><i :class="s.icon"></i> {{ s.label }}</a>
+        <a v-for="s in sections.filter((x) => (x.id !== 'bill-reminders' || hasModule('accounting')) && (x.id !== 'booking-emails' || hasModule('bookings')))" :key="s.id" :href="`#${s.id}`" :class="{ 'is-active': active === s.id }" @click.prevent="scrollTo(s.id)"><i :class="s.icon"></i> {{ s.label }}</a>
       </nav>
 
       <div class="stack">
@@ -149,6 +149,30 @@
           </section>
         </fieldset>
 
+        <section v-if="hasModule('accounting')" id="bill-reminders" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Bill reminders</h2>
+              <p class="sub">Reminder emails and a weekly digest so recurring bills (hosting, domains, subscriptions) are paid on time.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <BillRemindersPanel :can-edit="canEdit" />
+          </div>
+        </section>
+
+        <section v-if="hasModule('bookings')" id="booking-emails" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Staff booking emails</h2>
+              <p class="sub">Tell staff when bookings are assigned to them, moved or cancelled.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <BookingEmailSettingsPanel :can-edit="canEdit" />
+          </div>
+        </section>
+
         <section id="email" class="ui-card">
           <div class="ui-card__head">
             <div>
@@ -170,6 +194,18 @@
           </div>
           <div class="ui-card__body">
             <PaymentSettingsPanel />
+          </div>
+        </section>
+
+        <section id="security" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Security</h2>
+              <p class="sub">Sign in with Google or Microsoft, and who may join from your company domain.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <SsoDomains />
           </div>
         </section>
 
@@ -214,6 +250,10 @@ import { currencyGroups, currencyForCountry, CURRENCY_CODES } from '@/utils/curr
 import CountryPicker from '@/components/customers/CountryPicker.vue'
 import EmailSettingsPanel from '@/components/settings/EmailSettingsPanel.vue'
 import PaymentSettingsPanel from '@/components/settings/PaymentSettingsPanel.vue'
+import { hasModule } from '@/composables/useEntitlements'
+import BillRemindersPanel from '@/components/finance/BillRemindersPanel.vue'
+import BookingEmailSettingsPanel from '@/components/bookings/BookingEmailSettingsPanel.vue'
+import SsoDomains from '@/components/auth/SsoDomains.vue'
 import { refreshOrgPrefs } from '@/composables/useOrgPrefs'
 import { orgDefaults } from '@/utils/orgDefaults'
 import { toast } from '@/composables/useToast'
@@ -227,7 +267,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
-  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel },
+  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel },
   data() {
     return {
       org: blankOrg(),
@@ -245,8 +285,11 @@ export default {
         { id: 'business', label: 'Business details', icon: 'fa-regular fa-building' },
         { id: 'regional', label: 'Regional & formats', icon: 'fa-solid fa-globe' },
         { id: 'notifications', label: 'Notifications', icon: 'fa-regular fa-bell' },
+        { id: 'bill-reminders', label: 'Bill reminders', icon: 'fa-solid fa-file-invoice-dollar' },
+        { id: 'booking-emails', label: 'Booking emails', icon: 'fa-regular fa-calendar-check' },
         { id: 'email', label: 'Outgoing email', icon: 'fa-regular fa-paper-plane' },
         { id: 'payments', label: 'Online payments', icon: 'fa-regular fa-credit-card' },
+        { id: 'security', label: 'Security', icon: 'fa-solid fa-shield-halved' },
         { id: 'more', label: 'More settings', icon: 'fa-solid fa-grip' },
         { id: 'about', label: 'About', icon: 'fa-solid fa-circle-info' }
       ],
@@ -321,6 +364,7 @@ export default {
     next(await confirmDialog({ title: 'Leave without saving?', message: 'Your changes to settings will be lost.', confirmText: 'Discard changes', danger: true }))
   },
   methods: {
+    hasModule,
     beforeUnload(e) {
       if (this.dirty) {
         e.preventDefault()

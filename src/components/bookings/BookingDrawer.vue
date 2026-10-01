@@ -90,6 +90,16 @@
           <p class="note note--internal"><i class="fa-solid fa-lock"></i> {{ booking.internal_notes }}</p>
         </section>
 
+        <section v-if="emails.length" class="block" data-testid="booking-staff-emails">
+          <h3>Staff emails</h3>
+          <ul class="emails">
+            <li v-for="e in emails" :key="e.id">
+              <i :class="e.status === 'sent' ? 'fa-solid fa-envelope-circle-check ok' : e.status === 'failed' ? 'fa-solid fa-triangle-exclamation bad' : 'fa-regular fa-envelope muted'"></i>
+              <span>{{ emailEvent(e) }} → {{ e.email || 'no email' }}<small>{{ e.status === 'skipped' || e.status === 'failed' ? e.error : formatDateTime(e.created_at) }}</small></span>
+            </li>
+          </ul>
+        </section>
+
         <p class="meta">Created {{ formatDateTime(booking.created_at) }}<template v-if="booking.updated_at && booking.updated_at !== booking.created_at"> · updated {{ formatDateTime(booking.updated_at) }}</template></p>
       </div>
 
@@ -110,6 +120,7 @@
 
 <script>
 import { formatMoney, formatDateTime } from '@/utils/format'
+import { bookingEmailsApi } from '@/services/recurringBills'
 import { statusMeta, statusActions, personName, initials, vehicleLabel, formatTime, formatDuration, minutesBetween } from './bookingUtils'
 
 export default {
@@ -151,6 +162,15 @@ export default {
       return (this.booking.services || []).length > 0 && Math.abs(this.servicesTotal - Number(this.booking.total_price || 0)) > 0.005
     }
   },
+  data() {
+    return { emails: [] }
+  },
+  watch: {
+    'booking.id': { immediate: true, handler: 'loadEmails' },
+    'booking.updated_at'() {
+      setTimeout(() => this.loadEmails(), 1500)
+    }
+  },
   mounted() {
     document.addEventListener('keydown', this.onKey)
   },
@@ -165,6 +185,17 @@ export default {
     money(v) {
       return formatMoney(v)
     },
+    async loadEmails() {
+      if (!this.booking?.id) return
+      try {
+        this.emails = ((await bookingEmailsApi.log({ booking_id: this.booking.id })) || []).slice(0, 6)
+      } catch {
+        this.emails = []
+      }
+    },
+    emailEvent(e) {
+      return { assigned: 'Assigned', rescheduled: 'Rescheduled', unassigned: 'Unassigned', cancelled: 'Cancelled', no_show: 'No-show' }[e.event] || e.event
+    },
     onKey(e) {
       if (e.key === 'Escape' && !document.querySelector('.ui-modal-backdrop')) this.$emit('close')
     }
@@ -173,6 +204,39 @@ export default {
 </script>
 
 <style scoped>
+.emails {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.emails li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+.emails span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.emails small {
+  display: block;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.emails .ok {
+  color: var(--success);
+}
+.emails .bad {
+  color: var(--warning);
+}
+.emails .muted {
+  color: var(--text-3);
+}
 .drawer-backdrop {
   position: fixed;
   inset: 0;

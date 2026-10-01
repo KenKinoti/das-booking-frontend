@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { authService } from '../services/auth'
 import { apiErrorMessage } from '../services/api'
+import { ssoApi } from '../services/sso'
 import { seedBranding, loadBranding, clearBranding } from '../composables/useBranding'
 import { loadOrgPrefs, clearOrgPrefs } from '../composables/useOrgPrefs'
 
@@ -64,6 +65,26 @@ export const useAuthStore = defineStore('auth', {
         this.error = error.response?.status === 401
           ? 'Incorrect email or password.'
           : apiErrorMessage(error, error.message || 'Login failed')
+        throw error
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    /**
+     * Finish "Sign in with Google / Microsoft": swap the one-time code from
+     * the callback for a normal session. Returns the page to go to.
+     */
+    async completeSso(code) {
+      this.isLoading = true
+      this.error = null
+      try {
+        const { session, redirect } = await ssoApi.exchange(code)
+        if (!session?.token || !session?.user) throw new Error('Sign in failed')
+        this.setSession(session.token, session.refresh_token, session.user)
+        return redirect || ''
+      } catch (error) {
+        this.error = apiErrorMessage(error, error.message || 'Sign in failed')
         throw error
       } finally {
         this.isLoading = false

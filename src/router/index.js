@@ -87,6 +87,8 @@ const routes = [
     component: Login,
     meta: { requiresAuth: false }
   },
+  // Sign in with Google / Microsoft lands here (one-time code or a friendly error)
+  { path: '/auth/sso-complete', name: 'SsoComplete', component: () => import('../views/auth/SsoComplete.vue'), meta: { requiresAuth: false, public: true, title: 'Signing in' } },
   {
     path: '/',
     redirect: () => {

@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.7.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.8.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,13 +26,14 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Synergy Wholesale analytics: upload your statements and hosting usage reports to see spend, run-rate, balance runway, disk usage and margin per site — with clear recommendations.'
+export const RELEASE_LEAD = 'Recurring bills with reminder emails that keep hosting, domains and subscriptions paid — and staff now get an email with a calendar invite for every booking assigned to them.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-file-csv', text: 'Drop Synergy statements and hosting usage reports (several at once) on Expenses → Synergy: the type is detected, re-uploads never duplicate, and the running balance is checked for gaps between months' },
-  { icon: 'fa-solid fa-server', text: 'Per-site table: client (matched by invoices, website or email), plan, monthly cost, disk used with trend and days to full, what you bill, margin — sortable, filterable, CSV export' },
-  { icon: 'fa-solid fa-lightbulb', text: 'Recommendations with the numbers: over-quota sites and the cheapest plan that fits, fast growers, unbilled sites, sites billed below cost, top up $X by date, cancellations and savings' },
-  { icon: 'fa-solid fa-wallet', text: 'Spend this month / last month / year to date, monthly run-rate, balance runway and top-ups (never counted as an expense), plus an August-vs-September style comparison in plain English' },
-  { icon: 'fa-solid fa-file-circle-plus', text: 'Create expenses from statements: one bill per month per category with a line per domain — on charge date or service month — counted once, never twice with Synergy receipts from Gmail' }
+  { icon: 'fa-solid fa-repeat', text: 'Recurring bills in Finance → Bills: weekly, monthly, quarterly, yearly or every N months, with an end date or count — the next bill is created as a draft or approved, in any currency, never twice for the same period' },
+  { icon: 'fa-regular fa-calendar-days', text: 'Upcoming bills: the next 90 days with a calendar strip and totals per month — mark paid, skip one, or snooze its reminders' },
+  { icon: 'fa-regular fa-bell', text: 'Bill reminder emails to admins 7 and 1 days before, on the due date and while overdue, plus a Monday digest with Synergy balance warnings (Settings → Bill reminders)' },
+  { icon: 'fa-solid fa-link', text: 'Turn a subscription detected in Expenses into a recurring bill — reminders without counting the cost twice' },
+  { icon: 'fa-regular fa-envelope', text: 'Staff booking emails with an .ics invite: assigned, rescheduled, reassigned, cancelled and no-show, plus an optional 7am agenda (switch off in My profile)' },
+  { icon: 'fa-solid fa-right-to-bracket', text: 'Sign in with Google or Microsoft (replaces the quick sign-in buttons); Zoho item prices imported in the right currency' }
 ]

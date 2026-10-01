@@ -241,6 +241,11 @@
         </div>
       </form>
 
+      <!-- Sign in with Google / Microsoft -->
+      <div v-else-if="tab === 'signin'" class="ui-card__body">
+        <SignInProviders />
+      </div>
+
       <!-- Activity -->
       <div v-else-if="tab === 'activity'">
         <div v-if="logsLoading" class="ui-card__body"><div v-for="n in 4" :key="n" class="ui-skeleton" style="height: 20px; margin-bottom: 12px"></div></div>
@@ -280,6 +285,7 @@ import { formatDateTime } from '@/utils/format'
 import { currencyGroups } from '@/utils/currencies'
 import { platformAPI, ensurePlatformSession } from '@/services/platform'
 import EmailSettingsPanel from '@/components/settings/EmailSettingsPanel.vue'
+import SignInProviders from '@/components/auth/SignInProviders.vue'
 import { paymentsApi } from '@/services/payments'
 import { SOURCE_LABELS, SECURITY_LABELS } from '@/services/emailSettings'
 
@@ -330,7 +336,7 @@ const SECTIONS = {
 
 export default {
   name: 'SystemSettings',
-  components: { EmailSettingsPanel },
+  components: { EmailSettingsPanel, SignInProviders },
   data() {
     return {
       settings: null,
@@ -343,7 +349,7 @@ export default {
       saving: false,
       testing: false,
       error: '',
-      tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
+      tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'signin', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
       testTo: '',
       sendingTest: false,
       testResult: null,
@@ -357,6 +363,7 @@ export default {
         { value: 'stripe', label: 'Payments', icon: 'fa-solid fa-credit-card', section: 'stripe_settings' },
         { value: 'twilio', label: 'SMS', icon: 'fa-solid fa-comment-sms', section: 'twilio_settings' },
         { value: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', section: 'whatsapp_settings' },
+        { value: 'signin', label: 'Sign-in providers', icon: 'fa-solid fa-right-to-bracket' },
         { value: 'activity', label: 'Activity', icon: 'fa-solid fa-list-check' }
       ]
     }

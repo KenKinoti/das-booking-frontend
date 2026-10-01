@@ -113,6 +113,8 @@
         </div>
       </section>
 
+      <FixItemPrices v-if="info.connected || jobs.length" :connected="!!info.connected" :home-currency="info.home_currency || ''" />
+
       <section v-if="zohoJobs.length" class="ui-card">
         <div class="ui-card__head"><h2>Previous Zoho imports</h2></div>
         <ul class="jobs">
@@ -133,10 +135,11 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatDateTime } from '@/utils/format'
 import ImportOptions, { DEFAULT_OPTIONS } from '@/components/imports/ImportOptions.vue'
+import FixItemPrices from './FixItemPrices.vue'
 
 export default {
   name: 'ZohoImport',
-  components: { ImportOptions },
+  components: { ImportOptions, FixItemPrices },
   data() {
     return {
       info: null,
