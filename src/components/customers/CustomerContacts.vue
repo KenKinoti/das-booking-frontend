@@ -39,6 +39,7 @@
         <label class="ui-switch"><input v-model="form.cc_invoices" type="checkbox" /> Invoices</label>
         <label class="ui-switch"><input v-model="form.cc_quotes" type="checkbox" /> Quotes</label>
         <label class="ui-switch"><input v-model="form.cc_reminders" type="checkbox" /> Payment reminders</label>
+        <label class="ui-switch"><input v-model="form.cc_receipts" type="checkbox" data-testid="cc-receipts" /> Payment receipts</label>
         <label class="ui-switch"><input v-model="form.cc_bookings" type="checkbox" /> Booking emails</label>
       </fieldset>
       <label class="ui-switch cc__primary">
@@ -93,7 +94,7 @@ import { confirmDialog } from '@/composables/useConfirm'
 
 const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/
 let seq = 0
-const blank = () => ({ name: '', role: '', email: '', phone: '', notes: '', cc_invoices: true, cc_quotes: false, cc_reminders: false, cc_bookings: false, is_primary_billing: false })
+const blank = () => ({ name: '', role: '', email: '', phone: '', notes: '', cc_invoices: true, cc_quotes: false, cc_reminders: false, cc_receipts: true, cc_bookings: false, is_primary_billing: false })
 
 export default {
   name: 'CustomerContacts',
@@ -124,7 +125,7 @@ export default {
   methods: {
     initials,
     tags(c) {
-      return [c.cc_invoices && 'Invoices', c.cc_quotes && 'Quotes', c.cc_reminders && 'Reminders', c.cc_bookings && 'Bookings'].filter(Boolean)
+      return [c.cc_invoices && 'Invoices', c.cc_quotes && 'Quotes', c.cc_reminders && 'Reminders', c.cc_receipts !== false && 'Receipts', c.cc_bookings && 'Bookings'].filter(Boolean)
     },
     async load() {
       this.loading = true
@@ -182,7 +183,7 @@ export default {
       }
       this.saving = true
       try {
-        const payload = { name: f.name, role: f.role, email: f.email, phone: f.phone, notes: f.notes, cc_invoices: f.cc_invoices, cc_quotes: f.cc_quotes, cc_reminders: f.cc_reminders, cc_bookings: f.cc_bookings, is_primary_billing: f.is_primary_billing }
+        const payload = { name: f.name, role: f.role, email: f.email, phone: f.phone, notes: f.notes, cc_invoices: f.cc_invoices, cc_quotes: f.cc_quotes, cc_reminders: f.cc_reminders, cc_receipts: f.cc_receipts !== false, cc_bookings: f.cc_bookings, is_primary_billing: f.is_primary_billing }
         if (f.id) await customerService.updateContact(this.customerId, f.id, payload)
         else await customerService.createContact(this.customerId, payload)
         toast.success(f.id ? 'Contact updated' : 'Contact added')

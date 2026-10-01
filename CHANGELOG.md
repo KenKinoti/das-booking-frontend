@@ -6,6 +6,52 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.6.0] - 2026-10-01
+
+### Custom and edited payments, numbered receipts, receipts by email
+
+- **Record payment** (invoice → Payments → Record): any amount above zero — the balance is the default
+  and part payments are fine ("Part payment — KSh 6,000.00 will still be due"). **Overpayments are
+  blocked** with a clear message (nothing is recorded as credit). Date (today by default, not in the
+  future), method (cash, bank transfer, card, mobile money / M-Pesa, cheque, Flutterwave, PayPal, Stripe,
+  other), reference and notes. Amounts respect the currency's decimals (JPY 0, KWD 3).
+- **Edit saved payments** — `PUT /invoicing/invoices/:id/payments/:paymentId` (amount, date, method,
+  reference, notes, optional reason). The sum of payments can't exceed the invoice total; amount paid,
+  balance and status (paid ↔ partial ↔ sent) are recalculated and the activity log records
+  "Payment edited (RCT-0003): KSh 5,000.00 → KSh 7,500.00 (reason)" with who and when. **Deposits** are
+  edited the same way — from the payments list or from the editor's "Already paid / deposit" section,
+  which now shows the saved deposit and updates it in place (no duplicate). **Online (Flutterwave) and
+  imported (Zoho / CSV) payments** mirror an external record: their amount, date and method can't be
+  changed (the dialog explains why); reference and notes can. Removing an online payment warns that it
+  does not refund the client.
+- **Receipts:** every payment gets a receipt number per organisation (Invoice settings → *Receipt
+  prefix* + *Next receipt number*, e.g. RCT-0001); existing payments are numbered once, in date order,
+  on upgrade (idempotent). The receipt PDF shows the logo, receipt number and date, who paid, the
+  amount in figures and **in words** (English, with the currency's name), method / reference, the
+  invoice with its total, total paid to date and balance remaining (as at that payment), a **PAID IN
+  FULL** stamp when nothing is left, notes and a footer. After an edit it says "Revised <date>" and keeps
+  its number; a removed payment's receipt (e.g. an old emailed link) shows **CANCELLED** instead of
+  failing. Files are named `RCT-0001.pdf`.
+- **Receipts by email:** "Email receipt to client" on Record payment (on by default when the client has
+  an email and outgoing email is set up; optional "Let me review the email first") and "Email revised
+  receipt" on Edit (off by default). Per payment: **Send / Resend receipt** (recipients, subject,
+  message, exact preview, pre-send checks, "Send test to me") and **Download receipt**. The email uses
+  the invoicing template family: logo header, "Payment received — thank you" summary with amount,
+  receipt and invoice numbers, balance remaining or "Paid in full", View invoice button, footer, PDF
+  attached. Recipients: the billing contact, customer contacts flagged **Payment receipts** (new
+  `cc_receipts` contact flag, on by default) and the email settings' Always CC/BCC. Logged in the
+  invoice's Emails tab as type *receipt*. **Receipt email template** (subject + message) in Invoice
+  settings with `{{receipt_number}}`, `{{amount_received}}`, `{{balance_due}}`, `{{invoice_number}}`,
+  `{{client_name}}`, `{{business_name}}`, `{{payment_date}}`, `{{payment_method}}` (filled on the
+  server; unknown placeholders are refused when saving).
+- **Online payments:** Settings → Online payments → "Automatically email a receipt after an online
+  payment" (on by default) emails the receipt once the Flutterwave payment is verified (once, even when
+  the redirect and the webhook both arrive).
+- **Ask DASYIN / MCP:** `invoices_add_payment` takes `email_receipt`; new `invoices_update_payment` and
+  `invoices_send_receipt`; customer contact tools know `cc_receipts`.
+- Profit & loss, analytics and KPIs read payments live, so edits (amount and date) flow through on the
+  cash basis; the numbers audit re-checks them after editing a payment.
+
 ## [2.5.0] - 2026-10-01
 
 ### Expenses (Synergy Wholesale, Google Workspace, any supplier) and Zoho Books import

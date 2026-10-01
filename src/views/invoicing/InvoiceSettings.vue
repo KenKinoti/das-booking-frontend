@@ -92,6 +92,19 @@
             <div class="preview">{{ preview(s.quote_prefix, s.next_quote_number) }}</div>
           </div>
           <div class="ui-field">
+            <label for="rp">Receipt prefix</label>
+            <input id="rp" v-model="s.receipt_prefix" class="ui-input" maxlength="20" data-testid="receipt-prefix" />
+          </div>
+          <div class="ui-field">
+            <label for="rn">Next receipt number</label>
+            <input id="rn" v-model.number="s.next_receipt_number" type="number" min="1" class="ui-input" />
+          </div>
+          <div class="ui-field">
+            <label>Preview</label>
+            <div class="preview" data-testid="receipt-preview">{{ preview(s.receipt_prefix, s.next_receipt_number) }}</div>
+          </div>
+          <p class="ui-hint span-all m0">Every payment gets the next receipt number when it is recorded; editing a payment keeps its number.</p>
+          <div class="ui-field">
             <label for="cur">Default currency</label>
             <div id="cur" class="ui-input cur-ro" data-testid="invoice-currency">{{ currencyLabel(s.currency) }}</div>
             <span class="ui-hint">Your organisation's currency — change it in <router-link to="/settings#regional">Settings → Business details</router-link>. A customer's own currency still applies to their invoices.</span>
@@ -176,6 +189,23 @@
               <code v-text="ph('total')"></code> is the document total, <code v-text="ph('amount_due')"></code> what is still to pay (after deposits and payments). Amounts are filled in on the server in the document's currency when the email is sent, and every email is checked before it goes out.
             </span>
           </div>
+          <div class="rcpt-tpl" data-testid="receipt-template">
+            <h3>Payment receipt email</h3>
+            <p class="ui-hint m0">Sent when you tick “Email receipt to client”, use “Send receipt”, or a client pays online. The receipt PDF is attached.</p>
+            <div class="ui-field mb-s">
+              <label for="rs">Receipt subject</label>
+              <input id="rs" v-model="s.receipt_subject" class="ui-input" :placeholder="defaultReceiptSubject" />
+            </div>
+            <div class="ui-field">
+              <label for="rm">Receipt message</label>
+              <textarea id="rm" v-model="s.receipt_message" class="ui-textarea" rows="7" :placeholder="defaultReceiptMessage"></textarea>
+              <span class="ui-hint">
+                Placeholders: <code v-for="p in receiptPlaceholders" :key="p" v-text="ph(p)"></code>
+              </span>
+              <span class="ui-hint">Leave empty to use the default shown.</span>
+              <div v-if="!s.receipt_subject && !s.receipt_message"><button type="button" class="ui-btn ui-btn--sm" data-testid="receipt-default" @click="useDefaultReceipt"><i class="fa-regular fa-pen-to-square"></i> Start from the default</button></div>
+            </div>
+          </div>
           <p v-if="sender && sender.ready" class="ui-hint mt" data-testid="invoice-sender"><i class="fa-regular fa-paper-plane"></i> Emails are sent from <strong>{{ sender.from }}</strong><template v-if="sender.always_cc.length"> · always CC {{ sender.always_cc.join(', ') }}</template><template v-if="sender.always_bcc.length"> · always BCC {{ sender.always_bcc.join(', ') }}</template>. <router-link to="/settings#email">Change</router-link></p>
           <p v-else-if="!emailEnabled" class="ui-hint mt">To send directly from the app, connect an email account (e.g. Gmail) under <router-link to="/settings#email">Settings → Outgoing email</router-link>. Until then, “Open in email app” is used.</p>
         </div>
@@ -186,7 +216,7 @@
 
 <script>
 import { currencyGroups, currencyLabel } from '@/utils/currencies'
-import { invoicingApi } from '@/services/invoicing'
+import { invoicingApi, RECEIPT_PLACEHOLDERS, DEFAULT_RECEIPT_SUBJECT, DEFAULT_RECEIPT_MESSAGE } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
@@ -208,6 +238,9 @@ export default {
       sender: null,
       currencyGroups: currencyGroups(),
       swatches: ['#5b4cf0', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#db2777', '#111827'],
+      receiptPlaceholders: RECEIPT_PLACEHOLDERS,
+      defaultReceiptSubject: DEFAULT_RECEIPT_SUBJECT,
+      defaultReceiptMessage: DEFAULT_RECEIPT_MESSAGE,
       placeholders: ['client', 'number', 'type', 'type_lower', 'total', 'amount_due', 'amount_paid', 'deposit', 'currency', 'issue_date', 'due_date', 'business', 'link', 'pay_link']
     }
   },
@@ -231,6 +264,10 @@ export default {
       const pad = this.s.number_padding || 4
       return `${prefix || ''}${String(n || 1).padStart(pad, '0')}`
     },
+    useDefaultReceipt() {
+      this.s.receipt_subject = DEFAULT_RECEIPT_SUBJECT
+      this.s.receipt_message = DEFAULT_RECEIPT_MESSAGE
+    },
     onLogoChanged(b) {
       // The company logo is saved on its own; keep the preview data in step.
       if (this.s) this.s.logo_url = b.hasLogo ? b.logoUrl : ''
@@ -238,7 +275,7 @@ export default {
     async save() {
       this.error = null
       if (!/^[A-Za-z]{3}$/.test(this.s.currency || '')) return (this.error = 'Choose a currency.')
-      if (!(this.s.next_invoice_number >= 1) || !(this.s.next_quote_number >= 1)) return (this.error = 'Next numbers must be 1 or more.')
+      if (!(this.s.next_invoice_number >= 1) || !(this.s.next_quote_number >= 1) || !(this.s.next_receipt_number >= 1)) return (this.error = 'Next numbers must be 1 or more.')
       this.saving = true
       try {
         const res = await invoicingApi.saveSettings(this.s)
@@ -246,6 +283,7 @@ export default {
         toast.success('Settings saved')
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not save settings')
+        toast.error(this.error)
       } finally {
         this.saving = false
       }
@@ -381,6 +419,34 @@ export default {
 
 .span-all {
   grid-column: 1 / -1;
+}
+
+.m0 {
+  margin: 0;
+}
+
+.rcpt-tpl {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rcpt-tpl h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .rate-in {

@@ -1076,6 +1076,55 @@ a {
   color: var(--text);
 }
 
+/* ==========================================================================
+   Paper — printed documents (invoices, quotes, receipts) always use the light
+   palette, whatever the app theme, so they read like the real document.
+   ========================================================================== */
+.ui-paper,
+[data-theme='dark'] .ui-paper {
+  color-scheme: light;
+  --bg: #f6f7fb;
+  --bg-subtle: #eef0f6;
+  --surface: #ffffff;
+  --surface-2: #f9fafc;
+  --surface-hover: #f3f4f9;
+  --border: #e6e8ef;
+  --border-strong: #d5d9e3;
+  --text: #111322;
+  --text-2: #475067;
+  --text-3: #7b839a;
+  --accent-soft: #efedff;
+  --success-soft: #e6f7ee;
+  --warning-soft: #fdf3e2;
+  --danger-soft: #fdecec;
+  --info-soft: #e6f3fc;
+  --neutral-soft: #eef0f5;
+  background-color: #ffffff;
+  color: #1a1d2e;
+}
+
+[data-theme='dark'] .app-content .ui-paper th,
+[data-theme='dark'] .app-content .ui-paper td,
+[data-theme='dark'] .app-content .ui-paper table,
+[data-theme='dark'] .app-content .ui-paper h1,
+[data-theme='dark'] .app-content .ui-paper h2,
+[data-theme='dark'] .app-content .ui-paper h3,
+[data-theme='dark'] .app-content .ui-paper h4,
+[data-theme='dark'] .app-content .ui-paper h5 {
+  color: inherit;
+}
+
+[data-theme='dark'] .app-content .ui-paper [class*='-card']:not(.ui-card):not(.ui-kpi) {
+  background-color: var(--surface-2) !important;
+  border-color: var(--border) !important;
+  color: inherit;
+}
+
+[data-theme='dark'] .ui-paper-wrap {
+  /* gentle frame so the white page doesn't glare against the dark app */
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.35));
+}
+
 @media print {
   body {
     background: #fff !important;

@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.5.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.6.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,13 +26,13 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Know what you spend: expenses from Synergy Wholesale, Google Workspace and any supplier flow into one inbox, count once in your P&L, and warn you before renewals and price rises. Plus Zoho Books import.'
+export const RELEASE_LEAD = 'Payments the way they really happen: record any amount, correct a payment after saving it, and every payment gets a numbered receipt the client receives by email.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-receipt', text: 'Expenses: Synergy Wholesale (balance, domains, hosting renewals) and Gmail billing emails (Google Workspace invoices, Synergy receipts, your own senders) into a review inbox' },
-  { icon: 'fa-solid fa-cloud-arrow-up', text: 'Drop invoice PDFs, CSVs or photos — amounts, GST/VAT, dates and invoice numbers are read for you, and the same invoice from email, API and upload is kept once' },
-  { icon: 'fa-solid fa-chart-pie', text: 'Expenses dashboard: spend by vendor and category, recurring subscriptions, renewals due, 3-month forecast, margin per client and alerts for price rises, failed payments and low balance' },
-  { icon: 'fa-solid fa-scale-balanced', text: 'Approved expenses become paid supplier bills (converted to your currency), so the profit & loss counts each one exactly once' },
-  { icon: 'fa-solid fa-file-import', text: 'Zoho Books import: live connection or CSV/XLS — clients, contacts, invoices, payments and PDFs' }
+  { icon: 'fa-solid fa-hand-holding-dollar', text: 'Record payment: any amount (part payments welcome), date, method incl. M-Pesa and Flutterwave, reference and notes — overpayments are blocked with a clear message' },
+  { icon: 'fa-regular fa-pen-to-square', text: 'Edit saved payments and deposits (also from the invoice editor): balance and paid / partial status update, and the change is logged with who, when and why' },
+  { icon: 'fa-solid fa-receipt', text: 'Numbered receipts (RCT-0001…) with your logo, the amount in words, paid to date and balance — marked “Revised” after an edit and “Cancelled” if the payment is removed' },
+  { icon: 'fa-regular fa-envelope', text: 'Email receipts to clients when recording or editing a payment, or with Send receipt — PDF attached, preview and checks first, your own receipt template' },
+  { icon: 'fa-solid fa-credit-card', text: 'Online (Flutterwave) payments email the receipt automatically; Ask DASYIN can edit payments and send receipts' }
 ]

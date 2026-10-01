@@ -78,16 +78,23 @@
                 <span><small>Paid</small><strong>{{ money(doc.amount_paid) }}</strong></span>
                 <span class="r"><small>Balance</small><strong :class="{ 'txt-danger': doc.display_status === 'overdue' }">{{ money(doc.balance_due) }}</strong></span>
               </div>
-              <ul v-if="doc.payments?.length" class="pay-list">
-                <li v-for="p in doc.payments" :key="p.id">
+              <ul v-if="doc.payments?.length" class="pay-list" data-testid="payments-list">
+                <li v-for="p in doc.payments" :key="p.id" class="pay-item" :data-payment="p.id">
                   <span class="pay-ico"><i class="fa-solid fa-arrow-down"></i></span>
                   <span class="pay-main">
-                    <strong>{{ money(p.amount) }}</strong>
-                    <small><span v-if="p.is_deposit" class="ui-badge ui-badge--info dep-badge">Deposit</span>{{ date(p.date) }} · {{ methodLabel(p.method) }}{{ p.reference ? ' · ' + p.reference : '' }}</small>
+                    <span class="pay-top"><strong>{{ money(p.amount) }}</strong><span v-if="p.receipt_number" class="rcpt-no" data-testid="receipt-number">{{ p.receipt_number }}</span></span>
+                    <small>
+                      <span v-if="originBadge(p)" class="ui-badge dep-badge" :class="originBadge(p).badge">{{ originBadge(p).label }}</span>
+                      <span v-if="p.revised_at" class="ui-badge ui-badge--warning dep-badge" :title="`Edited ${dt(p.revised_at)}`">Revised</span>{{ date(p.date) }} · {{ methodLabel(p.method) }}{{ p.reference ? ' · ' + p.reference : '' }}
+                    </small>
+                    <small v-if="receiptSent(p)" class="sent-note"><i class="fa-regular fa-envelope"></i> Receipt emailed {{ dt(receiptSent(p).created_at) }}</small>
                   </span>
-                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Download receipt" aria-label="Download receipt" @click="downloadReceipt(p)"><i class="fa-solid fa-receipt"></i></button>
-                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Email receipt" aria-label="Email receipt" data-testid="email-receipt" @click="openSend('receipt', p)"><i class="fa-regular fa-envelope"></i></button>
-                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Remove payment" aria-label="Remove payment" @click="removePayment(p)"><i class="fa-regular fa-trash-can"></i></button>
+                  <span class="pay-actions">
+                    <button v-if="doc.status !== 'void'" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Edit payment" aria-label="Edit payment" data-testid="edit-payment" @click="openEditPayment(p)"><i class="fa-regular fa-pen-to-square"></i></button>
+                    <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Download receipt" aria-label="Download receipt" data-testid="download-receipt" @click="downloadReceipt(p)"><i class="fa-solid fa-receipt"></i></button>
+                    <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :title="receiptSent(p) ? 'Resend receipt' : 'Send receipt'" :aria-label="receiptSent(p) ? 'Resend receipt' : 'Send receipt'" data-testid="email-receipt" @click="openSend('receipt', p)"><i class="fa-regular fa-envelope"></i></button>
+                    <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Remove payment" aria-label="Remove payment" data-testid="remove-payment" @click="removePayment(p)"><i class="fa-regular fa-trash-can"></i></button>
+                  </span>
                 </li>
               </ul>
               <p v-else class="muted small">No payments recorded yet.</p>
@@ -260,48 +267,73 @@
       </form>
     </div>
 
-    <!-- Record payment -->
-    <div v-if="payOpen" class="ui-modal-backdrop" @mousedown.self="payOpen = false">
-      <form class="ui-modal" @submit.prevent="submitPayment">
+    <!-- Record / edit a payment -->
+    <div v-if="payOpen" class="ui-modal-backdrop" @mousedown.self="closePay">
+      <form class="ui-modal pay-modal" data-testid="payment-modal" @submit.prevent="submitPayment">
         <div class="ui-modal__head">
           <div>
-            <h2>Record payment</h2>
-            <p class="muted small m0">{{ doc.number }} · balance {{ money(doc.balance_due) }}</p>
+            <h2>{{ payEdit ? (payEdit.is_deposit ? 'Edit deposit' : 'Edit payment') : 'Record payment' }}</h2>
+            <p class="muted small m0">
+              {{ doc.number }}<template v-if="payEdit && payEdit.receipt_number"> · receipt {{ payEdit.receipt_number }}</template> · {{ payEdit ? `paid ${money(doc.amount_paid)} of ${money(doc.total)}` : `balance ${money(doc.balance_due)}` }}
+            </p>
           </div>
-          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" @click="payOpen = false" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" @click="closePay" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="ui-modal__body grid-form">
+          <div v-if="payLocked" class="ui-alert ui-alert--warning span" data-testid="payment-locked"><i class="fa-solid fa-lock"></i><span>{{ payEdit.lock_reason }}</span></div>
           <div class="ui-field">
-            <label for="p_amount">Amount ({{ doc.currency }})</label>
-            <input id="p_amount" ref="payAmount" v-model.number="pay.amount" type="number" :step="step" :min="step" :max="doc.balance_due" class="ui-input" required />
-            <div class="chips">
-              <button type="button" class="chip" @click="pay.amount = doc.balance_due">Full balance</button>
-              <button type="button" class="chip" @click="pay.amount = half">50%</button>
+            <label for="p_amount">Amount received ({{ doc.currency }})</label>
+            <input id="p_amount" ref="payAmount" v-model.number="pay.amount" type="number" :step="step" min="0" inputmode="decimal" class="ui-input r tabular" :class="{ 'is-invalid': payTouched && amountError }" :disabled="payLocked" required />
+            <div v-if="!payLocked" class="chips">
+              <button type="button" class="chip" @click="pay.amount = payMax">{{ payEdit ? 'Up to the total' : 'Full balance' }}</button>
+              <button v-if="!payEdit" type="button" class="chip" @click="pay.amount = half">50%</button>
             </div>
+            <span v-if="payTouched && amountError" class="field-error" data-testid="amount-error">{{ amountError }}</span>
+            <span v-else class="ui-hint" data-testid="amount-hint">{{ amountHint }}</span>
           </div>
           <div class="ui-field">
-            <label for="p_date">Date</label>
-            <input id="p_date" v-model="pay.date" type="date" class="ui-input" required />
+            <label for="p_date">Date received</label>
+            <input id="p_date" v-model="pay.date" type="date" :max="today" class="ui-input" :disabled="payLocked" required />
           </div>
           <div class="ui-field">
             <label for="p_method">Method</label>
-            <select id="p_method" v-model="pay.method" class="ui-select">
+            <select id="p_method" v-model="pay.method" class="ui-select" :disabled="payLocked">
+              <option v-if="payLocked" :value="pay.method">{{ methodLabel(pay.method) }}</option>
               <option v-for="m in methods" :key="m.value" :value="m.value">{{ m.label }}</option>
             </select>
           </div>
           <div class="ui-field">
             <label for="p_ref">Reference</label>
-            <input id="p_ref" v-model="pay.reference" class="ui-input" placeholder="Transaction ID, cheque no…" />
+            <input id="p_ref" v-model.trim="pay.reference" class="ui-input" maxlength="255" :placeholder="pay.method === 'mobile_money' ? 'e.g. M-Pesa code QK12AB34CD' : 'Transaction ID, cheque no…'" />
           </div>
           <div class="ui-field span">
-            <label for="p_notes">Notes</label>
-            <textarea id="p_notes" v-model="pay.notes" class="ui-textarea" rows="2"></textarea>
+            <label for="p_notes">Notes <span class="muted">(shown on the receipt)</span></label>
+            <textarea id="p_notes" v-model="pay.notes" class="ui-textarea" rows="2" maxlength="4000"></textarea>
           </div>
-          <div v-if="payError" class="ui-alert ui-alert--danger span"><i class="fa-solid fa-circle-exclamation"></i><span>{{ payError }}</span></div>
+          <div v-if="payEdit" class="ui-field span">
+            <label for="p_reason">Reason for the change <span class="muted">(optional, kept in the activity log)</span></label>
+            <input id="p_reason" v-model.trim="pay.reason" class="ui-input" maxlength="500" placeholder="e.g. Client sent 7,500, not 5,000" data-testid="edit-reason" />
+          </div>
+          <div class="span rcpt-opt">
+            <label class="ui-switch" :class="{ 'is-disabled': !emailEnabled }">
+              <input v-model="pay.email" type="checkbox" :disabled="!emailEnabled" data-testid="email-receipt-toggle" />
+              {{ payEdit ? 'Email revised receipt' : 'Email receipt to client' }}
+            </label>
+            <span class="ui-hint">
+              <template v-if="!emailEnabled">Email sending isn’t set up — <router-link to="/settings#email">connect an email account</router-link> to email receipts. You can still download the receipt PDF.</template>
+              <template v-else-if="!payRecipient">No client email on this invoice — add one to email the receipt.</template>
+              <template v-else-if="pay.email">The receipt PDF{{ payEdit && payEdit.receipt_number ? ` (${payEdit.receipt_number})` : '' }} is emailed to <strong>{{ payRecipient }}</strong> and anyone copied on receipts.</template>
+              <template v-else>You can send the receipt later from the payments list.</template>
+            </span>
+            <label v-if="pay.email && emailEnabled" class="ui-switch review-first"><input v-model="pay.review" type="checkbox" data-testid="review-first" /> Let me review the email first</label>
+          </div>
+          <div v-if="payError" class="ui-alert ui-alert--danger span" data-testid="payment-error"><i class="fa-solid fa-circle-exclamation"></i><span>{{ payError }}</span></div>
         </div>
         <div class="ui-modal__foot">
-          <button type="button" class="ui-btn" @click="payOpen = false">Cancel</button>
-          <button type="submit" class="ui-btn ui-btn--success" :disabled="busy"><i :class="busy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> Record payment</button>
+          <button type="button" class="ui-btn" @click="closePay">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--success" :disabled="busy" data-testid="payment-submit">
+            <i :class="busy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-check'"></i> {{ payEdit ? 'Save changes' : 'Record payment' }}
+          </button>
         </div>
       </form>
     </div>
@@ -325,7 +357,7 @@
 
 <script>
 import InvoiceDocument from '@/components/invoicing/InvoiceDocument.vue'
-import { invoicingApi, STATUS_LABELS, PAYMENT_METHODS, RECURRENCE } from '@/services/invoicing'
+import { invoicingApi, STATUS_LABELS, PAYMENT_METHODS, PAYMENT_ORIGINS, RECURRENCE } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate, formatDateTime, relativeDays, isoDate, downloadBlob } from '@/utils/format'
 import { formatCurrency, currencyStep, currencyDecimals, rateText } from '@/utils/currencies'
@@ -355,6 +387,9 @@ export default {
       moreOpen: false,
       payOpen: false,
       pay: {},
+      payEdit: null,
+      payTouched: false,
+      payRecipient: '',
       payError: null,
       sendOpen: false,
       sendKind: 'invoice',
@@ -411,6 +446,40 @@ export default {
     half() {
       const p = 10 ** currencyDecimals(this.doc.currency)
       return Math.round((this.doc.balance_due / 2) * p) / p
+    },
+    payLocked() {
+      return !!(this.payEdit && this.payEdit.lock_reason)
+    },
+    decimals() {
+      return currencyDecimals(this.doc.currency)
+    },
+    // The most this payment can be: the balance (record), or the balance plus
+    // what the payment already counts for (edit). Overpayments are blocked.
+    payMax() {
+      const p = 10 ** this.decimals
+      const base = this.payEdit ? this.doc.balance_due + this.payEdit.amount : this.doc.balance_due
+      return Math.round(Math.max(0, base) * p) / p
+    },
+    amountError() {
+      if (this.payLocked) return ''
+      const a = Number(this.pay.amount)
+      const d = this.decimals
+      if (this.pay.amount === '' || this.pay.amount === null || !(a > 0)) return 'Enter an amount greater than zero.'
+      if (Math.abs(Math.round(a * 10 ** d) - a * 10 ** d) > 1e-6) return d === 0 ? `${this.doc.currency} amounts can't have decimals.` : `${this.doc.currency} amounts can have at most ${d} decimal places.`
+      if (a > this.payMax + 0.4 / 10 ** d) {
+        return this.payEdit
+          ? `Payments can't add up to more than the invoice total (${this.money(this.doc.total)}). The most this payment can be is ${this.money(this.payMax)}.`
+          : `That’s more than the balance due (${this.money(this.doc.balance_due)}). Overpayments aren’t recorded — enter at most ${this.money(this.payMax)}.`
+      }
+      return ''
+    },
+    amountHint() {
+      const a = Number(this.pay.amount) || 0
+      if (this.payLocked) return 'Mirrors the processor / import record.'
+      const after = Math.round((this.payMax - a) * 10 ** this.decimals) / 10 ** this.decimals
+      if (a <= 0) return `Any amount up to ${this.money(this.payMax)} — part payments are fine.`
+      if (after <= 0) return 'The invoice will be paid in full.'
+      return `Part payment — ${this.money(after)} will still be due.`
     },
     canRemind() {
       return !this.isQuote && ['sent', 'partial'].includes(this.doc.status) && this.doc.balance_due > 0
@@ -542,7 +611,7 @@ export default {
     async downloadReceipt(p) {
       try {
         const blob = await invoicingApi.receipt(this.doc.id, p.id)
-        downloadBlob(blob, `Receipt-${this.doc.number}.pdf`)
+        downloadBlob(blob, p.receipt_number ? `${p.receipt_number}.pdf` : `Receipt-${this.doc.number}.pdf`)
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not create the receipt'))
       }
@@ -565,31 +634,100 @@ export default {
       const res = await this.run(() => invoicingApi[action](this.doc.id), msg)
       if (res) this.doc = res
     },
-    openPayment() {
-      this.pay = { amount: this.doc.balance_due, date: isoDate(), method: 'bank_transfer', reference: '', notes: '' }
+    originBadge(p) {
+      return PAYMENT_ORIGINS[p.origin] || null
+    },
+    receiptSent(p) {
+      return this.emailLog.find((e) => e.kind === 'receipt' && e.payment_id === p.id && e.status === 'sent' && e.mode === 'email') || null
+    },
+    async loadRecipient() {
+      this.payRecipient = this.doc.client_email || ''
+      try {
+        const r = await invoicingApi.recipients(this.doc.id, 'receipt')
+        this.payRecipient = r?.to?.email || this.payRecipient
+        if (typeof r?.email_enabled === 'boolean') this.emailEnabled = r.email_enabled
+      } catch {
+        /* the client email on the invoice is used */
+      }
+      return this.payRecipient
+    },
+    async openPayment() {
+      this.payEdit = null
+      this.payTouched = false
+      this.pay = { amount: this.doc.balance_due, date: isoDate(), method: 'bank_transfer', reference: '', notes: '', reason: '', email: false, review: false }
       this.payError = null
       this.payOpen = true
       this.$nextTick(() => this.$refs.payAmount?.select())
+      const to = await this.loadRecipient()
+      // On by default when the client has an email and a sender is set up.
+      if (this.payOpen && !this.payEdit) this.pay.email = !!(to && this.emailEnabled)
+    },
+    openEditPayment(p) {
+      this.payEdit = p
+      this.payTouched = false
+      this.pay = { amount: p.amount, date: (p.date || '').slice(0, 10), method: p.method, reference: p.reference || '', notes: p.notes || '', reason: '', email: false, review: false }
+      this.payError = null
+      this.payOpen = true
+      this.loadRecipient()
+      this.$nextTick(() => this.$refs.payAmount?.focus())
+    },
+    closePay() {
+      if (!this.busy) this.payOpen = false
     },
     async submitPayment() {
       this.payError = null
+      this.payTouched = true
+      if (this.amountError) return
+      if (!this.pay.date) return (this.payError = 'Choose the date the money was received.')
+      if (this.pay.date > this.today) return (this.payError = "The payment date can't be in the future.")
       const amt = Number(this.pay.amount)
-      if (!(amt > 0)) return (this.payError = 'Enter an amount greater than zero.')
-      if (amt > this.doc.balance_due + 0.004) return (this.payError = `That’s more than the balance due (${this.money(this.doc.balance_due)}).`)
+      const wantEmail = this.pay.email && this.emailEnabled
+      const review = wantEmail && this.pay.review
+      const autoEmail = wantEmail && !review
       this.busy = true
       try {
-        this.doc = await invoicingApi.addPayment(this.doc.id, { ...this.pay, amount: amt })
-        this.loadOnline()
+        let paymentId
+        let rec = null
+        if (this.payEdit) {
+          paymentId = this.payEdit.id
+          const body = { reference: this.pay.reference, notes: this.pay.notes, reason: this.pay.reason, email_receipt: autoEmail }
+          if (!this.payLocked) Object.assign(body, { amount: amt, date: this.pay.date, method: this.pay.method })
+          const res = await invoicingApi.updatePayment(this.doc.id, paymentId, body)
+          this.doc = res.invoice
+          rec = res.receipt_email || null
+          if (!res.changed && !autoEmail && !review) toast.info('Nothing changed')
+          else toast.success(this.doc.status === 'paid' ? `Payment updated — ${this.doc.number} is paid in full` : `Payment updated — balance ${this.money(this.doc.balance_due)}`)
+        } else {
+          const res = await invoicingApi.addPayment(this.doc.id, { amount: amt, date: this.pay.date, method: this.pay.method, reference: this.pay.reference, notes: this.pay.notes, email_receipt: autoEmail })
+          rec = res.receipt_email || null
+          paymentId = res.last_payment_id
+          this.doc = res
+          toast.success(this.doc.status === 'paid' ? `${this.doc.number} is fully paid` : `Payment recorded — balance ${this.money(this.doc.balance_due)}`)
+        }
+        if (rec) {
+          if (rec.emailed) toast.success(`Receipt emailed to ${rec.to}${rec.cc?.length ? ` (CC ${rec.cc.length})` : ''} with ${rec.attachment}`)
+          else toast.warning(`The receipt wasn’t emailed: ${rec.reason || 'unknown problem'}. Use “Send receipt” to try again.`, { duration: 9000 })
+        }
         this.payOpen = false
-        toast.success(this.doc.status === 'paid' ? `${this.doc.number} is fully paid` : 'Payment recorded')
+        this.loadOnline()
+        await this.loadEmailLog()
+        if (review && paymentId) {
+          const p = this.doc.payments.find((x) => x.id === paymentId)
+          if (p) this.openSend('receipt', p)
+        }
       } catch (e) {
-        this.payError = apiErrorMessage(e, 'Could not record payment')
+        this.payError = apiErrorMessage(e, this.payEdit ? 'Could not update the payment' : 'Could not record the payment')
       } finally {
         this.busy = false
       }
     },
     async removePayment(p) {
-      const ok = await confirmDialog({ title: 'Remove payment?', message: `Remove the ${this.money(p.amount)} payment from ${this.date(p.date)}? The balance will be updated.`, confirmText: 'Remove', danger: true })
+      const online = p.origin === 'online'
+      const what = `${this.money(p.amount)} ${p.is_deposit ? 'deposit' : 'payment'}${p.receipt_number ? ` (receipt ${p.receipt_number})` : ''} from ${this.date(p.date)}`
+      const message = online
+        ? `This ${what} was paid online through Flutterwave. Removing it here does not refund the client — refund it in your Flutterwave dashboard if needed. The balance will be updated and the receipt marked cancelled.`
+        : `Remove the ${what}? The balance will be updated and the receipt marked cancelled.`
+      const ok = await confirmDialog({ title: online ? 'Remove an online payment?' : 'Remove payment?', message, confirmText: 'Remove', danger: true })
       if (!ok) return
       const res = await this.run(() => invoicingApi.deletePayment(this.doc.id, p.id), 'Payment removed')
       if (res) this.doc = res
@@ -1076,6 +1214,80 @@ export default {
   display: block;
   color: var(--text-3);
   font-size: 12px;
+}
+
+.pay-main strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.rcpt-no {
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  vertical-align: 1px;
+}
+
+.sent-note {
+  margin-top: 2px;
+}
+
+.pay-list li.pay-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  row-gap: 4px;
+}
+
+.pay-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.pay-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -6px;
+}
+
+.pay-modal {
+  max-width: 620px;
+}
+
+.rcpt-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.rcpt-opt .ui-hint {
+  margin: 0;
+}
+
+.review-first {
+  font-size: 13px;
+}
+
+.is-disabled {
+  opacity: 0.6;
+}
+
+.field-error {
+  font-size: 12.5px;
+  color: var(--danger);
 }
 
 .otx {

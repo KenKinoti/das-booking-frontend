@@ -1,5 +1,5 @@
 <template>
-  <article class="idoc" :style="{ '--doc-accent': accent }">
+  <article class="idoc ui-paper" :style="{ '--doc-accent': accent }">
     <header class="idoc__top">
       <div class="idoc__from">
         <img v-if="logoSrc" :src="logoSrc" :alt="business.business_name || 'Company logo'" class="idoc__logo" data-testid="doc-logo" @error="logoFailed = true" />

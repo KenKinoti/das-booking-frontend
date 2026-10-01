@@ -201,7 +201,7 @@ export default {
     },
     title() {
       if (this.kind === 'reminder') return 'Send payment reminder'
-      if (this.kind === 'receipt') return 'Email payment receipt'
+      if (this.kind === 'receipt') return this.payment?.receipt_number ? `Email receipt ${this.payment.receipt_number}` : 'Email payment receipt'
       return `Send ${this.docWord}`
     },
     subtitleAmount() {
@@ -211,7 +211,8 @@ export default {
       return `${m(this.doc.balance_due)} ${this.kind === 'reminder' ? 'outstanding' : 'due'}`
     },
     attachmentName() {
-      return this.kind === 'receipt' ? `Receipt-${this.doc.number}.pdf` : `${this.doc.number}.pdf`
+      if (this.kind === 'receipt') return this.payment?.receipt_number ? `${this.payment.receipt_number}.pdf` : `Receipt-${this.doc.number}.pdf`
+      return `${this.doc.number}.pdf`
     },
     toNote() {
       const t = this.suggested.to
@@ -224,7 +225,7 @@ export default {
       const fromContacts = this.suggested.cc.filter((r) => r.source === 'contact' && cc.includes(r.email)).length
       const always = this.suggested.cc.filter((r) => r.source === 'settings' && cc.includes(r.email)).length
       const alwaysText = always ? ' “Always CC” from your email settings is included.' : ''
-      if (fromContacts) return `${fromContacts} customer contact${fromContacts > 1 ? 's are' : ' is'} copied automatically.${alwaysText}`
+      if (fromContacts) return `${fromContacts} customer contact${fromContacts > 1 ? 's are' : ' is'} copied automatically${this.kind === 'receipt' ? ' (flagged for receipts)' : ''}.${alwaysText}`
       if (always) return alwaysText.trim()
       return cc.length && this.kind !== 'receipt' ? 'These addresses are remembered for future emails about this document.' : ''
     },
@@ -285,7 +286,7 @@ export default {
     },
     async load() {
       this.loading = true
-      const rk = this.kind === 'receipt' ? 'invoice' : this.apiKind
+      const rk = this.apiKind
       const [rec, draft] = await Promise.allSettled([invoicingApi.recipients(this.doc.id, rk), invoicingApi.emailDraft(this.doc.id, this.apiKind, this.payment?.id)])
       if (draft.status === 'fulfilled') {
         this.send.subject = draft.value.subject || ''

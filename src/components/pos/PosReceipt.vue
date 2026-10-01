@@ -1,5 +1,5 @@
 <template>
-  <div class="receipt">
+  <div class="receipt ui-paper">
     <header class="receipt__head">
       <img v-if="logoSrc" :src="logoSrc" :alt="orgName || 'Company logo'" class="receipt__logo" data-testid="receipt-logo" @error="logoFailed = true" />
       <strong class="receipt__org">{{ orgName || 'Receipt' }}</strong>

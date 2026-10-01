@@ -95,6 +95,10 @@
               <input v-if="form.allow_partial" v-model.number="form.min_partial" type="number" min="0" step="any" class="ui-input" aria-label="Minimum part payment" placeholder="Minimum amount" data-testid="pay-min-partial" />
               <span class="ui-hint">{{ form.allow_partial ? 'Smallest amount, in the invoice currency (0 = any).' : 'Clients pay the full balance.' }}</span>
             </div>
+            <div class="ui-field">
+              <label class="ui-switch"><input v-model="form.auto_receipt" type="checkbox" data-testid="pay-auto-receipt" /> Automatically email a receipt after an online payment</label>
+              <span class="ui-hint">{{ form.auto_receipt ? 'The client gets the PDF receipt by email as soon as the payment is verified (uses your outgoing email and receipt template).' : 'Receipts for online payments are not emailed — send them from the invoice.' }}</span>
+            </div>
           </div>
 
           <div class="psp-section psp-section--row">
@@ -197,7 +201,7 @@ const SECRETS = [
 ]
 
 function blank() {
-  return { enabled: false, mode: 'test', public_key: '', secret_key: '', encryption_key: '', webhook_hash: '', methods: [], fee_bearer: 'business', allow_partial: false, min_partial: 0, fee_tax_percent: 0, fees: [] }
+  return { enabled: false, mode: 'test', public_key: '', secret_key: '', encryption_key: '', webhook_hash: '', methods: [], fee_bearer: 'business', allow_partial: false, min_partial: 0, auto_receipt: true, fee_tax_percent: 0, fees: [] }
 }
 
 export default {
@@ -275,6 +279,7 @@ export default {
         fee_bearer: d.fee_bearer || 'business',
         allow_partial: !!d.allow_partial,
         min_partial: d.min_partial || 0,
+        auto_receipt: d.auto_receipt !== false,
         fee_tax_percent: d.fee_tax_percent || 0,
         fees: (d.fees || []).map((r) => ({ method: r.method, currency: r.currency, scope: r.scope || '', percent: r.percent, fixed: r.fixed || 0, cap: r.cap || 0, note: r.note || '' }))
       }
