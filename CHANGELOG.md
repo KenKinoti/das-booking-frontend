@@ -6,6 +6,53 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.9.1] - 2026-10-02
+
+### Bookings are easy to add to a calendar
+
+Before, the `.ics` attached to staff booking emails was an invitation (`METHOD:REQUEST` from the organisation to the
+staff member). Opened in a calendar app that is treated as somebody else's meeting: read-only on an iPhone when the
+address isn't an account on the device, rejected or imported as a non-editable invite by Google Calendar. Now:
+
+- **Two kinds of calendar data.** The email keeps an inline invitation (`text/calendar; method=REQUEST`, attendee
+  `PARTSTAT=NEEDS-ACTION;RSVP=FALSE`) so Gmail, Outlook and Apple Mail draw their event card without mailing a reply
+  back. The **attachment and every download** are a plain event: `METHOD:PUBLISH`, no `ORGANIZER` / `ATTENDEE`, the same
+  `UID` and an increasing `SEQUENCE` (adding it again after a change updates the same entry), `STATUS`, `TRANSP`,
+  `CLASS`, `CATEGORIES`, `CREATED` / `LAST-MODIFIED`, UTC times, a reminder (`VALARM`) and
+  `X-MICROSOFT-CDO-BUSYSTATUS`. No `X-WR-CALNAME` on the single event — Outlook would open the file as a separate
+  calendar. Cancelled and deleted bookings get `METHOD:CANCEL` + `STATUS:CANCELLED` with the same `UID`. The file is
+  named like `booking-2026-10-03-0900-jane-wanjiru.ics` and attached as
+  `text/calendar; charset=utf-8; method=PUBLISH; name="…"` with `Content-Disposition: attachment; filename="…"`.
+- **"Add to your calendar" buttons in the email** (not on cancellations): **Google Calendar**, **Outlook** (Microsoft
+  365, with an Outlook.com link underneath) and **Apple / other** — the last one a signed public link to the `.ics`
+  that phones hand straight to their calendar app. The plain-text part lists the same links.
+- **In the app**: the booking drawer has **Add to calendar** (Google Calendar, Outlook, Outlook.com, Apple Calendar /
+  other `.ics`, Copy link), and "Booking created" offers **Add to calendar** straight away. A cancelled booking offers
+  the cancellation file instead.
+- **Subscribe once** — *My profile → My bookings calendar*: **Add to Apple Calendar** (`webcal://`), **Add to Google
+  Calendar**, **Add to Outlook**, Copy link and Regenerate link (the old link stops working). The feed lists the
+  bookings assigned to you from 30 days back to 12 months ahead with the same `UID`s as the emails (no duplicates in
+  apps that match on `UID`); cancelled and deleted bookings stay as `STATUS:CANCELLED` for 30 days. Bookings has a
+  **Subscribe** button in its header. Admins and managers can create an **organisation calendar** with every staff
+  member's bookings (*Settings → Staff booking emails*).
+- **Reminder lead time** (*Settings → Staff booking emails → Calendar reminder*): none, 15, 30 (default) or 60 minutes.
+- Business-type words are used ("My job cards calendar", calendar name "DASYIN job cards — …").
+
+API: `GET /bookings/:id/calendar.ics` and `GET /bookings/:id/calendar-links` (signed in; role and own-scope rules of
+bookings apply), `GET /public/bookings/:id/calendar.ics?t=…` (no login; `t` is an HMAC-SHA256 over the organisation and
+booking id with the server secret, so the link carries no personal data; `Content-Disposition: inline`,
+`Cache-Control: no-store`; returns the cancellation file once the booking is cancelled or deleted),
+`GET /public/calendar/<token>.ics` (subscription feed: `X-WR-CALNAME`, `REFRESH-INTERVAL` / `X-PUBLISHED-TTL` 30 min,
+`ETag` / `Last-Modified` with `304`, rate limited; `410` after the link is regenerated),
+`GET /booking-emails/feed`, `POST /booking-emails/feed/regenerate`, `DELETE /booking-emails/feed`,
+`reminder_minutes` on `/booking-emails/settings`. New table `booking_calendar_feeds`; new column
+`booking_email_settings.reminder_minutes`. `PUBLIC_API_URL` must be set for the "Apple / other" button in emails
+(it is already needed for the logo); the links in the app work without it.
+
+Good to know: the Google Calendar and Outlook buttons create the event from a web form, so a later change does not
+update that copy — the subscribed calendar (or adding the `.ics` again) does. Google Calendar refreshes subscribed
+calendars only every several hours, so the emails about individual bookings still matter.
+
 ## [2.9.0] - 2026-10-01
 
 ### Synergy costs counted automatically — as service charges or top-ups, never both

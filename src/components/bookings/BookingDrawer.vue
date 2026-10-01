@@ -48,6 +48,9 @@
               </div>
             </div>
           </div>
+          <div class="cal-row">
+            <AddToCalendarMenu ref="cal" :booking="booking" />
+          </div>
         </section>
 
         <section class="block">
@@ -122,9 +125,11 @@
 import { formatMoney, formatDateTime } from '@/utils/format'
 import { bookingEmailsApi } from '@/services/recurringBills'
 import { statusMeta, statusActions, personName, initials, vehicleLabel, formatTime, formatDuration, minutesBetween } from './bookingUtils'
+import AddToCalendarMenu from './AddToCalendarMenu.vue'
 
 export default {
   name: 'BookingDrawer',
+  components: { AddToCalendarMenu },
   props: {
     booking: { type: Object, required: true },
     busy: { type: String, default: '' },
@@ -196,6 +201,13 @@ export default {
       } catch {
         this.emails = []
       }
+    },
+    /** Open the "Add to calendar" menu (e.g. from the "Booking created" toast). */
+    showCalendar() {
+      const cal = this.$refs.cal
+      if (!cal) return
+      cal.$el?.scrollIntoView?.({ block: 'nearest' })
+      cal.show()
     },
     emailEvent(e) {
       return { assigned: 'Assigned', rescheduled: 'Rescheduled', unassigned: 'Unassigned', cancelled: 'Cancelled', no_show: 'No-show' }[e.event] || e.event
@@ -339,6 +351,11 @@ export default {
   color: var(--text-2);
   font-size: 13px;
   flex-shrink: 0;
+}
+
+.cal-row {
+  margin-top: 14px;
+  padding-left: 44px;
 }
 
 .info-row strong,

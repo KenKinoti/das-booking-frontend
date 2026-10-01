@@ -11,6 +11,15 @@
         <button class="ui-btn" :disabled="loading" aria-label="Refresh" title="Refresh" @click="refreshAll">
           <i class="fa-solid fa-arrows-rotate" :class="{ spin: loading }"></i>
         </button>
+        <router-link
+          to="/profile#bookings-calendar"
+          class="ui-btn"
+          :aria-label="`Subscribe to your ${lc(T.bookings)} in your calendar app`"
+          :title="`Subscribe — see your ${lc(T.bookings)} in Apple Calendar, Google Calendar or Outlook`"
+          data-testid="bookings-subscribe"
+        >
+          <i class="fa-regular fa-calendar-plus"></i>
+        </router-link>
         <button v-if="canCreate" class="ui-btn ui-btn--primary" @click="openCreate()"><i class="fa-solid fa-plus"></i> New {{ lc(T.booking) }}</button>
       </div>
     </header>
@@ -240,6 +249,7 @@
 
     <BookingDrawer
       v-if="selected"
+      ref="drawer"
       :booking="selected"
       :busy="busy"
       :can-edit="canEdit"
@@ -710,6 +720,18 @@ export default {
       this.upsert(b)
       this.loadRange()
       this.loadKpis()
+      if (!wasEdit) {
+        toast.success(`${this.T.booking} created`, {
+          key: 'booking-created',
+          duration: 9000,
+          action: { label: 'Add to calendar', icon: 'fa-regular fa-calendar-plus', run: () => this.addToCalendar(b) }
+        })
+      }
+    },
+    /** Open the booking with its "Add to calendar" menu showing. */
+    addToCalendar(b) {
+      this.selected = b
+      this.$nextTick(() => this.$refs.drawer?.showCalendar())
     },
     async changeStatus(to) {
       const b = this.selected

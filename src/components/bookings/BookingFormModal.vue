@@ -533,7 +533,8 @@ export default {
       this.saving = true
       try {
         const { data } = this.isEdit ? await api.put(`/bookings/${this.booking.id}`, payload) : await api.post('/bookings', payload)
-        toast.success(this.isEdit ? 'Booking updated' : 'Booking created')
+        // A new booking is announced by the page ("Booking created · Add to calendar")
+        if (this.isEdit) toast.success('Booking updated')
         this.$emit('saved', data.booking || data)
       } catch (e) {
         this.serverError = apiErrorMessage(e, this.isEdit ? 'Could not update the booking' : 'Could not create the booking')

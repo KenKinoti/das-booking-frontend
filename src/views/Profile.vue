@@ -103,6 +103,8 @@
         <LinkedAccounts :email="me ? me.email : ''" />
 
         <MyBookingEmailsCard />
+
+        <MyBookingsCalendarCard />
       </div>
     </div>
   </div>
@@ -117,12 +119,13 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import LinkedAccounts from '@/components/auth/LinkedAccounts.vue'
 import MyBookingEmailsCard from '@/components/bookings/MyBookingEmailsCard.vue'
+import MyBookingsCalendarCard from '@/components/bookings/MyBookingsCalendarCard.vue'
 
 const ROLES = { super_admin: 'Super admin', admin: 'Admin', manager: 'Manager', owner: 'Owner', care_worker: 'Staff', support_coordinator: 'Coordinator' }
 
 export default {
   name: 'Profile',
-  components: { LinkedAccounts, MyBookingEmailsCard },
+  components: { LinkedAccounts, MyBookingEmailsCard, MyBookingsCalendarCard },
   data() {
     return {
       me: null,

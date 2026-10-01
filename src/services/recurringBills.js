@@ -67,3 +67,19 @@ export const bookingEmailsApi = {
   log: (params) => api.get('/booking-emails/log', { params }).then(unwrap),
   sendAgenda: () => api.post('/booking-emails/agenda/send').then(unwrap)
 }
+
+/**
+ * Booking calendar: add-to-calendar links for one booking and the
+ * subscription feeds (My profile → My bookings calendar, Settings).
+ */
+export const bookingCalendarApi = {
+  /** { ics_url, google_url, outlook_url, outlook_live_url, filename, cancelled } */
+  links: (id) => api.get(`/bookings/${enc(id)}/calendar-links`).then(unwrap),
+  /** The .ics as a Blob (signed-in download). */
+  file: (id) => api.get(`/bookings/${enc(id)}/calendar.ics`, { responseType: 'blob' }).then((r) => r.data),
+  /** { user, org?, can_manage_org, refresh_minutes } */
+  feeds: () => api.get('/booking-emails/feed').then(unwrap),
+  /** New secret link for scope 'user' | 'org' (the old one stops working). */
+  regenerate: (scope = 'user') => api.post('/booking-emails/feed/regenerate', { scope }).then((r) => unwrap(r).feed),
+  turnOff: (scope = 'user') => api.delete('/booking-emails/feed', { params: { scope } }).then((r) => unwrap(r).feed)
+}
