@@ -28,6 +28,11 @@
         <router-link to="/expenses?tab=subscriptions" class="fig" data-fig="subs"><span>Subscriptions / yr</span><strong>{{ m(k.subscriptions_annual) }}</strong></router-link>
       </div>
       <div class="side">
+        <router-link v-if="syn?.has_data" to="/expenses?tab=synergy" class="line syn" data-testid="card-synergy">
+          <i class="fa-solid fa-server"></i>
+          <span>Synergy run-rate <strong>{{ aud(syn.run_rate) }}/mo</strong> · {{ syn.active_sites }} sites<template v-if="syn.balance != null"> · balance {{ aud(syn.balance) }}</template></span>
+          <span v-if="syn.alerts" class="ui-badge ui-badge--warning" data-testid="card-synergy-alerts">{{ syn.alerts }} alert{{ syn.alerts === 1 ? '' : 's' }}</span>
+        </router-link>
         <div v-if="d.kpis.inbox" class="line warn">
           <i class="fa-solid fa-inbox"></i><router-link to="/expenses?tab=inbox">{{ d.kpis.inbox }} to review</router-link>
         </div>
@@ -47,7 +52,7 @@
 <script>
 import DeltaBadge from '@/components/dashboard/DeltaBadge.vue'
 import '@/components/dashboard/dashviz.css'
-import { expensesApi, money } from '@/services/expenses'
+import { expensesApi, money, aud } from '@/services/expenses'
 import { apiErrorMessage } from '@/services/api'
 
 export default {
@@ -60,15 +65,19 @@ export default {
     k() {
       return this.d?.kpis || {}
     },
+    syn() {
+      return this.d?.synergy || null
+    },
     empty() {
       const d = this.d
-      return d && !d.kpis.ytd && !d.kpis.last_month && !d.kpis.inbox && !d.alerts.length && !d.by_vendor.length
+      return d && !d.kpis.ytd && !d.kpis.last_month && !d.kpis.inbox && !d.alerts.length && !d.by_vendor.length && !d.synergy?.has_data
     }
   },
   mounted() {
     this.load()
   },
   methods: {
+    aud,
     m(v) {
       return money(v || 0, this.d?.currency)
     },
@@ -169,6 +178,23 @@ export default {
 }
 .line.ok i {
   color: var(--success);
+}
+.line.syn {
+  color: var(--text-2);
+  text-decoration: none;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.line.syn i {
+  color: var(--accent);
+}
+.line.syn strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.line.syn span:first-of-type {
+  min-width: 0;
+  flex: 1;
 }
 .vend {
   justify-content: space-between;

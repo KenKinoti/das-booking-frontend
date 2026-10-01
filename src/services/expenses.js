@@ -20,11 +20,12 @@ export const CATEGORIES = [
   { key: 'domains', label: 'Domain Names', icon: 'fa-solid fa-globe', color: 'var(--viz-3)' },
   { key: 'email', label: 'Email & Workspace', icon: 'fa-solid fa-envelope', color: 'var(--viz-2)' },
   { key: 'software', label: 'Software & Subscriptions', icon: 'fa-solid fa-cubes', color: 'var(--viz-7)' },
+  { key: 'support', label: 'Support Fees', icon: 'fa-solid fa-headset', color: 'var(--viz-5)' },
   { key: 'other', label: 'Other Expenses', icon: 'fa-solid fa-receipt', color: 'var(--viz-4)' }
 ]
-export const categoryOf = (k) => CATEGORIES.find((c) => c.key === k) || CATEGORIES[4]
+export const categoryOf = (k) => CATEGORIES.find((c) => c.key === k) || CATEGORIES[CATEGORIES.length - 1]
 
-export const SOURCE_LABEL = { synergy_api: 'Synergy API', gmail: 'Gmail', upload: 'Upload', manual: 'Manual' }
+export const SOURCE_LABEL = { synergy_api: 'Synergy API', gmail: 'Gmail', upload: 'Upload', manual: 'Manual', synergy_statement: 'Synergy statement' }
 export const STATUS_BADGE = { pending: 'warning', approved: 'success', ignored: 'draft', duplicate: 'info' }
 export const STATUS_LABEL = { pending: 'To review', approved: 'Approved', ignored: 'Ignored', duplicate: 'Duplicate' }
 
@@ -47,7 +48,7 @@ export const expensesApi = {
   upload: (files, extra = {}, onProgress) => {
     const fd = new FormData()
     for (const f of files) fd.append('files', f)
-    for (const [k, v] of Object.entries(extra)) if (v) fd.append(k, v)
+    for (const [k, v] of Object.entries(extra)) if (v) fd.append(k, typeof v === 'object' ? JSON.stringify(v) : v)
     return api.post('/expenses/uploads', fd, { headers: { 'Content-Type': 'multipart/form-data' }, onUploadProgress: onProgress }).then(data)
   },
   document: (id) => api.get(`/expenses/documents/${id}`, { responseType: 'blob' }).then((r) => r.data),
@@ -67,7 +68,51 @@ export const expensesApi = {
   connectGmail: () => api.post('/expenses/sources/gmail/connect').then(data),
   deleteGmail: () => api.delete('/expenses/sources/gmail').then(data),
   saveSchedule: (body) => api.put('/expenses/sources/schedule', body).then(data),
-  sync: (source) => api.post('/expenses/sync', { source }, { timeout: 300000 }).then(data)
+  sync: (source) => api.post('/expenses/sync', { source }, { timeout: 300000 }).then(data),
+  // Synergy Wholesale analytics (statements + hosting usage reports)
+  synergy: (params = {}) => api.get('/expenses/synergy', { params: { tz: tz(), ...params } }).then(data),
+  synergySite: (domain) => api.get(`/expenses/synergy/sites/${encodeURIComponent(domain)}`, { params: { tz: tz() } }).then(data),
+  saveSynergySite: (domain, body) => api.put(`/expenses/synergy/sites/${encodeURIComponent(domain)}`, body).then(data),
+  saveSynergyPlan: (body) => api.put('/expenses/synergy/plans', body).then(data),
+  synergyCsv: () => api.get('/expenses/synergy/sites.csv', { params: { tz: tz() }, responseType: 'blob' }).then((r) => r.data),
+  statementPreview: (params = {}) => api.get('/expenses/synergy/statement-expenses', { params }).then(data),
+  statementCreate: (body) => api.post('/expenses/synergy/statement-expenses', body, { timeout: 120000 }).then(data)
+}
+
+/** Synergy file kind from the CSV header line: 'statement' | 'usage' | ''. */
+export function synergyKindOf(headerLine) {
+  const h = String(headerLine || '')
+    .replace(/^\ufeff/, '')
+    .toLowerCase()
+    .split(',')
+    .map((x) => x.replace(/"/g, '').trim())
+  const has = (...k) => k.every((x) => h.includes(x))
+  if (has('date', 'product type', 'description', 'credit', 'debit', 'balance')) return 'statement'
+  if (has('identifier', 'plan', 'usage', 'limit')) return 'usage'
+  return ''
+}
+
+/** Snapshot date in a file name ("hosting-account-usage-2026-10-01.csv") → "2026-10-01" or ''. */
+export function dateFromFileName(name) {
+  const s = String(name || '')
+  let m = s.match(/(20\d{2})[-_.](\d{1,2})[-_.](\d{1,2})/)
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+  m = s.match(/(\d{1,2})[-_.](\d{1,2})[-_.](20\d{2})/)
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  m = s.match(/(20\d{2})(\d{2})(\d{2})/)
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  return ''
+}
+
+/** AUD amount the way Synergy shows it. */
+export const aud = (v) => formatMoney(v || 0, 'AUD')
+
+/** Disk size in MB → "512 MB" / "10.2 GB". */
+export function mb(v) {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return '—'
+  const n = Number(v)
+  if (Math.abs(n) >= 1024) return `${(n / 1024).toFixed(1).replace(/\.0$/, '')} GB`
+  return `${Math.round(n)} MB`
 }
 
 /** Month label "2026-09" → "Sep". */

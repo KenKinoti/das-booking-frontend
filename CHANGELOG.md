@@ -6,6 +6,53 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.7.0] - 2026-10-01
+
+### Synergy Wholesale analytics — upload, monitor, decide
+
+- **Uploads** (Expenses → **Synergy** tab, Settings → Expense sources, or the inbox drop zone): drag & drop
+  several files at once. Statements (`date,"product type",description,credit,debit,balance`) and hosting
+  usage reports (`Identifier,Status,Plan,Usage,Limit,…`) are detected by their header; invoice PDFs /
+  receipts keep going to the inbox. The usage report's date is read from the file name and can be changed
+  before importing. **Idempotent:** statement lines are deduplicated by date + type + description + amounts +
+  balance, snapshots by date + domain — re-uploads and overlapping exports never duplicate. The summary shows
+  rows read / new / duplicates, the period, opening → closing balance and whether the running balance
+  reconciles inside the file and with the neighbouring months (gaps are flagged).
+- **Statement semantics** (`synergy_transactions`): each line is classified — monthly hosting (with its
+  service period), pro-rata for a new service, plan upgrade / downgrade credit (plan from → to), cancellation
+  credit, domain renewal, domain deletion, support fee, **top-up** (Refill — a transfer into the prepaid
+  account, never an expense) or other. Expenses = debits − service credits. The newest statement balance
+  becomes the Synergy account balance.
+- **Hosting usage snapshots** (`synergy_usage_snapshots`): per site and date — growth per month, % used
+  trend, linear days-to-full, over-quota / 75%+ flags, plan per date, sites that appeared or disappeared.
+- **Synergy analytics view:** KPIs (spend this month / last month / year to date in AUD with the home-currency
+  equivalent, active hosting accounts, monthly run-rate of the current plans, balance with **runway** and the
+  top-up needed before the next charge run, top-ups); a **per-site table** (client auto-matched from invoices,
+  website, email domain or name — editable; plan, monthly cost, disk bar, trend, days to full, what you bill
+  from invoice lines mentioning the domain or a monthly price you set, margin and margin %, flags) with sort,
+  filters, search and CSV export; a **site drawer** with charges, plan changes, usage chart and invoices; a
+  **"What to do" panel** (over quota → cheapest plan with 25% headroom and the price difference, near full /
+  days to full, fast growth, plans that could be downsized, plan-change cost, unbilled sites and what they
+  cost, billed below cost, negative balance and "top up $X by <date>", priority ticket fees, cancellations and
+  monthly savings, price changes, statement gaps); monthly spend and balance charts; a month-vs-month
+  comparison in plain English; plan prices learned from the statements (monthly charges, then plan-change
+  pro-ratas) — editable.
+- **Create expenses from statement:** one expense (→ one paid supplier bill) per month per category — Web
+  Hosting, Domain Names, **Support Fees** (new category, account 6440) — with a line per domain (credits
+  netted). Dated by charge date (cash) or by **service month** (accrual: the bill is dated in the month the
+  hosting pays for, the payments on the charge dates). Re-uploads update these expenses (approved ones are
+  re-approved with the new amounts). **Count once:** Synergy invoices / receipts (prepaid top-ups) in the same
+  months are listed; choosing the statement as the source of truth ignores them (un-approving approved ones)
+  and ignores new ones from Gmail; approving a receipt for a month the statement already counts — or the
+  other way round — is refused. Synergy statements arriving by Gmail are imported the same way.
+- **Alerts & dashboard:** over quota, 75%+ full, balance runway and unbilled sites join the Expenses alerts and
+  notifications; the main dashboard's Expenses card shows the Synergy run-rate, sites, balance and alerts.
+- **Ask DASYIN / MCP:** new read-only tools `synergy_sites` ("which sites are close to full?", "what's my margin
+  per hosting client?") and `synergy_recommendations`.
+- API: `GET /expenses/synergy`, `GET|PUT /expenses/synergy/sites/:domain`, `PUT /expenses/synergy/plans`,
+  `GET /expenses/synergy/sites.csv`, `GET|POST /expenses/synergy/statement-expenses`; `POST /expenses/uploads`
+  accepts `dates` (file name → snapshot date).
+
 ## [2.6.0] - 2026-10-01
 
 ### Custom and edited payments, numbered receipts, receipts by email

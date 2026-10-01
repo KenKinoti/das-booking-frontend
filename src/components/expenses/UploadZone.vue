@@ -11,7 +11,7 @@
     <i :class="busy ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-cloud-arrow-up'"></i>
     <div class="txt">
       <strong>{{ busy ? `Reading ${count} file${count === 1 ? '' : 's'}…` : 'Drop invoice PDFs, CSV exports or photos here' }}</strong>
-      <span>PDF, CSV, PNG or JPG · up to 15 MB each · the same file is never imported twice</span>
+      <span>PDF, CSV, PNG or JPG · up to 15 MB each · the same file is never imported twice · Synergy statements &amp; usage reports go to the Synergy tab</span>
     </div>
     <select v-model="vendorId" class="ui-select vend" aria-label="Vendor for these files" :disabled="busy">
       <option value="">Detect vendor</option>
@@ -56,8 +56,13 @@ export default {
         let created = 0
         let dups = 0
         let skipped = 0
+        let synergy = 0
         const ids = []
         for (const res of r.results || []) {
+          if (res.synergy) {
+            synergy++
+            continue
+          }
           created += res.created
           skipped += res.skipped
           for (const it of res.items || []) {
@@ -66,7 +71,8 @@ export default {
           }
         }
         for (const e of r.errors || []) toast.error(`${e.file}: ${e.message}`)
-        if (r.results?.length) {
+        if (synergy) toast.success(`${synergy} Synergy file${synergy === 1 ? '' : 's'} imported — see Expenses → Synergy`)
+        if (r.results?.length > synergy) {
           const parts = [`${created} added to the inbox`]
           if (dups) parts.push(`${dups} already known (duplicate)`)
           if (skipped) parts.push(`${skipped} uploaded before`)

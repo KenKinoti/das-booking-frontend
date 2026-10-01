@@ -55,13 +55,15 @@
             <div class="empty-actions">
               <button class="ui-btn ui-btn--primary" @click="setTab('sources')"><i class="fa-solid fa-plug"></i> Connect sources</button>
               <button class="ui-btn" @click="setTab('inbox')"><i class="fa-solid fa-cloud-arrow-up"></i> Upload invoices</button>
+              <button class="ui-btn" @click="setTab('synergy')"><i class="fa-solid fa-server"></i> {{ d.synergy?.has_data ? 'Synergy analytics' : 'Upload Synergy files' }}</button>
             </div>
           </div>
           <template v-else>
             <div v-if="d.balance?.available" class="balance" :class="{ low: d.balance.amount < d.balance.low_balance }" data-testid="exp-balance">
               <i class="fa-solid fa-wallet"></i>
               Synergy Wholesale balance <strong>{{ money(d.balance.amount, 'AUD') }}</strong>
-              <span class="muted">{{ d.balance.source === 'email' ? 'from the last low-balance email' : 'as of ' + formatDateTime(d.balance.as_of) }}</span>
+              <span class="muted">{{ d.balance.source === 'email' ? 'from the last low-balance email' : d.balance.source === 'statement' ? 'from the statement of ' + formatDate(d.balance.as_of) : 'as of ' + formatDateTime(d.balance.as_of) }}</span>
+              <a v-if="d.synergy?.has_data" href="#" @click.prevent="setTab('synergy')">Synergy analytics →</a>
             </div>
             <div class="row2">
               <div class="panel">
@@ -129,6 +131,11 @@
             </div>
           </template>
         </template>
+      </div>
+
+      <!-- SYNERGY -->
+      <div v-else-if="tab === 'synergy'" class="ui-card__body">
+        <SynergyPanel :customers="customers" :home="cur" @changed="load" />
       </div>
 
       <!-- INBOX / HISTORY -->
@@ -341,17 +348,18 @@ import ExpenseItemModal from '@/components/expenses/ExpenseItemModal.vue'
 import VendorDetail from '@/components/expenses/VendorDetail.vue'
 import RenewalModal from '@/components/expenses/RenewalModal.vue'
 import AlertList from '@/components/expenses/AlertList.vue'
+import SynergyPanel from '@/components/expenses/SynergyPanel.vue'
 import { expensesApi, money, monthLabel, pct, CATEGORIES, categoryOf, SOURCE_LABEL, STATUS_BADGE, STATUS_LABEL } from '@/services/expenses'
 import api, { apiErrorMessage, listFrom } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { formatDate, formatDateTime, downloadBlob } from '@/utils/format'
 import { orgCurrency } from '@/utils/orgDefaults'
 
-const TABS = ['overview', 'inbox', 'history', 'subscriptions', 'renewals', 'clients', 'alerts', 'sources']
+const TABS = ['overview', 'synergy', 'inbox', 'history', 'subscriptions', 'renewals', 'clients', 'alerts', 'sources']
 
 export default {
   name: 'ExpensesView',
-  components: { KpiCard, BarChart, DonutChart, UploadZone, SourcesPanel, ExpenseItemModal, VendorDetail, RenewalModal, AlertList },
+  components: { KpiCard, BarChart, DonutChart, UploadZone, SourcesPanel, ExpenseItemModal, VendorDetail, RenewalModal, AlertList, SynergyPanel },
   data() {
     const today = new Date()
     const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -406,6 +414,7 @@ export default {
       const danger = (this.d?.alerts || []).filter((a) => a.severity !== 'info').length
       return [
         { key: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie' },
+        { key: 'synergy', label: 'Synergy', icon: 'fa-solid fa-server', count: this.d?.synergy?.alerts || 0, tone: 'warn' },
         { key: 'inbox', label: 'Inbox', icon: 'fa-solid fa-inbox', count: inbox, tone: 'warn' },
         { key: 'history', label: 'History', icon: 'fa-solid fa-clock-rotate-left' },
         { key: 'subscriptions', label: 'Subscriptions', icon: 'fa-solid fa-repeat', count: this.d?.subscriptions?.length || 0 },

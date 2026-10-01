@@ -26,7 +26,11 @@ const ICONS = {
   renewal_due: 'fa-solid fa-hourglass-half',
   renewal_expired: 'fa-solid fa-circle-exclamation',
   low_balance: 'fa-solid fa-wallet',
-  subscription_overdue: 'fa-solid fa-clock'
+  subscription_overdue: 'fa-solid fa-clock',
+  synergy_over_quota: 'fa-solid fa-hard-drive',
+  synergy_quota: 'fa-solid fa-gauge-high',
+  synergy_runway: 'fa-solid fa-wallet',
+  synergy_unbilled: 'fa-solid fa-file-invoice-dollar'
 }
 export default {
   name: 'AlertList',
