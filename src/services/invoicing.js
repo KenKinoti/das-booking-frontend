@@ -93,5 +93,6 @@ export const RATE_SOURCES = {
   fallback: { label: 'Reference rate', badge: 'ui-badge--warning', icon: 'fa-solid fa-triangle-exclamation' },
   manual: { label: 'Manual rate', badge: 'ui-badge--info', icon: 'fa-solid fa-hand' },
   same: { label: 'Same currency', badge: 'ui-badge--draft', icon: 'fa-solid fa-equals' },
-  missing: { label: 'No rate', badge: 'ui-badge--danger', icon: 'fa-solid fa-circle-exclamation' }
+  missing: { label: 'No rate', badge: 'ui-badge--danger', icon: 'fa-solid fa-circle-exclamation' },
+  zoho: { label: 'Rate from Zoho Books', badge: 'ui-badge--info', icon: 'fa-solid fa-file-import' }
 }

@@ -29,6 +29,8 @@
     <!-- Profit & loss: one calculation shared with Reports, Finance, the Business hub and Analytics -->
     <PnlCard :period="period" />
 
+    <ExpensesCard />
+
     <!-- KPI row -->
     <div class="kpis" :class="{ busy: loading && data }">
       <KpiCard
@@ -443,6 +445,7 @@ import TimeChart from '@/components/dashboard/charts/TimeChart.vue'
 import BarChart from '@/components/dashboard/charts/BarChart.vue'
 import DonutChart from '@/components/dashboard/charts/DonutChart.vue'
 import PnlCard from '@/components/pnl/PnlCard.vue'
+import ExpensesCard from '@/components/expenses/ExpensesCard.vue'
 import {
   fetchOverview,
   money,
@@ -463,7 +466,7 @@ const PREF = 'dash.period'
 
 export default {
   name: 'DashboardView',
-  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, BarChart, DonutChart, PnlCard },
+  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, BarChart, DonutChart, PnlCard, ExpensesCard },
   data() {
     return {
       data: null,

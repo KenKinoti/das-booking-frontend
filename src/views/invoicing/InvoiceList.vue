@@ -58,6 +58,12 @@
             <option value="total">Amount</option>
             <option value="client">Client</option>
           </select>
+          <select v-model="source" class="ui-select sort" aria-label="Source" @change="setSource">
+            <option value="">All sources</option>
+            <option value="local">Created here</option>
+            <option value="zoho">From Zoho Books</option>
+            <option value="csv">From CSV files</option>
+          </select>
         </div>
       </div>
 
@@ -110,6 +116,8 @@
                 <div class="num-cell">
                   <strong>{{ inv.number }}</strong>
                   <i v-if="inv.is_recurring" class="fa-solid fa-repeat recurring" title="Recurring"></i>
+                  <span v-if="inv.source === 'zoho'" class="src-badge" title="Imported from Zoho Books">Zoho</span>
+                  <span v-else-if="inv.source === 'csv'" class="src-badge" title="Imported from a CSV file">CSV</span>
                 </div>
               </td>
               <td>
@@ -174,6 +182,9 @@ export default {
       // Optional payment-date range (cash-basis drill-down from Profit & loss).
       paidFrom: this.$route.query.paid_from || '',
       paidTo: this.$route.query.paid_to || '',
+      // Imported documents (Zoho Books / CSV) — from the import report or the source menu.
+      source: ['local', 'zoho', 'csv'].includes(this.$route.query.source) ? this.$route.query.source : '',
+      importJob: this.$route.query.import_job || '',
       sort: '',
       loading: false,
       exporting: false,
@@ -192,6 +203,8 @@ export default {
       if (!this.tabs.some((t) => t.value === this.status)) parts.push(extraStatus[this.status] || this.status)
       if (this.from || this.to) parts.push(`Issued ${this.from ? formatDate(this.from) : '…'} – ${this.to ? formatDate(this.to) : '…'}`)
       if (this.paidFrom || this.paidTo) parts.push(`Paid ${this.paidFrom ? formatDate(this.paidFrom) : '…'} – ${this.paidTo ? formatDate(this.paidTo) : '…'}`)
+      if (this.importJob) parts.push('Imported by one import')
+      else if (this.source) parts.push({ local: 'Created here', zoho: 'From Zoho Books', csv: 'From CSV files' }[this.source])
       return parts.join(' · ')
     },
     otherNote() {
@@ -271,7 +284,7 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const data = await invoicingApi.list({ type: this.docType, status: this.status, q: this.q || undefined, sort: this.sort || undefined, from: this.from || undefined, to: this.to || undefined, paid_from: this.paidFrom || undefined, paid_to: this.paidTo || undefined, page: this.page, per_page: this.perPage })
+        const data = await invoicingApi.list({ type: this.docType, status: this.status, q: this.q || undefined, sort: this.sort || undefined, from: this.from || undefined, to: this.to || undefined, paid_from: this.paidFrom || undefined, paid_to: this.paidTo || undefined, source: this.source || undefined, import_job: this.importJob || undefined, page: this.page, per_page: this.perPage })
         this.rows = data.invoices || []
         this.total = data.total || 0
       } catch (e) {
@@ -301,6 +314,14 @@ export default {
       this.to = ''
       this.paidFrom = ''
       this.paidTo = ''
+      this.source = ''
+      this.importJob = ''
+      this.page = 1
+      this.syncQuery()
+      this.load()
+    },
+    setSource() {
+      this.importJob = ''
       this.page = 1
       this.syncQuery()
       this.load()
@@ -319,6 +340,8 @@ export default {
       if (this.to) query.to = this.to
       if (this.paidFrom) query.paid_from = this.paidFrom
       if (this.paidTo) query.paid_to = this.paidTo
+      if (this.source) query.source = this.source
+      if (this.importJob) query.import_job = this.importJob
       this.$router.replace({ query })
     },
     go(p) {
@@ -516,5 +539,16 @@ export default {
   .search,
   .sort { width: 100%; }
   .toolbar__right { width: 100%; }
+}
+.src-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 17px;
+  background: var(--info-soft);
+  color: var(--info);
 }
 </style>

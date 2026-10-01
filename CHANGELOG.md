@@ -6,6 +6,42 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.5.0] - 2026-10-01
+
+### Expenses (Synergy Wholesale, Google Workspace, any supplier) and Zoho Books import
+
+- **Expenses module** (`/expenses`, Finance → Expenses; Settings → Expense sources). Costs arrive from
+  **Synergy Wholesale** (reseller SOAP API: account balance, domains with expiry and auto-renew,
+  hosting renewals, renewal prices), **Gmail** (read-only OAuth: Google Workspace invoice emails with
+  their PDF, payment confirmations and declined-payment notices; Synergy payment receipts with the
+  tax-invoice PDF, monthly statement CSVs and low-balance notices; any sender you add) and **uploads**
+  (drag-drop PDFs, CSV exports, photos). Amounts, GST/VAT, invoice number, dates and service period are
+  read from the email and the PDF (built-in PDF text reader incl. compressed streams and CID fonts);
+  when rules are unsure and `ANTHROPIC_API_KEY` is set, Claude reads the document and the item is
+  marked "AI-extracted, please confirm".
+- **Inbox → approve → counted once.** Everything lands in an inbox with extracted fields, confidence
+  and the source document. Approving creates a **paid supplier bill** (vendor, expense account per
+  category — Web Hosting, Domain Names, Email & Workspace, Software & Subscriptions, Other — in the
+  home currency at the locked exchange rate, original currency kept on the item) so the one P&L counts
+  it once under operating expenses, accrual and cash. An existing bill with the same supplier invoice
+  number is linked instead of duplicated; "Undo approval" removes the bill and payment.
+- **No duplicates.** Re-syncs never re-import (source + external id); the same invoice from the API,
+  email and an upload is detected by vendor + invoice number (or vendor + amount + currency + date
+  ±3 days) and kept once; Google's "payment received" email completes the invoice email it pays.
+- **Expenses dashboard:** this month / last month / year to date with change, spend by vendor and
+  category, 12-month chart, **recurring subscriptions** (monthly/quarterly/yearly, next charge,
+  annualised cost), **upcoming renewals** (30/60/90 days, renewal cost), **alerts** (price increase
+  > 5%, new vendor, possible duplicate charge, failed or unpaid payment, renewal due / expired, low
+  Synergy balance — also sent as notifications once), **3-month forecast**, per-vendor drill-down with
+  timeline and source documents, **margin per client** (attribute or split an expense across clients:
+  invoiced revenue vs cost) and CSV export. Summary card on the main Dashboard.
+- **Daily auto-sync** with a Postgres advisory lock so several Cloud Run instances never sync the same
+  organisation twice; "Sync now" anywhere. Synergy errors say exactly which server IP to whitelist.
+- **Ask DASYIN / MCP:** new tools `expenses_summary` ("what am I spending on Google Workspace?") and
+  `expenses_upcoming_renewals`.
+- **Zoho Books import:** live Zoho connection or CSV/XLS export — clients,
+  contacts, invoices, payments and invoice PDFs.
+
 ## [2.4.0] - 2026-09-30
 
 ### Correct amounts in every email, exchange rates per customer, pre-send checks and a new email design

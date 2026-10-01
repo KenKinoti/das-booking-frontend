@@ -85,6 +85,7 @@ export const navGroups = [
       { label: 'Profit & loss', to: '/reports/profit-loss', module: 'core', icon: 'fa-solid fa-chart-line', match: /^\/reports\/profit-loss/ },
       { label: 'Accounting', to: '/finance', module: 'accounting', icon: 'fa-solid fa-scale-balanced' },
       { label: 'Bills', to: '/bills', module: 'accounting', icon: 'fa-solid fa-money-bill-wave' },
+      { label: 'Expenses', to: '/expenses', module: 'core', icon: 'fa-solid fa-receipt' },
       { label: 'Banking', to: '/banking', module: 'accounting', icon: 'fa-solid fa-building-columns' }
     ]
   },
@@ -119,6 +120,8 @@ export const navGroups = [
       { label: 'Settings', to: '/settings', icon: 'fa-solid fa-sliders', match: /^\/settings\/?$/ },
       { label: 'Plan & billing', to: '/plan', icon: 'fa-solid fa-gem' },
       { label: 'AI & MCP', to: '/settings/ai', icon: 'fa-solid fa-robot' },
+      { label: 'Expense sources', to: '/settings/expense-sources', icon: 'fa-solid fa-plug' },
+      { label: 'Import data', to: '/imports', icon: 'fa-solid fa-file-import', match: /^\/imports/ },
       { label: 'My profile', to: '/profile', icon: 'fa-solid fa-user' },
       { label: 'Help & FAQ', to: '/faq', icon: 'fa-solid fa-circle-question' }
     ]

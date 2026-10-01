@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.4.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.5.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,13 +26,13 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Invoice emails are checked before they go out: exact preview, correct amounts in every currency, exchange rates locked per document, and a professional new email design.'
+export const RELEASE_LEAD = 'Know what you spend: expenses from Synergy Wholesale, Google Workspace and any supplier flow into one inbox, count once in your P&L, and warn you before renewals and price rises. Plus Zoho Books import.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-list-check', text: 'Pre-send check and exact preview (email, plain text, PDF) before any invoice, quote, reminder or receipt is emailed — plus “Send test to me”' },
-  { icon: 'fa-solid fa-right-left', text: 'Customers in another currency: catalog prices are converted at a live, reference or manual rate that is locked on each document' },
-  { icon: 'fa-solid fa-envelope-open-text', text: 'New email design with your logo, amount due, status, line items and a full business footer; payment receipts by email' },
-  { icon: 'fa-solid fa-clock-rotate-left', text: 'Every email is logged on the invoice (recipients, amounts, checks, server response) for easy troubleshooting' },
-  { icon: 'fa-solid fa-mobile-screen', text: 'Installable web app, notification centre, mobile polish' }
+  { icon: 'fa-solid fa-receipt', text: 'Expenses: Synergy Wholesale (balance, domains, hosting renewals) and Gmail billing emails (Google Workspace invoices, Synergy receipts, your own senders) into a review inbox' },
+  { icon: 'fa-solid fa-cloud-arrow-up', text: 'Drop invoice PDFs, CSVs or photos — amounts, GST/VAT, dates and invoice numbers are read for you, and the same invoice from email, API and upload is kept once' },
+  { icon: 'fa-solid fa-chart-pie', text: 'Expenses dashboard: spend by vendor and category, recurring subscriptions, renewals due, 3-month forecast, margin per client and alerts for price rises, failed payments and low balance' },
+  { icon: 'fa-solid fa-scale-balanced', text: 'Approved expenses become paid supplier bills (converted to your currency), so the profit & loss counts each one exactly once' },
+  { icon: 'fa-solid fa-file-import', text: 'Zoho Books import: live connection or CSV/XLS — clients, contacts, invoices, payments and PDFs' }
 ]

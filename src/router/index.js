@@ -385,6 +385,8 @@ const routes = [
     component: Bills,
     meta: { requiresAuth: true }
   },
+  { path: '/expenses', name: 'Expenses', component: () => import('../views/expenses/Expenses.vue'), meta: { requiresAuth: true, title: 'Expenses' } },
+  { path: '/settings/expense-sources', name: 'ExpenseSources', component: () => import('../views/expenses/ExpenseSources.vue'), meta: { requiresAuth: true, title: 'Expense sources' } },
   {
     path: '/banking',
     name: 'Banking',
@@ -523,6 +525,14 @@ routes.push(
 routes.push(
   { path: '/settings/ai', name: 'AiSettings', component: () => import('../views/ai/AiSettings.vue'), meta: { requiresAuth: true, title: 'AI & MCP' } },
   { path: '/connect/authorize', name: 'ConnectAuthorize', component: () => import('../views/ai/ConnectAuthorize.vue'), meta: { requiresAuth: false, public: true, title: 'Connect an app' } }
+)
+
+// Import data: Zoho Books (live connection or export files) and CSV/XLSX from other tools
+routes.push(
+  { path: '/imports', name: 'ImportData', component: () => import('../views/imports/ImportData.vue'), meta: { requiresAuth: true, title: 'Import data' } },
+  { path: '/imports/zoho', name: 'ImportZoho', component: () => import('../views/imports/ZohoImport.vue'), meta: { requiresAuth: true, title: 'Import from Zoho Books' } },
+  { path: '/imports/files', name: 'ImportFiles', component: () => import('../views/imports/FileImport.vue'), meta: { requiresAuth: true, title: 'Import files' } },
+  { path: '/imports/jobs/:id', name: 'ImportJob', component: () => import('../views/imports/ImportJob.vue'), props: true, meta: { requiresAuth: true, title: 'Import' } }
 )
 
 routes.push({ path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound, meta: { requiresAuth: false, title: 'Page not found' } })

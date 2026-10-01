@@ -52,7 +52,19 @@
             <option value="oldest">Oldest first</option>
             <option value="name">Name A–Z</option>
           </select>
+          <select v-model="source" class="ui-select sort" aria-label="Source" @change="setSource(source)">
+            <option value="">All sources</option>
+            <option value="local">Added here</option>
+            <option value="zoho">From Zoho Books</option>
+            <option value="csv">From CSV files</option>
+          </select>
         </div>
+      </div>
+      <div v-if="importJob || source" class="src-chips">
+        <span class="src-chip">
+          <i class="fa-solid fa-file-import"></i> {{ importJob ? 'Imported by one import' : sourceLabel }} · {{ rows.length }} customer{{ rows.length === 1 ? '' : 's' }}
+          <button type="button" class="src-chip__x" aria-label="Clear filter" @click="clearSource"><i class="fa-solid fa-xmark"></i></button>
+        </span>
       </div>
 
       <div v-if="error" class="ui-card__body">
@@ -100,7 +112,7 @@
                 <div class="person">
                   <span class="avatar" :class="{ 'avatar--off': !c.is_active }">{{ initials(fullName(c)) }}</span>
                   <span class="person__text">
-                    <span class="person__name">{{ fullName(c) }} <span v-if="c.country_code" class="name-flag" :title="countryOf(c)">{{ flag(c.country_code) }}</span></span>
+                    <span class="person__name">{{ fullName(c) }} <span v-if="c.country_code" class="name-flag" :title="countryOf(c)">{{ flag(c.country_code) }}</span> <span v-if="c.source === 'zoho'" class="src-badge" title="Imported from Zoho Books">Zoho</span><span v-else-if="c.source === 'csv'" class="src-badge" title="Imported from a CSV file">CSV</span></span>
                     <small>
                       {{ c.email || c.phone || '—' }}
                       <span v-if="c.contacts_count" class="contacts-pill" :title="`${c.contacts_count} contact${c.contacts_count > 1 ? 's' : ''} copied on emails`"><i class="fa-regular fa-address-card"></i> {{ c.contacts_count }}</span>
@@ -187,6 +199,8 @@ export default {
       q: this.$route.query.q || '',
       status: ['active', 'inactive'].includes(this.$route.query.status) ? this.$route.query.status : 'all',
       sort: '',
+      source: ['local', 'zoho', 'csv'].includes(this.$route.query.source) ? this.$route.query.source : '',
+      importJob: this.$route.query.import_job || '',
       page: 1,
       perPage: 25,
       timer: null,
@@ -206,6 +220,9 @@ export default {
     },
     pageRows() {
       return this.rows.slice((this.page - 1) * this.perPage, this.page * this.perPage)
+    },
+    sourceLabel() {
+      return { local: 'Added here', zoho: 'From Zoho Books', csv: 'From CSV files' }[this.source] || ''
     },
     showVehicles() {
       return (this.stats.total_vehicles || 0) > 0
@@ -241,7 +258,7 @@ export default {
       this.loading = true
       this.error = ''
       try {
-        this.rows = await customerService.list({ search: this.q || undefined, status: this.status === 'all' ? undefined : this.status, sort: this.sort || undefined })
+        this.rows = await customerService.list({ search: this.q || undefined, status: this.status === 'all' ? undefined : this.status, sort: this.sort || undefined, source: this.source || undefined, import_job: this.importJob || undefined })
         const maxPage = Math.max(1, Math.ceil(this.rows.length / this.perPage))
         if (this.page > maxPage) this.page = maxPage
       } catch (e) {
@@ -249,6 +266,20 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    setSource(v) {
+      this.source = v
+      this.importJob = ''
+      const query = { ...this.$route.query }
+      delete query.import_job
+      if (v) query.source = v
+      else delete query.source
+      this.$router.replace({ query })
+      this.page = 1
+      this.load()
+    },
+    clearSource() {
+      this.setSource('')
     },
     async loadStats() {
       try {
@@ -618,5 +649,38 @@ export default {
   .ui-kpi__meta {
     display: none;
   }
+}
+.src-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 17px;
+  background: var(--info-soft);
+  color: var(--info);
+  vertical-align: middle;
+}
+.src-chips {
+  padding: 0 16px 10px;
+}
+.src-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.src-chip__x {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 4px;
 }
 </style>

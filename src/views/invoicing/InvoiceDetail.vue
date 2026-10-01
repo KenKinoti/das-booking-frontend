@@ -64,6 +64,7 @@
         </div>
 
         <aside class="side-col no-print">
+          <ImportedDocCard v-if="doc.source" :doc="doc" />
           <section v-if="!isQuote" class="ui-card">
             <div class="ui-card__head">
               <h2>Payments</h2>
@@ -335,10 +336,11 @@ import { confirmDialog } from '@/composables/useConfirm'
 import { useBranding } from '@/composables/useBranding'
 import { paymentsApi, TX_STATUS } from '@/services/payments'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import ImportedDocCard from '@/components/imports/ImportedDocCard.vue'
 
 export default {
   name: 'InvoiceDetail',
-  components: { InvoiceDocument, SendDialog, StatusBadge },
+  components: { InvoiceDocument, SendDialog, StatusBadge, ImportedDocCard },
   props: { id: { type: String, required: true } },
   setup() {
     return { branding: useBranding().branding }
