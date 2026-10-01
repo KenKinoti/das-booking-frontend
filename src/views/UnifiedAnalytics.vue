@@ -1,13 +1,13 @@
 <template>
-  <AnalyticsReport title="Reports & analytics" />
+  <AnalyticsPage title="Reports & analytics" />
 </template>
 
 <script>
-import AnalyticsReport from '@/components/dashboard/AnalyticsReport.vue'
+import AnalyticsPage from '@/components/analytics/AnalyticsPage.vue'
 
-// /reports-analytics — real business analytics from /api/v1/analytics/overview.
+// /reports-analytics — same page as /analytics (overview + analyst views).
 export default {
   name: 'UnifiedAnalytics',
-  components: { AnalyticsReport }
+  components: { AnalyticsPage }
 }
 </script>

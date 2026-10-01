@@ -18,6 +18,15 @@
             <div v-if="d.subscriptions.length"><span>Annualised</span><strong>{{ money(annual, cur) }}</strong><small>{{ d.subscriptions.length }} subscription{{ d.subscriptions.length === 1 ? '' : 's' }}</small></div>
             <div><span>Category</span><strong class="cat">{{ cat.label }}</strong></div>
           </div>
+          <div v-if="d.vendor.key !== 'synergy'" class="rule" data-testid="vendor-rule">
+            <label class="ui-switch">
+              <input v-model="rule.on" type="checkbox" data-testid="vendor-auto" />
+              <span>Approve new invoices automatically</span>
+            </label>
+            <span class="rule__pct">when within ±<input v-model.number="rule.pct" type="number" min="1" max="100" step="1" class="ui-input tiny" aria-label="Tolerance in percent" :disabled="!rule.on" />% of the last approved one</span>
+            <button type="button" class="ui-btn ui-btn--sm" :disabled="ruleSaving || !ruleDirty" @click="saveRule">{{ ruleSaving ? 'Saving…' : 'Save rule' }}</button>
+            <span class="muted rule__hint">The first invoice is always approved by you; one outside the range waits in the Inbox with the reason.</span>
+          </div>
           <h3>Monthly spend (excl. tax, {{ cur }})</h3>
           <BarChart :labels="d.months.map((m) => m.month)" :values="d.months.map((m) => m.amount)" :height="170" :color="cat.color" value-name="Spend"
             :format-x="(m) => monthLabel(m)" :format-title="(m) => monthLabel(m, true)" :format-y="(v) => money(v, cur, true)" :format-value="(v) => money(v, cur)" aria-label="Monthly spend with this vendor" />
@@ -89,7 +98,7 @@ export default {
   props: { vendorId: { type: String, required: true } },
   emits: ['close', 'open'],
   data() {
-    return { d: null, error: '', STATUS_BADGE, STATUS_LABEL }
+    return { d: null, error: '', STATUS_BADGE, STATUS_LABEL, rule: { on: false, pct: 20 }, ruleSaving: false }
   },
   computed: {
     cur() {
@@ -100,11 +109,16 @@ export default {
     },
     cat() {
       return categoryOf(this.d?.vendor?.category)
+    },
+    ruleDirty() {
+      const v = this.d?.vendor
+      return !!v && (this.rule.on !== !!v.auto_approve || Number(this.rule.pct) !== Number(v.auto_approve_pct || 20))
     }
   },
   async mounted() {
     try {
       this.d = await expensesApi.vendorDetail(this.vendorId)
+      this.rule = { on: !!this.d.vendor.auto_approve, pct: this.d.vendor.auto_approve_pct || 20 }
     } catch (e) {
       this.error = apiErrorMessage(e, 'Could not load the vendor')
     }
@@ -126,6 +140,21 @@ export default {
         toast.error(apiErrorMessage(e, 'Could not open the document'))
       }
     },
+    async saveRule() {
+      const pct = Number(this.rule.pct)
+      if (!pct || pct < 1 || pct > 100) return toast.error('Enter a tolerance between 1% and 100%')
+      const v = this.d.vendor
+      this.ruleSaving = true
+      try {
+        const nv = await expensesApi.saveVendor(v.id, { category: v.category, senders: v.senders || [], auto_approve: this.rule.on, auto_approve_pct: pct })
+        this.d.vendor = { ...v, ...nv }
+        toast.success(this.rule.on ? `${v.name}: invoices within ±${pct}% are approved automatically` : `${v.name}: invoices wait for your approval`)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not save the rule'))
+      } finally {
+        this.ruleSaving = false
+      }
+    },
     async exportCsv() {
       try {
         const blob = await expensesApi.exportCsv({ vendor_id: this.vendorId, status: 'approved' })
@@ -139,6 +168,34 @@ export default {
 </script>
 
 <style scoped>
+.rule {
+  display: flex;
+  gap: 8px 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  margin: 4px 0 12px;
+  font-size: 13px;
+}
+.rule__pct {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.rule .tiny {
+  width: 64px;
+  padding: 3px 6px;
+  min-height: 0;
+  text-align: right;
+}
+.rule__hint {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-3);
+}
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

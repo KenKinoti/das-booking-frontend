@@ -17,7 +17,7 @@
 
     <div class="layout">
       <nav class="side" aria-label="Settings sections">
-        <a v-for="s in sections.filter((x) => (x.id !== 'bill-reminders' || hasModule('accounting')) && (x.id !== 'booking-emails' || hasModule('bookings')))" :key="s.id" :href="`#${s.id}`" :class="{ 'is-active': active === s.id }" @click.prevent="scrollTo(s.id)"><i :class="s.icon"></i> {{ s.label }}</a>
+        <a v-for="s in sections.filter((x) => (x.id !== 'bill-reminders' || hasModule('accounting')) && (x.id !== 'booking-emails' || hasModule('bookings')) && (x.id !== 'business-type' || showBusinessType))" :key="s.id" :href="`#${s.id}`" :class="{ 'is-active': active === s.id }" @click.prevent="scrollTo(s.id)"><i :class="s.icon"></i> {{ s.label }}</a>
       </nav>
 
       <div class="stack">
@@ -149,6 +149,18 @@
           </section>
         </fieldset>
 
+        <section v-if="showBusinessType" id="business-type" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Business type</h2>
+              <p class="sub">The kind of business you run decides which modules, words and staff roles DASYIN shows.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <BusinessTypeSettings :can-edit="businessTypeEditable" />
+          </div>
+        </section>
+
         <section v-if="hasModule('accounting')" id="bill-reminders" class="ui-card">
           <div class="ui-card__head">
             <div>
@@ -253,8 +265,11 @@ import PaymentSettingsPanel from '@/components/settings/PaymentSettingsPanel.vue
 import { hasModule } from '@/composables/useEntitlements'
 import BillRemindersPanel from '@/components/finance/BillRemindersPanel.vue'
 import BookingEmailSettingsPanel from '@/components/bookings/BookingEmailSettingsPanel.vue'
+import BusinessTypeSettings from '@/components/settings/BusinessTypeSettings.vue'
+import { atLeast } from '@/composables/useAccess'
 import SsoDomains from '@/components/auth/SsoDomains.vue'
 import { refreshOrgPrefs } from '@/composables/useOrgPrefs'
+import { suggestCountryDefaults } from '@/utils/countryDefaults'
 import { orgDefaults } from '@/utils/orgDefaults'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
@@ -267,7 +282,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
-  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel },
+  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel, BusinessTypeSettings },
   data() {
     return {
       org: blankOrg(),
@@ -283,6 +298,7 @@ export default {
       currencyGroups: currencyGroups(),
       sections: [
         { id: 'business', label: 'Business details', icon: 'fa-regular fa-building' },
+        { id: 'business-type', label: 'Business type', icon: 'fa-solid fa-shapes' },
         { id: 'regional', label: 'Regional & formats', icon: 'fa-solid fa-globe' },
         { id: 'notifications', label: 'Notifications', icon: 'fa-regular fa-bell' },
         { id: 'bill-reminders', label: 'Bill reminders', icon: 'fa-solid fa-file-invoice-dollar' },
@@ -304,6 +320,13 @@ export default {
     }
   },
   computed: {
+    // Business type & roles: admins change them, managers can look.
+    showBusinessType() {
+      return atLeast('manager')
+    },
+    businessTypeEditable() {
+      return atLeast('admin')
+    },
     snapshot() {
       return JSON.stringify({ org: this.org, settings: this.settings })
     },
@@ -420,10 +443,13 @@ export default {
       this.saving = true
       try {
         const before = orgDefaults.currency
+        const countryBefore = orgDefaults.countryCode
         const { data } = await api.put('/account/organization', { ...this.org, settings: this.settings })
         this.apply(data.data)
         await refreshOrgPrefs()
         toast.success(before && before !== this.settings.currency ? `Settings saved — new records now default to ${this.settings.currency}` : 'Settings saved')
+        // New country: offer its tax and time zone (confirm dialog; invoices keep their tax).
+        if (countryBefore && countryBefore !== this.org.country_code && (await suggestCountryDefaults())) await this.load()
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not save settings'))
       } finally {

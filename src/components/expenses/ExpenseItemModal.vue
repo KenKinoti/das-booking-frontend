@@ -86,7 +86,7 @@
               <span class="ui-label">Exchange rate</span>
               <input v-if="form.currency !== home" v-model="form.fx_rate" type="number" step="0.000001" min="0" class="ui-input num" :disabled="locked" :placeholder="'auto'" />
               <input v-else class="ui-input" value="Same currency" disabled />
-              <span v-if="form.currency !== home" class="ui-hint">{{ home }} per 1 {{ form.currency }}{{ item?.fx_source ? ' · ' + fxSource(item.fx_source) : '' }}</span>
+              <span v-if="form.currency !== home" class="ui-hint" data-testid="item-fx-note">{{ item?.fx_note || `${home} per 1 ${form.currency}${item?.fx_source ? ' · ' + fxSource(item.fx_source) : ''}` }}</span>
             </label>
             <div class="ui-field paid">
               <label class="ui-switch"><input v-model="form.paid" type="checkbox" :disabled="locked" /> <span>Paid</span></label>

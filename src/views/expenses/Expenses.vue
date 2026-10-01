@@ -17,6 +17,13 @@
 
     <div v-if="loadError" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ loadError }} <a href="#" @click.prevent="load">Try again</a></span></div>
 
+    <CountryDefaultsNotice />
+    <div v-if="syn?.accounting?.notice" class="ui-alert ui-alert--success notice" data-testid="exp-synergy-notice">
+      <i class="fa-solid fa-circle-check"></i>
+      <span>{{ syn.accounting.notice }} <a href="#" @click.prevent="setTab('synergy')">Open Synergy</a></span>
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon x" aria-label="Dismiss" @click="dismissSynNotice"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
     <div class="ui-kpis" data-testid="exp-kpis">
       <KpiCard label="This month" icon="fa-solid fa-calendar-day" tone="accent" :loading="!d" :value="m(k.this_month)"
         :meta="d ? `${k.this_month_count} expense${k.this_month_count === 1 ? '' : 's'} · excl. tax` : ''" :delta="k.this_month_change_pct ?? null" :positive-is-good="false"
@@ -59,11 +66,30 @@
             </div>
           </div>
           <template v-else>
-            <div v-if="d.balance?.available" class="balance" :class="{ low: d.balance.amount < d.balance.low_balance }" data-testid="exp-balance">
+            <div v-if="syn && syn.has_data" class="synstrip" data-testid="exp-synergy-strip">
+              <div class="synstrip__main">
+                <i class="fa-solid fa-server"></i>
+                <div>
+                  <strong>Synergy Wholesale</strong>
+                  <span class="muted">counted as {{ syn.accounting?.mode === 'topups' ? 'top-ups from your bank' : 'service charges' }}{{ syn.accounting?.auto_approve ? ', approved automatically' : '' }}</span>
+                </div>
+              </div>
+              <div class="synstrip__nums">
+                <div><span>This month</span><strong>{{ cur !== 'AUD' ? money(syn.this_month_home, cur) : aud(syn.this_month) }}</strong><small v-if="cur !== 'AUD'">{{ aud(syn.this_month) }}</small></div>
+                <div><span>Run-rate</span><strong>{{ cur !== 'AUD' ? money(syn.run_rate_home, cur) : aud(syn.run_rate) }} / mo</strong><small v-if="cur !== 'AUD'">{{ aud(syn.run_rate) }} / mo</small></div>
+                <div :class="{ low: syn.balance != null && syn.balance < (d.balance?.low_balance || 20) }" data-testid="exp-balance">
+                  <span>Balance</span><strong>{{ syn.balance == null ? '—' : aud(syn.balance) }}</strong><small v-if="cur !== 'AUD' && syn.balance != null && syn.fx?.rate">≈ {{ money(syn.balance * syn.fx.rate, cur) }}</small>
+                </div>
+              </div>
+              <div class="synstrip__foot">
+                <span v-if="cur !== 'AUD' && syn.fx?.rate" class="muted">{{ rateNote(syn.fx) }}</span>
+                <a href="#" @click.prevent="setTab('synergy')">Synergy analytics →</a>
+              </div>
+            </div>
+            <div v-else-if="d.balance?.available" class="balance" :class="{ low: d.balance.amount < d.balance.low_balance }" data-testid="exp-balance">
               <i class="fa-solid fa-wallet"></i>
-              Synergy Wholesale balance <strong>{{ money(d.balance.amount, 'AUD') }}</strong>
+              Synergy Wholesale balance <strong>{{ aud(d.balance.amount) }}</strong>
               <span class="muted">{{ d.balance.source === 'email' ? 'from the last low-balance email' : d.balance.source === 'statement' ? 'from the statement of ' + formatDate(d.balance.as_of) : 'as of ' + formatDateTime(d.balance.as_of) }}</span>
-              <a v-if="d.synergy?.has_data" href="#" @click.prevent="setTab('synergy')">Synergy analytics →</a>
             </div>
             <div class="row2">
               <div class="panel">
@@ -106,7 +132,7 @@
                     <i :class="kindIcon(r.kind)"></i>
                     <span class="rname">{{ r.name }}</span>
                     <span class="ui-badge" :class="r.days_left <= 30 ? (r.auto_renew ? 'ui-badge--info' : 'ui-badge--warning') : 'ui-badge--draft'">{{ r.days_left }}d</span>
-                    <span class="num">{{ r.cost ? money(r.cost, r.currency) : '—' }}</span>
+                    <span class="num">{{ r.cost || r.cost_estimate ? money(r.cost || r.cost_estimate, r.currency) + (r.period_label ? ' / ' + r.period_label : '') : '—' }}</span>
                   </li>
                   <li v-if="!d.renewals.filter((x) => x.days_left >= 0).length" class="muted">No renewals in the next 90 days.</li>
                 </ul>
@@ -279,7 +305,14 @@
                 <td class="nowrap">{{ formatDate(r.expires_on) }}</td>
                 <td><span class="ui-badge" :class="daysTone(r)">{{ r.days_left === null || r.days_left === undefined ? '—' : r.days_left < 0 ? 'expired' : r.days_left + 'd' }}</span></td>
                 <td>{{ r.auto_renew ? 'Yes' : 'No' }}</td>
-                <td class="num">{{ r.cost ? money(r.cost, r.currency) : '—' }}</td>
+                <td class="num" data-col="cost">
+                  <template v-if="r.cost || r.cost_estimate">
+                    {{ money(r.cost || r.cost_estimate, r.currency) }} / {{ r.period_label || 'period' }}<i v-if="!r.cost" class="fa-solid fa-wave-square est" title="Estimated from the plan's monthly price"></i>
+                    <small v-if="r.home_cost != null && r.home_currency !== r.currency" class="block muted">≈ {{ money(r.home_cost, r.home_currency) }}</small>
+                    <small v-if="r.period_months > 1 && r.monthly" class="block muted">{{ money(r.monthly, r.currency) }} / month<template v-if="r.home_monthly != null && r.home_currency !== r.currency"> ≈ {{ money(r.home_monthly, r.home_currency) }}</template></small>
+                  </template>
+                  <template v-else>—</template>
+                </td>
                 <td class="hide-sm">{{ r.customer_name || '—' }}</td>
                 <td class="num hide-sm">{{ r.price ? money(r.price, r.currency) : '—' }}</td>
               </tr>
@@ -353,7 +386,8 @@ import VendorDetail from '@/components/expenses/VendorDetail.vue'
 import RenewalModal from '@/components/expenses/RenewalModal.vue'
 import AlertList from '@/components/expenses/AlertList.vue'
 import SynergyPanel from '@/components/expenses/SynergyPanel.vue'
-import { expensesApi, money, monthLabel, pct, CATEGORIES, categoryOf, SOURCE_LABEL, STATUS_BADGE, STATUS_LABEL } from '@/services/expenses'
+import CountryDefaultsNotice from '@/components/invoicing/CountryDefaultsNotice.vue'
+import { expensesApi, money, aud, rateNote, monthLabel, pct, CATEGORIES, categoryOf, SOURCE_LABEL, STATUS_BADGE, STATUS_LABEL } from '@/services/expenses'
 import api, { apiErrorMessage, listFrom } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { formatDate, formatDateTime, downloadBlob } from '@/utils/format'
@@ -363,7 +397,7 @@ const TABS = ['overview', 'synergy', 'inbox', 'history', 'subscriptions', 'renew
 
 export default {
   name: 'ExpensesView',
-  components: { KpiCard, BarChart, DonutChart, UploadZone, SourcesPanel, ExpenseItemModal, VendorDetail, RenewalModal, AlertList, SynergyPanel },
+  components: { KpiCard, BarChart, DonutChart, UploadZone, SourcesPanel, ExpenseItemModal, VendorDetail, RenewalModal, AlertList, SynergyPanel, CountryDefaultsNotice },
   data() {
     const today = new Date()
     const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -406,6 +440,9 @@ export default {
     },
     k() {
       return this.d?.kpis || {}
+    },
+    syn() {
+      return this.d?.synergy || null
     },
     hasData() {
       return (this.d?.months || []).some((x) => x.amount) || (this.d?.by_vendor || []).length > 0
@@ -468,6 +505,16 @@ export default {
   },
   methods: {
     money,
+    aud,
+    rateNote,
+    async dismissSynNotice() {
+      try {
+        await expensesApi.dismissAccountingNotice()
+      } catch {
+        /* hide it anyway */
+      }
+      if (this.d?.synergy?.accounting) this.d.synergy.accounting.notice = ''
+    },
     monthLabel,
     pct,
     formatDate,
@@ -647,6 +694,95 @@ export default {
 </script>
 
 <style scoped>
+.notice {
+  position: relative;
+  padding-right: 44px;
+  margin-bottom: 14px;
+}
+.notice .x {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+}
+.synstrip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 20px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--surface);
+}
+.synstrip__main {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+.synstrip__main > i {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.synstrip__main div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.synstrip__nums {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.synstrip__nums > div {
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+.synstrip__nums span {
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.synstrip__nums small {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.synstrip__nums .low strong {
+  color: var(--danger);
+}
+.synstrip__foot {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.est {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--text-3);
+}
+@media (max-width: 760px) {
+  .synstrip {
+    grid-template-columns: 1fr;
+  }
+  .synstrip__nums {
+    gap: 14px;
+  }
+}
 .tabs-row {
   padding: 10px 14px 0;
   border-bottom: 1px solid var(--border);

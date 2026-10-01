@@ -18,7 +18,7 @@
         <div v-if="!d && !error" class="ui-skeleton" style="height: 320px"></div>
         <template v-else-if="d">
           <div class="stats">
-            <div><span>Synergy cost</span><strong>{{ aud(site.total_monthly) }}<small>/mo</small></strong><small v-if="site.domain_monthly">incl. domain {{ aud(site.domain_monthly) }}/mo</small></div>
+            <div><span>Synergy cost</span><strong>{{ aud(site.total_monthly) }}<small>/mo</small></strong><small v-if="home && home !== 'AUD' && site.cost_home">≈ {{ wholeMoney(site.cost_home, home) }}/mo · {{ aud(site.total_monthly * 12, { whole: true }) }}/yr</small><small v-if="site.domain_monthly">incl. domain {{ aud(site.domain_monthly) }}/mo</small></div>
             <div><span>Billed</span><strong>{{ site.billed != null ? money(site.billed, home) : '—' }}<small v-if="site.billed != null">/mo</small></strong><small>{{ billedNote }}</small></div>
             <div><span>Margin</span><strong :class="site.margin == null ? '' : site.margin < 0 ? 'txt-danger' : 'txt-ok'">{{ site.margin != null ? money(site.margin, home) : '—' }}</strong><small v-if="site.margin_pct != null">{{ site.margin_pct.toFixed(1) }}%</small></div>
             <div><span>Disk</span><strong>{{ site.pct_used != null ? site.pct_used.toFixed(0) + '%' : '—' }}</strong><small v-if="site.usage_mb != null">{{ mb(site.usage_mb) }} of {{ mb(site.limit_mb) }}</small></div>
@@ -93,7 +93,7 @@
 
 <script>
 import TimeChart from '@/components/dashboard/charts/TimeChart.vue'
-import { expensesApi, money, aud, mb } from '@/services/expenses'
+import { expensesApi, money, aud, mb, wholeMoney } from '@/services/expenses'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { formatDate } from '@/utils/format'
@@ -191,6 +191,7 @@ export default {
   methods: {
     money,
     aud,
+    wholeMoney,
     mb,
     formatDate,
     shortDate(x) {

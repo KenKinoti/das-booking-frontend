@@ -86,7 +86,10 @@
             <li v-for="g in r.syn.gaps" :key="g.after + g.before"><i class="fa-solid fa-link-slash"></i> {{ g.message }}</li>
             <li v-for="w in r.syn.warnings.slice(0, 6)" :key="w"><i class="fa-solid fa-circle-info"></i> {{ w }}</li>
           </ul>
-          <p v-if="r.syn.expense_items_updated" class="muted">{{ r.syn.expense_items_updated }} statement expense{{ r.syn.expense_items_updated === 1 ? '' : 's' }} updated with the new lines.</p>
+          <p v-if="r.syn.accounting" class="muted" data-testid="upload-accounting">
+            <i class="fa-solid fa-circle-check txt-ok"></i>
+            Synergy expenses ({{ r.syn.accounting.mode === 'topups' ? 'top-ups' : 'service charges' }}): {{ r.syn.accounting.created }} created, {{ r.syn.accounting.updated }} updated<template v-if="r.syn.accounting.approved">, {{ r.syn.accounting.approved }} approved — in your P&amp;L now</template><template v-else-if="!r.syn.accounting.auto_approve"> — approve them in the Inbox</template>.
+          </p>
         </template>
         <p v-else class="muted">{{ r.created }} added to the Expenses inbox{{ r.skipped ? ` · ${r.skipped} already there` : '' }}.</p>
       </div>

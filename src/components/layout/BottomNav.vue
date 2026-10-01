@@ -23,6 +23,7 @@
 
 <script>
 import { hasModule, entitlements } from '@/composables/useEntitlements'
+import { access, can, pathHidden, term } from '@/composables/useAccess'
 import { notifications } from '@/composables/useNotifications'
 
 // Most used destinations, in priority order; the first four the plan allows
@@ -31,10 +32,10 @@ const CANDIDATES = [
   { label: 'Home', to: '/dashboard', icon: 'fa-solid fa-house', module: 'core', match: /^\/dashboard/ },
   { label: 'Invoices', to: '/invoices', icon: 'fa-solid fa-file-invoice-dollar', module: 'invoicing', match: /^\/(invoices(?!\/settings)|quotes|billing)/ },
   { label: 'POS', to: '/pos', icon: 'fa-solid fa-cash-register', module: 'pos', match: /^\/pos(-transactions)?(\/|$)/ },
-  { label: 'Bookings', to: '/bookings', icon: 'fa-solid fa-calendar-days', module: 'bookings', match: /^\/(bookings|scheduling)/ },
-  { label: 'Customers', to: '/customers', icon: 'fa-solid fa-address-book', module: 'crm', match: /^\/(customers|crm)/ },
+  { label: 'Bookings', term: 'bookings', to: '/bookings', icon: 'fa-solid fa-calendar-days', module: 'bookings', match: /^\/(bookings|scheduling)/ },
+  { label: 'Customers', term: 'customers', to: '/customers', icon: 'fa-solid fa-address-book', module: 'crm', match: /^\/(customers|crm)/ },
   { label: 'Business', to: '/business', icon: 'fa-solid fa-briefcase', module: 'smallbiz', match: /^\/business/ },
-  { label: 'Inventory', to: '/inventory', icon: 'fa-solid fa-box', module: 'inventory', match: /^\/(inventory|suppliers)/ },
+  { label: 'Inventory', term: 'inventory', to: '/inventory', icon: 'fa-solid fa-box', module: 'inventory', match: /^\/(inventory|suppliers)/ },
   { label: 'Ask', to: '/assistant', icon: 'fa-solid fa-wand-magic-sparkles', module: 'core', match: /^\/assistant/ }
 ]
 
@@ -52,7 +53,10 @@ export default {
     items() {
       void entitlements.modules
       void entitlements.loaded
-      return CANDIDATES.filter((c) => hasModule(c.module)).slice(0, 4)
+      void access.permissions
+      return CANDIDATES.filter((c) => hasModule(c.module) && can(c.module, 'view') && !pathHidden(c.to))
+        .slice(0, 4)
+        .map((c) => (c.term ? { ...c, label: term(c.term) } : c))
     },
     enabled() {
       return !HIDE_ON.some((re) => re.test(this.$route.path))

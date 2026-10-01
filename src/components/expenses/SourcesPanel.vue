@@ -3,6 +3,7 @@
     <div v-if="loadError" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ loadError }} <a href="#" @click.prevent="load">Try again</a></span></div>
     <div v-if="!src && !loadError" class="ui-skeleton" style="height: 320px"></div>
     <template v-else-if="src">
+      <AutomationPanel ref="auto" />
       <div v-if="!src.can_edit" class="ui-alert"><i class="fa-solid fa-lock"></i><span>Only owners, admins and managers can change expense sources.</span></div>
 
       <!-- Synergy Wholesale -->
@@ -14,7 +15,7 @@
           </span>
         </div>
         <div class="ui-card__body">
-          <p class="lead">Reads your account balance, domains (expiry dates, auto-renew) and hosting renewals with the reseller API. Invoices come from Gmail or uploads — the API has no invoice list.</p>
+          <p class="lead">Reads your account balance, domains (expiry dates, auto-renew) and hosting plans / renewal dates with the reseller API. The API has no statement or invoice list: Synergy expenses come from the monthly statement (Gmail or upload).</p>
           <div v-if="syn?.last_error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-plug-circle-xmark"></i><span>{{ syn.last_error }}</span></div>
           <div v-if="testMsg" class="ui-alert" :class="testOk ? 'ui-alert--success' : 'ui-alert--danger'">
             <i :class="testOk ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'"></i><span>{{ testMsg }}</span>
@@ -43,14 +44,10 @@
               <span class="ui-label">Low-balance alert below (AUD)</span>
               <input v-model="synForm.low_balance" class="ui-input" type="number" min="0" step="1" :disabled="!src.can_edit" />
             </label>
-            <label class="ui-field">
-              <span class="ui-label">Count Synergy costs from</span>
-              <select v-model="synForm.count_from" class="ui-select" :disabled="!src.can_edit">
-                <option value="invoices">Invoices / payment receipts (default)</option>
-                <option value="statement">Monthly statement lines (CSV)</option>
-              </select>
-              <span class="ui-hint">Pick one so prepaid top-ups and charges are not counted twice.</span>
-            </label>
+            <div class="ui-field">
+              <span class="ui-label">Synergy expenses</span>
+              <span class="ui-hint countnote">Counted from the monthly statements — as service charges or as top-ups from your bank (never both). Choose in <router-link to="/expenses?tab=synergy">Expenses → Synergy → How costs count</router-link>.</span>
+            </div>
           </div>
           <div class="meta">
             <span v-if="syn?.balance !== null && syn?.balance !== undefined">Balance <strong :class="{ neg: syn.balance < (synForm.low_balance || 20) }" data-testid="syn-balance">{{ money(syn.balance, 'AUD') }}</strong> · {{ ago(syn.balance_at) }}</span>
@@ -175,6 +172,7 @@
 </template>
 
 <script>
+import AutomationPanel from './AutomationPanel.vue'
 import { expensesApi, money } from '@/services/expenses'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
@@ -183,6 +181,7 @@ import { formatDateTime } from '@/utils/format'
 
 export default {
   name: 'SourcesPanel',
+  components: { AutomationPanel },
   emits: ['synced', 'changed'],
   data() {
     return {
@@ -191,7 +190,7 @@ export default {
       busy: { syn: false, gm: false, sched: false, sync: false },
       testMsg: '',
       testOk: false,
-      synForm: { reseller_id: '', api_key: '', low_balance: 20, count_from: 'invoices' },
+      synForm: { reseller_id: '', api_key: '', low_balance: 20 },
       gmForm: { presets: ['google_workspace', 'synergy'], senders: '', client_id: '', client_secret: '' },
       schedForm: { auto_sync: false, hour: 6 }
     }
@@ -230,7 +229,6 @@ export default {
         this.synForm.reseller_id = s.synergy.account || ''
         this.synForm.low_balance = s.synergy.settings?.low_balance || 20
       }
-      this.synForm.count_from = s.synergy_count_from || 'invoices'
       if (s.gmail) {
         this.gmForm.presets = s.gmail.settings?.presets?.length ? [...s.gmail.settings.presets] : this.gmForm.presets
         this.gmForm.senders = (s.gmail.settings?.custom_senders || []).join(', ')
@@ -258,8 +256,7 @@ export default {
           await expensesApi.saveSynergy({
             reseller_id: this.synForm.reseller_id,
             api_key: this.synForm.api_key,
-            low_balance: Number(this.synForm.low_balance) || 0,
-            count_from: this.synForm.count_from
+            low_balance: Number(this.synForm.low_balance) || 0
           })
         )
         this.synForm.api_key = ''
@@ -294,7 +291,7 @@ export default {
       this.busy.syn = true
       try {
         await expensesApi.deleteSynergy()
-        this.synForm = { reseller_id: '', api_key: '', low_balance: 20, count_from: this.synForm.count_from }
+        this.synForm = { reseller_id: '', api_key: '', low_balance: 20 }
         this.testMsg = ''
         toast.success('Disconnected')
         await this.load()
@@ -370,8 +367,13 @@ export default {
             toast.error(`${x.source === 'synergy' ? 'Synergy Wholesale' : 'Gmail'}: ${x.error}${x.hint ? ' — ' + x.hint : ''}`)
             continue
           }
-          if (x.source === 'gmail') parts.push(`${x.created} new from Gmail${x.duplicates ? `, ${x.duplicates} duplicates` : ''}`)
-          else parts.push(`${x.renewals} domains/services from Synergy`)
+          if (x.source === 'gmail') {
+            let t = `${x.created} new from Gmail${x.duplicates ? `, ${x.duplicates} duplicates` : ''}`
+            if (x.auto_approved) t += `, ${x.auto_approved} approved automatically`
+            if (x.synergy_statements) t += `, ${x.synergy_statements} Synergy statement${x.synergy_statements === 1 ? '' : 's'} imported`
+            if (x.synergy_usage) t += `, ${x.synergy_usage} usage report${x.synergy_usage === 1 ? '' : 's'}`
+            parts.push(t)
+          } else parts.push(`${x.renewals} domains/services from Synergy${x.usage_snapshots ? ` (disk usage of ${x.usage_snapshots})` : ''}`)
         }
         if (parts.length) toast.success('Synced: ' + parts.join(' · '))
         this.$emit('synced')
@@ -380,6 +382,7 @@ export default {
       } finally {
         this.busy.sync = false
         this.load()
+        this.$refs.auto?.load()
       }
     },
     async copy(t) {

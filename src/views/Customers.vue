@@ -3,12 +3,12 @@
     <header class="ui-page-head">
       <div>
         <div class="ui-eyebrow">Customers</div>
-        <h1>Customers</h1>
+        <h1>{{ T.customers }}</h1>
         <p>Everyone you do business with: contact details, bookings, vehicles and invoices.</p>
       </div>
       <div class="ui-actions">
         <button class="ui-btn" :disabled="!rows.length" title="Download the current list as CSV" @click="exportCsv"><i class="fa-solid fa-download"></i> Export</button>
-        <button class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New customer</button>
+        <button v-if="canCreate" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New {{ T.customer.toLowerCase() }}</button>
       </div>
     </header>
 
@@ -83,11 +83,11 @@
 
       <div v-else-if="!rows.length" class="ui-empty">
         <div class="ui-empty__icon"><i class="fa-solid fa-address-book"></i></div>
-        <h3>{{ q || status !== 'all' ? 'No customers match your filters' : 'No customers yet' }}</h3>
+        <h3>{{ q || status !== 'all' ? `No ${T.customers.toLowerCase()} match your filters` : `No ${T.customers.toLowerCase()} yet` }}</h3>
         <p>{{ q || status !== 'all' ? 'Try a different search or clear the filter.' : 'Add your first customer to start taking bookings and sending invoices.' }}</p>
         <div style="margin-top: 14px">
           <button v-if="q || status !== 'all'" class="ui-btn" @click="clearFilters">Clear filters</button>
-          <button v-else class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New customer</button>
+          <button v-else-if="canCreate" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New {{ T.customer.toLowerCase() }}</button>
         </div>
       </div>
 
@@ -185,6 +185,7 @@ import { confirmDialog } from '@/composables/useConfirm'
 import { formatDate, formatMoney, downloadBlob, isoDate } from '@/utils/format'
 import { countryFlag } from '@/utils/currencies'
 import { customerCountry } from '@/services/customerService'
+import { access, can } from '@/composables/useAccess'
 
 export default {
   name: 'Customers',
@@ -211,6 +212,13 @@ export default {
     }
   },
   computed: {
+    // Business type words (Patients, Clients…) and role permissions
+    T() {
+      return access.terms
+    },
+    canCreate() {
+      return can('crm', 'create') || can('bookings', 'create') || can('invoicing', 'create') || can('pos', 'create')
+    },
     tabs() {
       return [
         { value: 'all', label: 'All', count: this.stats.total_customers ?? 0 },

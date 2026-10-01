@@ -12,6 +12,7 @@ import { reactive } from 'vue'
 import api from '@/services/api'
 import { plansAPI } from '@/services/plans'
 import { useAuthStore } from '@/stores/auth'
+import { typeShows } from '@/composables/useAccess'
 
 export const entitlements = reactive({
   loaded: false,
@@ -98,16 +99,26 @@ export function resetEntitlements() {
   entitlements.error = ''
 }
 
-/** Items without a module (or core) are always available. */
-export function hasModule(key) {
+/** In the plan only (ignores the business type). */
+export function inPlan(key) {
   if (!key || key === 'core') return true
   if (isSuperAdmin()) return true
   if (!entitlements.loaded) return true
   return entitlements.modules.includes(key)
 }
 
+/**
+ * Is the module on for this organisation? In the plan AND shown for its
+ * business type (the type takes precedence: a module outside the type is
+ * hidden even if the plan includes it, unless an admin enabled it as an
+ * extra). Items without a module (or core) are always available.
+ */
+export function hasModule(key) {
+  return inPlan(key) && typeShows(key)
+}
+
 export function useEntitlements() {
-  return { entitlements, hasModule, loadEntitlements, ensureEntitlements, applyPlan }
+  return { entitlements, hasModule, inPlan, loadEntitlements, ensureEntitlements, applyPlan }
 }
 
 // If the API says a module is not in the plan (e.g. a super admin changed it),

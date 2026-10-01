@@ -12,6 +12,7 @@
         </button>
       </div>
     </header>
+    <CountryDefaultsNotice />
 
     <div v-if="error" class="ui-alert ui-alert--danger mb"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
     <div v-if="!s && !error" class="ui-card ui-card__body"><div class="ui-skeleton" style="height: 300px"></div></div>
@@ -222,12 +223,13 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
 import FxRatesCard from '@/components/invoicing/FxRatesCard.vue'
+import CountryDefaultsNotice from '@/components/invoicing/CountryDefaultsNotice.vue'
 
 let tmp = 0
 
 export default {
   name: 'InvoiceSettings',
-  components: { OrgLogoUploader, FxRatesCard },
+  components: { CountryDefaultsNotice, OrgLogoUploader, FxRatesCard },
   data() {
     return {
       s: null,

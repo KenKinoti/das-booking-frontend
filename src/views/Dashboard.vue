@@ -26,10 +26,61 @@
       </div>
     </div>
 
+    <!-- Business snapshot: month & financial year to date, home currency (pkg/insights) -->
+    <SnapshotRow :d="ins" :loading="insLoading" :show-invoicing="mod.invoicing" />
+    <div v-if="insError" class="ui-alert ui-alert--warning mb">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <div>
+        {{ insError }}
+        <button class="ui-btn ui-btn--sm retry" type="button" @click="loadInsights">Try again</button>
+      </div>
+    </div>
+
     <!-- Profit & loss: one calculation shared with Reports, Finance, the Business hub and Analytics -->
     <PnlCard :period="period" />
 
+    <!-- Cash: the next 90 days + what clients owe today -->
+    <div v-if="mod.invoicing" class="grid-row row-2">
+      <CashForecastCard v-if="ins && ins.cashflow" :f="ins.cashflow" :currency="ins.currency" />
+      <section v-else class="ui-card"><div class="ui-card__body"><div class="ui-skeleton" style="height: 260px"></div></div></section>
+      <section class="ui-card">
+        <div class="ui-card__head">
+          <div>
+            <h2>Receivables aging</h2>
+            <span class="sub">{{ data ? money(k.outstanding?.value) + ' outstanding today' + (data.other_currencies && data.other_currencies.length ? ` · ${currency} invoices only` : '') : 'Outstanding balances by days overdue' }}</span>
+          </div>
+          <router-link to="/invoices?status=unpaid" class="ui-btn ui-btn--ghost ui-btn--sm">Invoices</router-link>
+        </div>
+        <div class="ui-card__body">
+          <div v-if="!data" class="ui-skeleton" style="height: 170px"></div>
+          <div v-else-if="!k.outstanding?.value" class="ui-empty small">
+            <div class="ui-empty__icon ok"><i class="fa-solid fa-check"></i></div>
+            <h3>All paid up</h3>
+            <p>No open invoice balances.</p>
+          </div>
+          <template v-else>
+            <div class="stack" role="img" :aria-label="'Aging split'">
+              <span v-for="a in agingRows" v-show="a.value > 0" :key="a.key" :style="{ flexGrow: a.value, background: a.color }" :title="`${a.label}: ${a.display}`"></span>
+            </div>
+            <RankList :rows="agingRows" />
+          </template>
+        </div>
+      </section>
+    </div>
+
+    <!-- Imported (Zoho) history and the Synergy hosting portfolio -->
+    <div v-if="ins && (ins.history || ins.hosting)" class="grid-row" :class="ins.history && ins.hosting ? 'row-8-4' : ''">
+      <HistoryCard v-if="ins.history" :h="ins.history" :currency="ins.currency" />
+      <HostingCard v-if="ins.hosting" :h="ins.hosting" :currency="ins.currency" />
+    </div>
+
     <ExpensesCard />
+
+    <div class="sec">
+      <h2>Period performance</h2>
+      <span>{{ periodText }}</span>
+      <router-link to="/insights" class="sec__link"><i class="fa-solid fa-lightbulb"></i> Business opportunities</router-link>
+    </div>
 
     <!-- KPI row -->
     <div class="kpis" :class="{ busy: loading && data }">
@@ -61,26 +112,6 @@
         spark-color="var(--viz-3)"
       />
       <KpiCard
-        label="Outstanding"
-        icon="fa-solid fa-hourglass-half"
-        tone="info"
-        to="/invoices?status=unpaid"
-        :loading="!data"
-        :value="money(k.outstanding?.value)"
-        :meta="`${num(k.outstanding?.count)} open invoice${k.outstanding?.count === 1 ? '' : 's'} · ${money(data?.cashflow?.expected, true)} due in 30 days`"
-        :show-delta="false"
-      />
-      <KpiCard
-        label="Overdue"
-        icon="fa-solid fa-triangle-exclamation"
-        :tone="k.overdue?.value > 0 ? 'danger' : 'success'"
-        to="/invoices?status=overdue"
-        :loading="!data"
-        :value="money(k.overdue?.value)"
-        :meta="k.overdue?.value > 0 ? `${num(k.overdue?.count)} invoices past due · ${overdueShare}% of receivables` : 'Nothing overdue'"
-        :show-delta="false"
-      />
-      <KpiCard
         label="New customers"
         icon="fa-solid fa-user-plus"
         tone="warning"
@@ -95,6 +126,7 @@
         spark-color="var(--viz-1)"
       />
       <KpiCard
+        v-if="mod.bookings"
         label="Bookings"
         icon="fa-solid fa-calendar-check"
         tone="info"
@@ -109,17 +141,7 @@
         spark-color="var(--viz-1)"
       />
       <KpiCard
-        label="Average invoice"
-        icon="fa-solid fa-receipt"
-        :loading="!data"
-        :value="money(k.avg_invoice?.value)"
-        :meta="`Across ${num(k.invoice_count?.value)} invoices`"
-        :delta="k.avg_invoice?.delta_pct"
-        :show-delta="compare"
-        :spark="k.avg_invoice?.spark"
-        spark-color="var(--viz-3)"
-      />
-      <KpiCard
+        v-if="mod.pos"
         label="POS sales"
         icon="fa-solid fa-cash-register"
         tone="warning"
@@ -213,118 +235,9 @@
       </section>
     </div>
 
-    <!-- Receivables, cash flow, bookings -->
-    <div class="grid-row row-3">
-      <section class="ui-card">
-        <div class="ui-card__head">
-          <div>
-            <h2>Receivables aging</h2>
-            <span class="sub">{{ data ? money(k.outstanding?.value) + ' outstanding today' : 'Outstanding balances by days overdue' }}</span>
-          </div>
-          <router-link to="/invoices?status=unpaid" class="ui-btn ui-btn--ghost ui-btn--sm">Invoices</router-link>
-        </div>
-        <div class="ui-card__body">
-          <div v-if="!data" class="ui-skeleton" style="height: 170px"></div>
-          <div v-else-if="!k.outstanding?.value" class="ui-empty small">
-            <div class="ui-empty__icon ok"><i class="fa-solid fa-check"></i></div>
-            <h3>All paid up</h3>
-            <p>No open invoice balances.</p>
-          </div>
-          <template v-else>
-            <div class="stack" role="img" :aria-label="'Aging split'">
-              <span v-for="a in agingRows" v-show="a.value > 0" :key="a.key" :style="{ flexGrow: a.value, background: a.color }" :title="`${a.label}: ${a.display}`"></span>
-            </div>
-            <RankList :rows="agingRows" />
-          </template>
-        </div>
-      </section>
-
-      <section class="ui-card">
-        <div class="ui-card__head">
-          <div>
-            <h2>Cash-flow forecast</h2>
-            <span class="sub">Open invoices by due date, next 30 days</span>
-          </div>
-        </div>
-        <div class="ui-card__body">
-          <div v-if="!data" class="ui-skeleton" style="height: 170px"></div>
-          <template v-else>
-            <div class="cf-stats">
-              <div>
-                <small>Expected in 30 days</small>
-                <strong>{{ money(data.cashflow.expected) }}</strong>
-              </div>
-              <div>
-                <small>Already overdue</small>
-                <strong :class="{ danger: data.cashflow.overdue > 0 }">{{ money(data.cashflow.overdue) }}</strong>
-              </div>
-            </div>
-            <div v-if="!data.cashflow.expected" class="ui-empty tiny">
-              <p>No invoices falling due in the next 30 days.</p>
-            </div>
-            <BarChart
-              v-else
-              :labels="cashBuckets.map((b) => b.label)"
-              :values="cashBuckets.map((b) => b.amount)"
-              :height="160"
-              value-name="Due"
-              :format-y="(v) => axisMoney(v)"
-              :format-title="(l, i) => cashBuckets[i].title"
-              :format-value="(v) => money(v)"
-              :detail="(i) => `${cashBuckets[i].count} invoice${cashBuckets[i].count === 1 ? '' : 's'}`"
-              aria-label="Cash expected by week"
-            />
-          </template>
-        </div>
-      </section>
-
-      <section class="ui-card">
-        <div class="ui-card__head">
-          <div>
-            <h2>Bookings</h2>
-            <span class="sub">{{ data ? `${num(k.bookings_today?.value)} today · ${num(k.bookings_today?.count)} in the next 7 days` : 'Today and upcoming' }}</span>
-          </div>
-          <router-link to="/bookings" class="ui-btn ui-btn--ghost ui-btn--sm">Calendar</router-link>
-        </div>
-        <div v-if="!data" class="ui-card__body"><div class="ui-skeleton" style="height: 170px"></div></div>
-        <template v-else>
-          <div v-if="statusMix.length" class="mix">
-            <div class="stack thin">
-              <span v-for="s in statusMix" :key="s.name" :style="{ flexGrow: s.count, background: s.color }" :title="`${s.label}: ${s.count}`"></span>
-            </div>
-            <div class="mix__legend">
-              <span v-for="s in statusMix" :key="s.name"><i class="dviz-swatch" :style="{ background: s.color }"></i>{{ s.label }} {{ s.count }}</span>
-            </div>
-          </div>
-          <div v-if="!upcoming.length" class="ui-empty small">
-            <div class="ui-empty__icon"><i class="fa-regular fa-calendar"></i></div>
-            <h3>No upcoming bookings</h3>
-            <p>New appointments for the next 7 days will appear here.</p>
-          </div>
-          <ul v-else class="list">
-            <li v-for="b in upcoming.slice(0, 5)" :key="b.id" class="drow">
-              <div class="when">
-                <strong>{{ time(b.start_time) }}</strong>
-                <small>{{ day(b.start_time) }}</small>
-              </div>
-              <div class="grow">
-                <strong>{{ b.customer || 'Customer' }}</strong>
-                <small>{{ b.services || 'Appointment' }}</small>
-              </div>
-              <StatusBadge domain="booking" :status="b.status" size="sm" />
-            </li>
-          </ul>
-        </template>
-      </section>
-    </div>
-
-    <!-- Markets -->
-    <div class="grid-row">
-      <MarketsPanel :default-base="data?.currency || ''" />
-    </div>
 
     <!-- Top lists + stock -->
-    <div class="grid-row row-3">
+    <div class="grid-row" :class="mod.inventory ? 'row-3' : 'row-2'">
       <section class="ui-card">
         <div class="ui-card__head">
           <div>
@@ -366,7 +279,7 @@
         </div>
       </section>
 
-      <section class="ui-card">
+      <section v-if="mod.inventory" class="ui-card">
         <div class="ui-card__head">
           <div>
             <h2>Inventory</h2>
@@ -405,8 +318,8 @@
       </section>
     </div>
 
-    <!-- Activity + quick actions -->
-    <div class="grid-row row-8-4">
+    <!-- Activity, bookings, quick actions -->
+    <div class="grid-row" :class="mod.bookings ? 'row-3' : 'row-8-4'">
       <section class="ui-card">
         <div class="ui-card__head">
           <h2>Recent activity</h2>
@@ -420,6 +333,45 @@
         <ActivityFeed v-else :items="data.activity.slice(0, 8)" :currency="currency" />
       </section>
 
+      <section v-if="mod.bookings" class="ui-card">
+        <div class="ui-card__head">
+          <div>
+            <h2>Bookings</h2>
+            <span class="sub">{{ data ? `${num(k.bookings_today?.value)} today · ${num(k.bookings_today?.count)} in the next 7 days` : 'Today and upcoming' }}</span>
+          </div>
+          <router-link to="/bookings" class="ui-btn ui-btn--ghost ui-btn--sm">Calendar</router-link>
+        </div>
+        <div v-if="!data" class="ui-card__body"><div class="ui-skeleton" style="height: 170px"></div></div>
+        <template v-else>
+          <div v-if="statusMix.length" class="mix">
+            <div class="stack thin">
+              <span v-for="s in statusMix" :key="s.name" :style="{ flexGrow: s.count, background: s.color }" :title="`${s.label}: ${s.count}`"></span>
+            </div>
+            <div class="mix__legend">
+              <span v-for="s in statusMix" :key="s.name"><i class="dviz-swatch" :style="{ background: s.color }"></i>{{ s.label }} {{ s.count }}</span>
+            </div>
+          </div>
+          <div v-if="!upcoming.length" class="ui-empty small">
+            <div class="ui-empty__icon"><i class="fa-regular fa-calendar"></i></div>
+            <h3>No upcoming bookings</h3>
+            <p>New appointments for the next 7 days will appear here.</p>
+          </div>
+          <ul v-else class="list">
+            <li v-for="b in upcoming.slice(0, 5)" :key="b.id" class="drow">
+              <div class="when">
+                <strong>{{ time(b.start_time) }}</strong>
+                <small>{{ day(b.start_time) }}</small>
+              </div>
+              <div class="grow">
+                <strong>{{ b.customer || 'Customer' }}</strong>
+                <small>{{ b.services || 'Appointment' }}</small>
+              </div>
+              <StatusBadge domain="booking" :status="b.status" size="sm" />
+            </li>
+          </ul>
+        </template>
+      </section>
+
       <section class="ui-card">
         <div class="ui-card__head"><h2>Quick actions</h2></div>
         <div class="ui-card__body actions">
@@ -429,6 +381,10 @@
           </router-link>
         </div>
       </section>
+    </div>
+    <!-- Markets -->
+    <div class="grid-row">
+      <MarketsPanel :default-base="data?.currency || ''" />
     </div>
   </div>
 </template>
@@ -442,10 +398,15 @@ import MarketsPanel from '@/components/dashboard/MarketsPanel.vue'
 import RankList from '@/components/dashboard/RankList.vue'
 import ActivityFeed from '@/components/dashboard/ActivityFeed.vue'
 import TimeChart from '@/components/dashboard/charts/TimeChart.vue'
-import BarChart from '@/components/dashboard/charts/BarChart.vue'
 import DonutChart from '@/components/dashboard/charts/DonutChart.vue'
 import PnlCard from '@/components/pnl/PnlCard.vue'
 import ExpensesCard from '@/components/expenses/ExpensesCard.vue'
+import SnapshotRow from '@/components/insights/SnapshotRow.vue'
+import HistoryCard from '@/components/insights/HistoryCard.vue'
+import HostingCard from '@/components/insights/HostingCard.vue'
+import CashForecastCard from '@/components/insights/CashForecastCard.vue'
+import { insightsApi } from '@/services/insights'
+import { hasModule } from '@/composables/useEntitlements'
 import {
   fetchOverview,
   money,
@@ -466,12 +427,16 @@ const PREF = 'dash.period'
 
 export default {
   name: 'DashboardView',
-  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, BarChart, DonutChart, PnlCard, ExpensesCard },
+  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard },
   data() {
     return {
       data: null,
       loading: false,
       error: '',
+      ins: null,
+      insLoading: false,
+      insError: '',
+      insReq: 0,
       period: loadPref(PREF, { range: '30d', compare: true }),
       itemTab: 'services',
       reqId: 0,
@@ -499,6 +464,10 @@ export default {
     },
     k() {
       return this.data?.kpis || {}
+    },
+    // Cards follow the plan's modules (and the business type).
+    mod() {
+      return { invoicing: hasModule('invoicing'), bookings: hasModule('bookings'), pos: hasModule('pos'), inventory: hasModule('inventory') }
     },
     compare() {
       return !!this.period.compare
@@ -548,11 +517,6 @@ export default {
       const color = { invoices: 'var(--viz-1)', pos: 'var(--viz-2)' }
       return src.map((s) => ({ name: s.name, value: s.amount, color: color[s.id] || 'var(--viz-4)' }))
     },
-    overdueShare() {
-      const o = this.k.overdue?.value || 0
-      const t = this.k.outstanding?.value || 0
-      return t ? Math.round((o / t) * 100) : 0
-    },
     completedBookings() {
       const s = (this.data?.booking_status || []).find((x) => x.name === 'completed')
       return num(s?.count || 0)
@@ -566,27 +530,6 @@ export default {
         sub: `${a.count} invoice${a.count === 1 ? '' : 's'}`,
         color: AGING_COLORS[a.key]
       }))
-    },
-    cashBuckets() {
-      const cf = this.data?.cashflow
-      if (!cf) return []
-      const out = []
-      const ranges = [
-        [0, 6, 'This wk'],
-        [7, 13, 'Next wk'],
-        [14, 20, 'Wk 3'],
-        [21, 29, 'Wk 4+']
-      ]
-      const fmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
-      for (const [a, b, label] of ranges) {
-        const days = cf.days.slice(a, b + 1)
-        if (!days.length) continue
-        const amount = days.reduce((s, d) => s + d.amount, 0)
-        const count = days.reduce((s, d) => s + d.count, 0)
-        const title = `${fmt.format(new Date(days[0].date + 'T00:00:00'))} – ${fmt.format(new Date(days[days.length - 1].date + 'T00:00:00'))}`
-        out.push({ label, title, amount: Math.round(amount * 100) / 100, count })
-      }
-      return out
     },
     statusMix() {
       return (this.data?.booking_status || []).map((s) => ({
@@ -638,9 +581,13 @@ export default {
   },
   created() {
     this.load()
+    this.loadInsights()
     // keep "today" numbers fresh while the dashboard stays open
     this.refreshTimer = setInterval(() => {
-      if (document.visibilityState === 'visible') this.load()
+      if (document.visibilityState === 'visible') {
+        this.load()
+        this.loadInsights()
+      }
     }, 5 * 60 * 1000)
   },
   beforeUnmount() {
@@ -663,6 +610,21 @@ export default {
         this.error = apiErrorMessage(e, 'Could not load dashboard analytics.')
       } finally {
         if (id === this.reqId) this.loading = false
+      }
+    },
+    async loadInsights() {
+      const id = ++this.insReq
+      this.insLoading = true
+      try {
+        const d = await insightsApi.dashboard()
+        if (id !== this.insReq) return
+        this.ins = d
+        this.insError = ''
+      } catch (e) {
+        if (id !== this.insReq) return
+        this.insError = apiErrorMessage(e, 'Could not load the business snapshot.')
+      } finally {
+        if (id === this.insReq) this.insLoading = false
       }
     },
     money(v, compact = false) {
@@ -721,7 +683,7 @@ export default {
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 16px;
   margin-bottom: 16px;
   transition: opacity 0.2s;
@@ -743,6 +705,35 @@ export default {
 
 .row-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.row-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sec {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 8px 2px 10px;
+}
+
+.sec h2 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.sec > span {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.sec__link {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 550;
 }
 
 .grid-row > .ui-card {
@@ -1004,6 +995,12 @@ export default {
   }
 
   .row-8-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .row-2 {
     grid-template-columns: minmax(0, 1fr);
   }
 }

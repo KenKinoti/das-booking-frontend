@@ -21,11 +21,12 @@ export const CATEGORIES = [
   { key: 'email', label: 'Email & Workspace', icon: 'fa-solid fa-envelope', color: 'var(--viz-2)' },
   { key: 'software', label: 'Software & Subscriptions', icon: 'fa-solid fa-cubes', color: 'var(--viz-7)' },
   { key: 'support', label: 'Support Fees', icon: 'fa-solid fa-headset', color: 'var(--viz-5)' },
+  { key: 'prepaid', label: 'Synergy prepaid hosting', icon: 'fa-solid fa-wallet', color: 'var(--viz-6)' },
   { key: 'other', label: 'Other Expenses', icon: 'fa-solid fa-receipt', color: 'var(--viz-4)' }
 ]
 export const categoryOf = (k) => CATEGORIES.find((c) => c.key === k) || CATEGORIES[CATEGORIES.length - 1]
 
-export const SOURCE_LABEL = { synergy_api: 'Synergy API', gmail: 'Gmail', upload: 'Upload', manual: 'Manual', synergy_statement: 'Synergy statement' }
+export const SOURCE_LABEL = { synergy_api: 'Synergy API', gmail: 'Gmail', upload: 'Upload', manual: 'Manual', synergy_statement: 'Synergy statement', synergy_topup: 'Synergy top-up' }
 export const STATUS_BADGE = { pending: 'warning', approved: 'success', ignored: 'draft', duplicate: 'info' }
 export const STATUS_LABEL = { pending: 'To review', approved: 'Approved', ignored: 'Ignored', duplicate: 'Duplicate' }
 
@@ -76,7 +77,14 @@ export const expensesApi = {
   saveSynergyPlan: (body) => api.put('/expenses/synergy/plans', body).then(data),
   synergyCsv: () => api.get('/expenses/synergy/sites.csv', { params: { tz: tz() }, responseType: 'blob' }).then((r) => r.data),
   statementPreview: (params = {}) => api.get('/expenses/synergy/statement-expenses', { params }).then(data),
-  statementCreate: (body) => api.post('/expenses/synergy/statement-expenses', body, { timeout: 120000 }).then(data)
+  statementCreate: (body) => api.post('/expenses/synergy/statement-expenses', body, { timeout: 120000 }).then(data),
+  // How Synergy costs count (service charges | top-ups), auto-approve, Australian GST, month rates
+  accounting: () => api.get('/expenses/synergy/accounting').then(data),
+  saveAccounting: (body) => api.put('/expenses/synergy/accounting', body, { timeout: 120000 }).then(data),
+  applyAccounting: () => api.post('/expenses/synergy/accounting/apply', {}, { timeout: 120000 }).then(data),
+  dismissAccountingNotice: () => api.post('/expenses/synergy/accounting/dismiss-notice', {}).then(data),
+  saveMonthRate: (body) => api.put('/expenses/synergy/month-rate', body, { timeout: 120000 }).then(data),
+  automation: () => api.get('/expenses/automation').then(data)
 }
 
 /** Synergy file kind from the CSV header line: 'statement' | 'usage' | ''. */
@@ -104,8 +112,66 @@ export function dateFromFileName(name) {
   return ''
 }
 
-/** AUD amount the way Synergy shows it. */
-export const aud = (v) => formatMoney(v || 0, 'AUD')
+/** AUD amount, always as "A$4.25" so it is never mistaken for another dollar. */
+export function aud(v, opts = {}) {
+  const n = Number(v) || 0
+  const d = opts.whole ? 0 : 2
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'AUD', minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
+  } catch {
+    return `A$${n.toFixed(d)}`
+  }
+}
+
+/** A secondary (converted) amount: "≈ KES 363" (whole units from 100 up). */
+export function approx(v, cur) {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return ''
+  return '≈ ' + wholeMoney(v, cur)
+}
+
+/** Money with no minor units when the amount is 100 or more. */
+export function wholeMoney(v, cur) {
+  const n = Number(v) || 0
+  if (Math.abs(n) < 100) return formatMoney(n, cur)
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)
+  } catch {
+    return `${cur} ${Math.round(n)}`
+  }
+}
+
+/** "1 AUD = 85.4 KES" from a rate block ({ from, to, rate }). */
+export function rateText(fx) {
+  if (!fx || !fx.rate || fx.from === fx.to) return ''
+  const r = fx.rate >= 100 ? fx.rate.toFixed(2) : fx.rate >= 1 ? fx.rate.toFixed(3) : fx.rate.toFixed(6)
+  return `1 ${fx.from} = ${String(Number(r))} ${fx.to}`
+}
+
+const SRC = { live: 'live', fallback: 'reference', manual: 'your rate', same: '' }
+
+/** "rate 1 AUD = 85.4 KES, live, 1 Oct" — short rate note for amounts at today's rate. */
+export function rateNote(fx, { withDate = true } = {}) {
+  if (!fx || !fx.rate || fx.from === fx.to) return ''
+  const parts = [rateText(fx)]
+  const src = fx.basis === 'manual' ? 'your rate' : SRC[fx.source] || ''
+  if (src) parts.push(src)
+  if (withDate && fx.as_of) parts.push(new Date(fx.as_of).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))
+  return 'rate ' + parts.join(', ')
+}
+
+/**
+ * An AUD amount with its period and the home-currency equivalent:
+ * dual(4.25, 'month', fx, 'KES') → "A$4.25 / month · ≈ KES 363 / month".
+ * homeValue overrides the conversion (e.g. amounts converted at their month's rate).
+ */
+export function dual(v, period, fx, home, homeValue) {
+  const per = period ? ` / ${period}` : ''
+  const a = aud(v) + per
+  if (!home || home === 'AUD') return a
+  const hv = homeValue ?? (fx && fx.rate ? Number(v) * fx.rate : null)
+  if (hv === null || hv === undefined) return a
+  return `${a} · ≈ ${wholeMoney(hv, home)}${per}`
+}
 
 /** Disk size in MB → "512 MB" / "10.2 GB". */
 export function mb(v) {

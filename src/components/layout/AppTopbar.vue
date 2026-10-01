@@ -86,6 +86,7 @@
       </div>
     </div>
   </header>
+  <BusinessTypeBanner />
 </template>
 
 <script>
@@ -98,10 +99,13 @@ import { VERSION_LABEL } from '@/version'
 import { assistant, toggleAssistant } from '@/composables/useAssistant'
 import { pwa, canInstall, promptInstall } from '@/composables/usePwa'
 import NotificationCenter from './NotificationCenter.vue'
+import BusinessTypeBanner from './BusinessTypeBanner.vue'
+import { access, can, term, termLower, atLeast } from '@/composables/useAccess'
+import { navLabel } from '@/navigation'
 
 export default {
   name: 'AppTopbar',
-  components: { NotificationCenter },
+  components: { NotificationCenter, BusinessTypeBanner },
   emits: ['toggle-menu', 'open-search'],
   data() {
     return {
@@ -112,8 +116,8 @@ export default {
       createActions: [
         { label: 'Invoice', hint: 'Bill a customer', to: '/invoices/new', icon: 'fa-solid fa-file-invoice-dollar', module: 'invoicing' },
         { label: 'Quote', hint: 'Send an estimate', to: '/quotes/new', icon: 'fa-solid fa-file-signature', module: 'invoicing' },
-        { label: 'Booking', hint: 'Schedule an appointment', to: '/bookings', icon: 'fa-solid fa-calendar-plus', module: 'bookings' },
-        { label: 'Customer', hint: 'Add a contact', to: '/customers', icon: 'fa-solid fa-user-plus', module: 'crm' }
+        { label: 'Booking', term: 'booking', hint: 'Schedule an appointment', to: '/bookings', icon: 'fa-solid fa-calendar-plus', module: 'bookings' },
+        { label: 'Customer', term: 'customer', hint: 'Add a contact', to: '/customers', icon: 'fa-solid fa-user-plus', module: 'crm' }
       ]
     }
   },
@@ -137,11 +141,14 @@ export default {
     visibleCreateActions() {
       // re-evaluate when the plan loads
       void entitlements.modules
-      return this.createActions.filter((a) => hasModule(a.module))
+      void access.permissions
+      return this.createActions
+        .filter((a) => hasModule(a.module) && can(a.module, 'create'))
+        .map((a) => (a.term ? { ...a, label: term(a.term), hint: a.term === 'booking' ? `Schedule a new ${termLower('booking')}` : `Add a ${termLower('customer')}` } : a))
     },
     planChip() {
       const p = entitlements.plan
-      if (!p || !p.tier || this.auth.isSuperAdmin) return null
+      if (!p || !p.tier || this.auth.isSuperAdmin || !atLeast('admin')) return null
       const tier = p.subscription?.tier
       if (p.trial?.active) {
         return { label: `${p.tier.name} trial · ${p.trial.days_left}d left`, cta: 'Choose plan', warn: p.trial.days_left <= 3, title: 'Your trial' }
@@ -151,6 +158,7 @@ export default {
       return { label: `${p.tier.name} plan`, cta: tier === 'large' ? '' : 'Upgrade', warn: false, title: 'Plan & billing' }
     },
     roleLabel() {
+      if (access.loaded && access.role?.name && !this.auth.isSuperAdmin) return access.role.name
       const r = this.auth.user?.role || ''
       return r.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     },
@@ -159,8 +167,9 @@ export default {
       const title = this.$route.meta.title
       if (nav) {
         const exact = nav.item.to === this.$route.path
-        const page = exact || !title ? nav.item.label : title
-        return { group: nav.group.label === page ? '' : nav.group.label, page }
+        const page = exact || !title ? navLabel(nav.item) : title
+        const group = navLabel(nav.group)
+        return { group: group === page ? '' : group, page }
       }
       return { group: '', page: title || (typeof this.$route.name === 'string' ? this.$route.name.replace(/([a-z])([A-Z])/g, '$1 $2') : '') }
     }

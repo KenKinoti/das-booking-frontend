@@ -3,13 +3,13 @@
     <header class="ui-page-head">
       <div>
         <div class="ui-eyebrow">Inventory & Supply</div>
-        <h1>Inventory</h1>
+        <h1>{{ T.inventory }}</h1>
         <p>Track products, stock on hand and every stock movement.</p>
       </div>
       <div class="ui-actions">
-        <button class="ui-btn" @click="showCategories = true"><i class="fa-solid fa-tags"></i> Categories</button>
+        <button v-if="canCreate" class="ui-btn" @click="showCategories = true"><i class="fa-solid fa-tags"></i> Categories</button>
         <button class="ui-btn" :disabled="!filtered.length" @click="exportCsv"><i class="fa-solid fa-download"></i> Export CSV</button>
-        <button class="ui-btn ui-btn--primary" @click="openProduct()"><i class="fa-solid fa-plus"></i> Add product</button>
+        <button v-if="canCreate" class="ui-btn ui-btn--primary" @click="openProduct()"><i class="fa-solid fa-plus"></i> Add {{ T.inventory_item.toLowerCase() }}</button>
       </div>
     </header>
 
@@ -179,6 +179,7 @@ import { inventoryService, STOCK_STATUS } from '@/services/inventoryService'
 import { listFrom, apiErrorMessage } from '@/services/api'
 import { formatMoney, isoDate, downloadBlob } from '@/utils/format'
 import { toast } from '@/composables/useToast'
+import { access, can } from '@/composables/useAccess'
 import { confirmDialog } from '@/composables/useConfirm'
 
 export default {
@@ -206,6 +207,13 @@ export default {
     }
   },
   computed: {
+    // Business type words (Parts, Stock…) and role permissions
+    T() {
+      return access.terms
+    },
+    canCreate() {
+      return can('inventory', 'create')
+    },
     kpi() {
       const active = this.products.filter((p) => p.is_active !== false)
       return {

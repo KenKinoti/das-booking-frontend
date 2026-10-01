@@ -10,7 +10,7 @@
         <button class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="Close details" @click="$emit('close')"><i class="fa-solid fa-xmark"></i></button>
       </header>
 
-      <div v-if="actions.length" class="drawer__status">
+      <div v-if="actions.length && canEdit" class="drawer__status">
         <button
           v-for="a in actions"
           :key="a.to"
@@ -104,12 +104,12 @@
       </div>
 
       <footer class="drawer__foot">
-        <button class="ui-btn ui-btn--ghost ui-btn--danger-text" :disabled="!!busy" @click="$emit('delete')">
+        <button v-if="canDelete" class="ui-btn ui-btn--ghost ui-btn--danger-text" :disabled="!!busy" @click="$emit('delete')">
           <i :class="busy === 'delete' ? 'fa-solid fa-circle-notch spin' : 'fa-regular fa-trash-can'"></i> Delete
         </button>
         <div class="foot-right">
-          <button class="ui-btn" :disabled="!!busy" @click="$emit('edit')"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
-          <button class="ui-btn" :class="{ 'ui-btn--primary': booking.status === 'completed' }" :disabled="!booking.customer" @click="$emit('invoice')">
+          <button v-if="canEdit" class="ui-btn" :disabled="!!busy" @click="$emit('edit')"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
+          <button v-if="canInvoice" class="ui-btn" :class="{ 'ui-btn--primary': booking.status === 'completed' }" :disabled="!booking.customer" @click="$emit('invoice')">
             <i class="fa-solid fa-file-invoice-dollar"></i> Create invoice
           </button>
         </div>
@@ -127,7 +127,11 @@ export default {
   name: 'BookingDrawer',
   props: {
     booking: { type: Object, required: true },
-    busy: { type: String, default: '' }
+    busy: { type: String, default: '' },
+    // Role permissions (business type roles); everything allowed by default
+    canEdit: { type: Boolean, default: true },
+    canDelete: { type: Boolean, default: true },
+    canInvoice: { type: Boolean, default: true }
   },
   emits: ['close', 'status', 'edit', 'delete', 'invoice'],
   computed: {

@@ -3,14 +3,15 @@
     <header class="ui-page-head">
       <div>
         <div class="ui-eyebrow">Operations</div>
-        <h1>Bookings</h1>
-        <p>Schedule appointments, track their progress and turn finished work into invoices.</p>
+        <h1>{{ T.bookings }}</h1>
+        <p v-if="ownOnly">The {{ lc(T.bookings) }} assigned to you. Update their status as you work through them.</p>
+        <p v-else>Schedule {{ lc(T.bookings) }}, track their progress and turn finished work into invoices.</p>
       </div>
       <div class="ui-actions">
         <button class="ui-btn" :disabled="loading" aria-label="Refresh" title="Refresh" @click="refreshAll">
           <i class="fa-solid fa-arrows-rotate" :class="{ spin: loading }"></i>
         </button>
-        <button class="ui-btn ui-btn--primary" @click="openCreate()"><i class="fa-solid fa-plus"></i> New booking</button>
+        <button v-if="canCreate" class="ui-btn ui-btn--primary" @click="openCreate()"><i class="fa-solid fa-plus"></i> New {{ lc(T.booking) }}</button>
       </div>
     </header>
 
@@ -62,8 +63,8 @@
             <i class="fa-solid fa-magnifying-glass"></i>
             <input v-model="q" class="ui-input" type="search" placeholder="Search customer, service, phone…" aria-label="Search bookings" />
           </div>
-          <select v-model="staffFilter" class="ui-select staff-sel" aria-label="Filter by staff" @change="onStaffChange">
-            <option value="">All staff</option>
+          <select v-if="!ownOnly" v-model="staffFilter" class="ui-select staff-sel" :aria-label="`Filter by ${lc(T.staff_member)}`" @change="onStaffChange">
+            <option value="">All {{ lc(T.staff) }}</option>
             <option value="none">Unassigned</option>
             <option v-for="u in staff" :key="u.id" :value="u.id">{{ personName(u) }}</option>
           </select>
@@ -112,14 +113,15 @@
         <div v-else-if="!listRows.length" class="ui-empty">
           <div class="ui-empty__icon"><i class="fa-regular fa-calendar-plus"></i></div>
           <template v-if="hasFilters">
-            <h3>No bookings match your filters</h3>
+            <h3>No {{ lc(T.bookings) }} match your filters</h3>
             <p>Try a different search, status, staff member or date range.</p>
             <button class="ui-btn" style="margin-top: 12px" @click="clearFilters"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</button>
           </template>
           <template v-else>
-            <h3>{{ preset === 'upcoming' ? 'No upcoming bookings' : 'No bookings in this period' }}</h3>
-            <p>Create a booking, or switch to the calendar and click a free slot.</p>
-            <button class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openCreate()"><i class="fa-solid fa-plus"></i> New booking</button>
+            <h3>{{ preset === 'upcoming' ? `No upcoming ${lc(T.bookings)}` : `No ${lc(T.bookings)} in this period` }}</h3>
+            <p v-if="ownOnly">Nothing is assigned to you yet. New {{ lc(T.bookings) }} appear here when they're given to you.</p>
+            <p v-else>Create a {{ lc(T.booking) }}, or switch to the calendar and click a free slot.</p>
+            <button v-if="canCreate" class="ui-btn ui-btn--primary" style="margin-top: 12px" @click="openCreate()"><i class="fa-solid fa-plus"></i> New {{ lc(T.booking) }}</button>
           </template>
         </div>
 
@@ -132,9 +134,9 @@
                     When <i :class="sortDir === 'asc' ? 'fa-solid fa-arrow-up' : 'fa-solid fa-arrow-down'"></i>
                   </button>
                 </th>
-                <th>Customer</th>
+                <th>{{ T.customer }}</th>
                 <th class="hide-md">Services</th>
-                <th class="hide-sm">Staff</th>
+                <th class="hide-sm">{{ T.staff_member }}</th>
                 <th class="hide-xs">Status</th>
                 <th class="num hide-xs">Price</th>
                 <th style="width: 44px" data-label=""></th>
@@ -209,7 +211,7 @@
             <div v-if="!dayRows.length" class="agenda__empty">
               <i class="fa-regular fa-calendar"></i>
               <p>Nothing booked{{ hasCalFilters ? ' matching your filters' : '' }}.</p>
-              <button class="ui-btn ui-btn--sm ui-btn--primary" @click="openCreate(defaultDayStart)"><i class="fa-solid fa-plus"></i> Add booking</button>
+              <button v-if="canCreate" class="ui-btn ui-btn--sm ui-btn--primary" @click="openCreate(defaultDayStart)"><i class="fa-solid fa-plus"></i> Add {{ lc(T.booking) }}</button>
             </div>
             <button v-for="b in dayRows" :key="b.id" class="agenda__item" :class="`st-${b.status}`" @click="openDrawer(b)">
               <span class="agenda__time">
@@ -240,6 +242,9 @@
       v-if="selected"
       :booking="selected"
       :busy="busy"
+      :can-edit="canEdit"
+      :can-delete="canDelete"
+      :can-invoice="canInvoice"
       @close="closeDrawer"
       @status="changeStatus"
       @edit="openEdit(selected)"
@@ -269,6 +274,7 @@ import { formatMoney, isoDate } from '@/utils/format'
 import BookingTimeGrid from '@/components/bookings/BookingTimeGrid.vue'
 import BookingDrawer from '@/components/bookings/BookingDrawer.vue'
 import BookingFormModal from '@/components/bookings/BookingFormModal.vue'
+import { access, can, termLower } from '@/composables/useAccess'
 import {
   BOOKING_STATUSES,
   ACTIVE_STATUSES,
@@ -344,6 +350,25 @@ export default {
     }
   },
   computed: {
+    // Business type words (Job cards, Appointments…) and role permissions
+    T() {
+      return access.terms
+    },
+    canCreate() {
+      return can('bookings', 'create')
+    },
+    canEdit() {
+      return can('bookings', 'edit')
+    },
+    canDelete() {
+      return can('bookings', 'delete')
+    },
+    canInvoice() {
+      return can('invoicing', 'create')
+    },
+    ownOnly() {
+      return access.loaded && access.scope === 'own'
+    },
     cursorDay() {
       return startOfDay(this.cursor)
     },
@@ -509,6 +534,9 @@ export default {
     this.handleDeepLinks()
   },
   methods: {
+    lc(word) {
+      return word === this.T.bookings ? termLower('bookings') : word === this.T.booking ? termLower('booking') : String(word || '').toLowerCase()
+    },
     statusMeta,
     personName,
     initials,
@@ -645,6 +673,7 @@ export default {
       }
     },
     openCreate(start, customerId) {
+      if (!this.canCreate) return
       const preset = {}
       if (start instanceof Date) preset.start = start
       if (customerId) preset.customer_id = customerId

@@ -134,7 +134,14 @@
                 <span :class="{ 'txt-danger': inv.display_status === 'overdue' }">{{ date(inv.due_date) }}</span>
                 <small v-if="inv.display_status === 'overdue'" class="due-note">{{ inv.days_overdue }}d late</small>
               </td>
-              <td><StatusBadge :domain="isQuote ? 'quote' : 'invoice'" :status="inv.display_status" :label="label(inv.display_status)" /></td>
+              <td>
+                <span class="st-cell">
+                  <StatusBadge :domain="isQuote ? 'quote' : 'invoice'" :status="inv.display_status" :label="label(inv.display_status)" />
+                  <span v-if="inv.email_status && inv.email_status.state !== 'none'" class="em-ic" :class="'em-' + inv.email_status.state" :title="emailTip(inv.email_status)" :aria-label="emailTip(inv.email_status)" data-testid="list-email-icon">
+                    <i :class="inv.email_status.state === 'failed' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-envelope-circle-check'"></i><small v-if="inv.email_status.sent > 1">{{ inv.email_status.sent }}</small>
+                  </span>
+                </span>
+              </td>
               <td class="num"><strong>{{ money(inv.total, inv.currency) }}</strong></td>
               <td v-if="!isQuote" class="num hide-sm" :class="{ muted: inv.balance_due <= 0 }">{{ money(inv.balance_due, inv.currency) }}</td>
               <td class="row-go" @click.stop>
@@ -247,6 +254,13 @@ export default {
     clearTimeout(this.timer)
   },
   methods: {
+    /** "Emailed 3× · last 2 Oct" / "Last email failed 2 Oct: …". */
+    emailTip(es) {
+      const d = (v) => (v ? new Date(v).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '')
+      const viewed = es.viewed_after_last_send ? ' · viewed by the client' : ''
+      if (es.state === 'failed') return `Last email failed ${d(es.last_at)}${es.last_error ? ': ' + es.last_error : ''}${es.sent ? ` · ${es.sent} sent before` : ''}`
+      return `Emailed ${es.sent}× · last ${d(es.last_sent_at)} to ${es.last_to}${viewed}`
+    },
     money: formatCurrency,
     date: formatDate,
     /** Number of documents behind a tab, from the server-side stats (null = unknown). */
@@ -367,6 +381,27 @@ export default {
 </script>
 
 <style scoped>
+.st-cell {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+.em-ic {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  color: var(--success);
+  font-size: 13px;
+}
+.em-ic small {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.em-ic.em-failed {
+  color: var(--danger);
+}
 .filter-chips {
   padding: 10px 16px 0;
 }

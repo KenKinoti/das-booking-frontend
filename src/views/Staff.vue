@@ -3,13 +3,13 @@
     <header class="ui-page-head">
       <div>
         <div class="ui-eyebrow">People</div>
-        <h1>Staff &amp; users</h1>
-        <p>Who can sign in, what they can do, and whether their account is active.</p>
+        <h1>{{ term('staff') }} &amp; users</h1>
+        <p>Who can sign in, what their role lets them do, and whether their account is active.</p>
       </div>
       <div class="ui-actions">
         <router-link to="/scheduling" class="ui-btn"><i class="fa-regular fa-calendar"></i> Roster</router-link>
         <button class="ui-btn" :disabled="!users.length" title="Download the current list as CSV" @click="exportCsv"><i class="fa-solid fa-download"></i> Export</button>
-        <button v-if="isAdmin" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-user-plus"></i> Add staff member</button>
+        <button v-if="isAdmin" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-user-plus"></i> Add {{ termLower('staff_member') }}</button>
       </div>
     </header>
 
@@ -78,7 +78,7 @@
         <p>{{ q || role || status !== 'all' ? 'Try a different search, role or status.' : 'Invite the people who work with you so they can sign in and be rostered.' }}</p>
         <div style="margin-top: 14px">
           <button v-if="q || role || status !== 'all'" class="ui-btn" @click="clearFilters">Clear filters</button>
-          <button v-else-if="isAdmin" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-user-plus"></i> Add staff member</button>
+          <button v-else-if="isAdmin" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-user-plus"></i> Add {{ termLower('staff_member') }}</button>
         </div>
       </div>
 
@@ -107,7 +107,10 @@
                   </span>
                 </div>
               </td>
-              <td><span class="ui-badge" :class="roleInfo(u.role).badge">{{ roleInfo(u.role).label }}</span></td>
+              <td>
+                <span class="ui-badge" :class="roleInfo(u.role).badge" :data-testid="`role-${u.email}`">{{ roleName(u) }}</span>
+                <small v-if="assignments[u.id]?.scope === 'own'" class="scope-hint">Own {{ termLower('bookings') }} only</small>
+              </td>
               <td v-if="allOrgs" class="hide-md muted">{{ orgNames[u.organization_id] || '—' }}</td>
               <td class="hide-md nowrap card-show">{{ u.phone || '—' }}</td>
               <td class="hide-sm card-show">
@@ -144,10 +147,10 @@
 
     <!-- Create / edit -->
     <div v-if="formOpen" class="ui-modal-backdrop" @mousedown.self="closeForm">
-      <form class="ui-modal" style="max-width: 680px" role="dialog" aria-modal="true" :aria-label="editing ? 'Edit staff member' : 'Add staff member'" @submit.prevent="save">
+      <form class="ui-modal" style="max-width: 680px" role="dialog" aria-modal="true" :aria-label="editing ? 'Edit staff member' : `Add ${termLower('staff_member')}`" @submit.prevent="save">
         <div class="ui-modal__head">
           <div>
-            <h2>{{ editing ? `Edit ${name(editing)}` : 'Add staff member' }}</h2>
+            <h2>{{ editing ? `Edit ${name(editing)}` : `Add ${termLower('staff_member')}` }}</h2>
             <p class="sub">{{ editing ? 'Update their details and access.' : 'They can sign in with their email and the password below.' }}</p>
           </div>
           <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Close" aria-label="Close" @click="closeForm"><i class="fa-solid fa-xmark"></i></button>
@@ -177,7 +180,16 @@
 
           <template v-if="isAdmin && !isSelf">
             <div class="section-label">Role</div>
-            <div class="roles">
+            <div v-if="templates.length" class="roles" data-testid="role-templates">
+              <label v-for="r in templates" :key="r.id" class="role" :class="{ 'is-on': form.role_template === r.id }" :data-role="r.key">
+                <input v-model="form.role_template" type="radio" name="role_template" :value="r.id" />
+                <span>
+                  <strong>{{ r.name }}</strong>
+                  <small>{{ r.description || baseHint(r.base) }}<template v-if="r.scope === 'own'"> · sees only their own {{ termLower('bookings') }}</template></small>
+                </span>
+              </label>
+            </div>
+            <div v-else class="roles">
               <label v-for="r in roleOptions" :key="r.value" class="role" :class="{ 'is-on': form.role === r.value }">
                 <input v-model="form.role" type="radio" name="role" :value="r.value" />
                 <span>
@@ -287,8 +299,10 @@ import { useAuthStore } from '@/stores/auth'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatDate, formatDateTime, downloadBlob, isoDate } from '@/utils/format'
+import { industryAPI, BASE_LEVELS } from '@/services/industry'
+import { term, termLower } from '@/composables/useAccess'
 
-const blank = () => ({ first_name: '', last_name: '', email: '', phone: '', role: 'staff', password: '', is_active: true })
+const blank = () => ({ first_name: '', last_name: '', email: '', phone: '', role: 'staff', role_template: '', password: '', is_active: true })
 
 export default {
   name: 'Staff',
@@ -320,7 +334,9 @@ export default {
       resetPw: '',
       reveal: null,
       copied: false,
-      origin: window.location.origin
+      origin: window.location.origin,
+      templates: [],
+      assignments: {}
     }
   },
   computed: {
@@ -352,13 +368,41 @@ export default {
   },
   created() {
     this.load()
+    this.loadRoles()
   },
   beforeUnmount() {
     clearTimeout(this.timer)
   },
   methods: {
     roleInfo,
+    term,
+    termLower,
     name: userName,
+    baseHint(b) {
+      return BASE_LEVELS.find((x) => x.value === b)?.hint || ''
+    },
+    roleName(u) {
+      if (u.role === 'super_admin') return roleInfo(u.role).label
+      const a = this.assignments[u.id]
+      // Care roles of general organisations keep their own label
+      if (['care_worker', 'support_coordinator'].includes(u.role) && (!a || a.key === 'staff')) return roleInfo(u.role).label
+      return a?.name || roleInfo(u.role).label
+    },
+    /** The organisation's role templates (business type) and who has which. */
+    async loadRoles() {
+      if (!['admin', 'super_admin', 'manager'].includes(this.me?.role)) return
+      try {
+        const [r, a] = await Promise.all([industryAPI.roles(), industryAPI.assignments()])
+        this.templates = r.roles || []
+        this.assignments = a.assignments || {}
+      } catch {
+        this.templates = []
+        this.assignments = {}
+      }
+    },
+    defaultTemplate() {
+      return (this.templates.find((r) => r.legacy === 'staff') || this.templates.find((r) => r.base === 'staff') || this.templates[0])?.id || ''
+    },
     date: formatDate,
     dateTime: formatDateTime,
     initials(u) {
@@ -434,7 +478,7 @@ export default {
     },
     openCreate() {
       this.editing = null
-      this.form = blank()
+      this.form = { ...blank(), role_template: this.defaultTemplate() }
       this.pwMode = 'generate'
       this.showPw = false
       this.errors = {}
@@ -444,7 +488,7 @@ export default {
     },
     openEdit(u) {
       this.editing = u
-      this.form = { ...blank(), ...u, password: '' }
+      this.form = { ...blank(), ...u, password: '', role_template: this.assignments[u.id]?.role_id || '' }
       this.errors = {}
       this.formError = ''
       this.formOpen = true
@@ -470,21 +514,25 @@ export default {
           const payload = { first_name: this.form.first_name, last_name: this.form.last_name, phone: this.form.phone }
           if (this.isAdmin) payload.email = this.form.email
           if (this.isAdmin && !this.isSelf) {
-            payload.role = this.form.role
+            if (this.templates.length) {
+              if (this.form.role_template && this.form.role_template !== this.assignments[this.editing.id]?.role_id) payload.role_template = this.form.role_template
+            } else payload.role = this.form.role
             payload.is_active = this.form.is_active
           }
           await usersService.update(this.editing.id, payload)
           toast.success('Changes saved')
           this.formOpen = false
         } else {
-          const payload = { first_name: this.form.first_name, last_name: this.form.last_name, email: this.form.email, phone: this.form.phone, role: this.form.role }
+          const payload = { first_name: this.form.first_name, last_name: this.form.last_name, email: this.form.email, phone: this.form.phone }
+          if (this.templates.length && this.form.role_template) payload.role_template = this.form.role_template
+          else payload.role = this.form.role
           if (this.pwMode === 'set') payload.password = this.form.password
           const { user, temporaryPassword } = await usersService.create(payload)
           this.formOpen = false
           toast.success(`${userName(user)} can now sign in`)
           if (temporaryPassword) this.showReveal('Account created', user.email, temporaryPassword)
         }
-        await this.load()
+        await Promise.all([this.load(), this.loadRoles()])
       } catch (e) {
         this.formError = apiErrorMessage(e, 'Could not save')
       } finally {
@@ -572,6 +620,13 @@ export default {
 </script>
 
 <style scoped>
+.scope-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
 .org-switch {
   font-size: 13px;
   white-space: nowrap;

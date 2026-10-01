@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useModulesStore } from '../stores/modules'
-import { ensureEntitlements, hasModule } from '../composables/useEntitlements'
-import { moduleForPath } from '../navigation'
+import { ensureEntitlements, inPlan } from '../composables/useEntitlements'
+import { access, ensureAccess, typeShows, can, homePath } from '../composables/useAccess'
+import { moduleForPath, findNav, itemVisible, navLabel } from '../navigation'
 // import { usePermissionsStore } from '../stores/permissions' // unused import
 
 // Lazy load components for better performance
@@ -253,6 +254,12 @@ const routes = [
     name: 'Analytics',
     component: Analytics,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/insights',
+    name: 'Insights',
+    component: () => import('../views/insights/Insights.vue'),
+    meta: { requiresAuth: true, title: 'Insights' }
   },
   {
     path: '/audit-logs',
@@ -537,6 +544,14 @@ routes.push(
   { path: '/imports/jobs/:id', name: 'ImportJob', component: () => import('../views/imports/ImportJob.vue'), props: true, meta: { requiresAuth: true, title: 'Import' } }
 )
 
+// Business types: first-run setup wizard, the registry (platform admins) and
+// the vehicle register of workshop-type businesses.
+routes.push(
+  { path: '/setup', name: 'SetupWizard', component: () => import('../views/setup/SetupWizard.vue'), meta: { requiresAuth: false, setup: true, title: 'Set up your business' } },
+  { path: '/super-admin/business-types', name: 'BusinessTypesAdmin', component: () => import('../views/setup/BusinessTypesAdmin.vue'), meta: { requiresAuth: true, requiresSuperAdmin: true, title: 'Business types' } },
+  { path: '/vehicles', name: 'Vehicles', component: () => import('../views/Vehicles.vue'), meta: { requiresAuth: true, title: 'Vehicles' } }
+)
+
 routes.push({ path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound, meta: { requiresAuth: false, title: 'Page not found' } })
 
 const router = createRouter({
@@ -552,6 +567,17 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   if (to.meta.public) return true
+
+  // Setup wizard: signed-in admins only, shown without the app shell.
+  if (to.meta.setup) {
+    if (!authStore.isAuthenticated) {
+      const ok = await authStore.initializeAuth()
+      if (!ok) return { path: '/login', query: { redirect: to.fullPath } }
+    }
+    await ensureAccess()
+    if (!authStore.isSuperAdmin && !access.isAdmin) return homePath()
+    return true
+  }
 
   if (to.meta.requiresAuth !== false) {
     if (!authStore.isAuthenticated) {
@@ -571,15 +597,22 @@ router.beforeEach(async (to) => {
       if (!modulesStore.hasModule(to.meta.requiresModule)) return '/dashboard'
     }
 
-    // Subscription plan: modules outside the plan go to the upgrade page
+    // Precedence: plan → business type → role (super admins bypass).
     if (!authStore.isSuperAdmin) {
+      await ensureAccess()
+      // A new organisation's admin finishes the setup wizard first.
+      if (access.needsSetup) return '/setup'
       const mod = moduleForPath(to.path)
       if (mod) {
         await ensureEntitlements()
-        if (!hasModule(mod)) return { path: '/plan', query: { module: mod, from: to.fullPath } }
+        // Modules outside the plan go to the upgrade page
+        if (!inPlan(mod)) return { path: '/plan', query: { module: mod, from: to.fullPath } }
+        if (!typeShows(mod) || !can(mod, 'view')) return deny(to)
       } else {
         ensureEntitlements()
       }
+      const nav = findNav(to.path)
+      if (nav && !itemVisible(nav.item, false)) return deny(to)
     }
 
     if (to.name && to.name !== 'Login') {
@@ -597,9 +630,18 @@ router.beforeEach(async (to) => {
   return true
 })
 
+// A page the business type or the role does not allow: go to the user's home.
+function deny(to) {
+  const home = homePath()
+  return home === to.path ? true : home
+}
+
 router.afterEach((to) => {
   const base = import.meta.env.VITE_APP_TITLE || 'DASYIN ERP'
-  const title = to.meta.title || (typeof to.name === 'string' ? to.name.replace(/([a-z])([A-Z])/g, '$1 $2') : '')
+  // Pages named after a business-type word use the organisation's word
+  const nav = findNav(to.path)
+  const termed = nav && nav.item.to === to.path && nav.item.t ? navLabel(nav.item) : ''
+  const title = termed || to.meta.title || (typeof to.name === 'string' ? to.name.replace(/([a-z])([A-Z])/g, '$1 $2') : '')
   document.title = title ? `${title} · ${base}` : base
 })
 

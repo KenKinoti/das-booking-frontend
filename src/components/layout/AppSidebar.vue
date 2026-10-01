@@ -110,6 +110,7 @@ import { visibleGroups, isItemActive } from '@/navigation'
 import { useAuthStore } from '@/stores/auth'
 import { APP_NAME } from '@/config'
 import { entitlements } from '@/composables/useEntitlements'
+import { access, atLeast } from '@/composables/useAccess'
 import { APP_VERSION, VERSION_LABEL, VERSION_SHORT } from '@/version'
 import BrandMark from './BrandMark.vue'
 import { useBranding, loadBranding, initialsOf, tokenOrgId } from '@/composables/useBranding'
@@ -190,7 +191,8 @@ export default {
     },
     plan() {
       const p = entitlements.plan
-      if (!p || !p.tier || this.auth.isSuperAdmin) return null
+      void access.role
+      if (!p || !p.tier || this.auth.isSuperAdmin || !atLeast('admin')) return null
       const sub = p.subscription || {}
       let hint = p.industry?.name || ''
       if (p.trial?.active) hint = `Trial · ${p.trial.days_left} day${p.trial.days_left === 1 ? '' : 's'} left`

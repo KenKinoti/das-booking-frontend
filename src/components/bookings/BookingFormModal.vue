@@ -103,11 +103,12 @@
           </div>
 
           <div v-if="selectedCustomer && vehicles.length && !showNewCustomer" class="ui-field mt">
-            <label for="bk-vehicle">Vehicle <span class="opt">optional</span></label>
-            <select id="bk-vehicle" v-model="form.vehicle_id" class="ui-select">
-              <option value="">No vehicle</option>
+            <label for="bk-vehicle">Vehicle <span v-if="vehicleRequired" class="req">*</span><span v-else class="opt">optional</span></label>
+            <select id="bk-vehicle" v-model="form.vehicle_id" class="ui-select" :class="{ 'is-invalid': showErrors && errors.vehicle }">
+              <option value="">{{ vehicleRequired ? 'Choose the vehicle' : 'No vehicle' }}</option>
               <option v-for="v in vehicles" :key="v.id" :value="v.id">{{ vehicleLabel(v) }}</option>
             </select>
+            <div v-if="showErrors && errors.vehicle" class="err">{{ errors.vehicle }}</div>
           </div>
         </section>
 
@@ -222,6 +223,7 @@
 import api, { listFrom, apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { formatMoney, isoDate } from '@/utils/format'
+import { access } from '@/composables/useAccess'
 import { BOOKING_STATUSES, personName, initials, vehicleLabel, hhmm, combine, formatDuration, minutesBetween } from './bookingUtils'
 
 const DEFAULT_MINUTES = 60
@@ -346,9 +348,14 @@ export default {
     statusOptions() {
       return this.isEdit ? BOOKING_STATUSES : BOOKING_STATUSES.filter((s) => ['scheduled', 'confirmed'].includes(s.value))
     },
+    // Business type booking defaults (e.g. a workshop needs the vehicle)
+    vehicleRequired() {
+      return !!(access.confirmed && access.type?.booking_defaults?.vehicle_required)
+    },
     errors() {
       const e = {}
       if (!this.form.customer_id) e.customer = 'Choose a customer or add a new one.'
+      if (this.vehicleRequired && this.vehicles.length && !this.form.vehicle_id) e.vehicle = 'Choose the vehicle for this job.'
       if (!this.form.date) e.date = 'Pick a date.'
       if (!this.form.start) e.start = 'Pick a start time.'
       else if (!this.form.end) e.end = 'Pick an end time.'

@@ -21,6 +21,13 @@
             <template v-if="!isQuote && doc.display_status === 'overdue'"> · <span class="txt-danger">{{ doc.days_overdue }} days overdue</span></template>
             <template v-else-if="!isQuote && doc.status !== 'paid' && doc.status !== 'void' && doc.status !== 'draft'"> · due {{ rel(doc.due_date) }}</template>
           </p>
+          <div class="email-chip-row">
+            <button type="button" class="email-chip" :class="'ec-' + emailState.state" data-testid="email-status-chip" :data-state="emailState.state" :title="emailState.title" @click="showEmails">
+              <i :class="emailState.icon"></i> <span>{{ emailState.text }}</span>
+            </button>
+            <button v-if="emailState.state === 'failed'" type="button" class="ui-btn ui-btn--sm" data-testid="email-retry" @click="openSend(es.last_kind === 'receipt' ? 'invoice' : es.last_kind || 'invoice')"><i class="fa-solid fa-rotate-right"></i> Retry</button>
+            <span v-if="es && es.viewed_at" class="viewed-chip" data-testid="viewed-chip"><i class="fa-regular fa-eye"></i> Viewed {{ dtz(es.viewed_at) }}</span>
+          </div>
         </div>
         <div class="ui-actions">
           <router-link v-if="canEdit" :to="`${listPath}/${doc.id}/edit`" class="ui-btn"><i class="fa-regular fa-pen-to-square"></i> Edit</router-link>
@@ -181,15 +188,22 @@
             </div>
             <ul v-if="actTab === 'emails'" class="elog" data-testid="email-log">
               <li v-if="!emailLog.length" class="muted small elog-empty">{{ emailLogLoading ? 'Loading…' : 'No emails yet. Every send, test and failed attempt is recorded here with its checks.' }}</li>
-              <li v-for="e in emailLog" :key="e.id" :class="`el-${e.status}`">
-                <button class="elog-row" :aria-expanded="openLog === e.id" @click="openLog = openLog === e.id ? null : e.id">
-                  <span class="ui-badge" :class="logBadge(e).cls">{{ logBadge(e).label }}</span>
-                  <span class="elog-main">
-                    <strong>{{ logKind(e) }} → {{ e.to || '—' }}</strong>
-                    <small>{{ dt(e.created_at) }}<template v-if="e.amounts && Object.keys(e.amounts).length"> · {{ Object.entries(e.amounts)[0].join(' ') }}</template></small>
-                  </span>
-                  <i class="fa-solid" :class="openLog === e.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                </button>
+              <li v-if="emailLog.length" class="elog-sum muted small" data-testid="email-log-summary">
+                {{ emailSummaryText }} · times in {{ orgTz.replace(/_/g, ' ') }}
+              </li>
+              <li v-for="e in emailLog" :key="e.id" :class="`el-${e.status}`" :data-kind="e.kind" :data-status="e.status">
+                <div v-if="viewedAfter === e.id" class="elog-viewed" data-testid="email-viewed-marker"><i class="fa-regular fa-eye"></i> Client opened the link {{ dtz(doc.viewed_at) }}</div>
+                <div class="elog-line">
+                  <button class="elog-row" :aria-expanded="openLog === e.id" @click="openLog = openLog === e.id ? null : e.id">
+                    <span class="ui-badge" :class="logBadge(e).cls">{{ logBadge(e).label }}</span>
+                    <span class="elog-main">
+                      <strong>{{ logKind(e) }} → {{ e.to || '—' }}<template v-if="e.cc && e.cc.length"> (+{{ e.cc.length }} CC)</template></strong>
+                      <small>{{ dtz(e.created_at) }}<template v-if="e.status === 'failed' && e.error"> · {{ e.error_code ? e.error_code + ': ' : '' }}{{ e.error }}</template><template v-else-if="e.amounts && Object.keys(e.amounts).length"> · {{ Object.entries(e.amounts)[0].join(' ') }}</template></small>
+                    </span>
+                    <i class="fa-solid" :class="openLog === e.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                  </button>
+                  <button v-if="canResend(e)" type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon resend" :data-testid="'resend-' + e.kind" :title="(e.status === 'failed' ? 'Retry ' : 'Resend ') + logKind(e).toLowerCase()" :aria-label="(e.status === 'failed' ? 'Retry ' : 'Resend ') + logKind(e).toLowerCase()" @click="resend(e)"><i :class="e.status === 'failed' ? 'fa-solid fa-rotate-right' : 'fa-solid fa-paper-plane'"></i></button>
+                </div>
                 <div v-if="openLog === e.id" class="elog-detail" data-testid="email-log-detail">
                   <div v-if="e.error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span><strong>{{ e.error_code || 'Error' }}</strong> {{ e.error }}</span></div>
                   <dl>
@@ -360,6 +374,7 @@ import InvoiceDocument from '@/components/invoicing/InvoiceDocument.vue'
 import { invoicingApi, STATUS_LABELS, PAYMENT_METHODS, PAYMENT_ORIGINS, RECURRENCE } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate, formatDateTime, relativeDays, isoDate, downloadBlob } from '@/utils/format'
+import { orgDefaults } from '@/utils/orgDefaults'
 import { formatCurrency, currencyStep, currencyDecimals, rateText } from '@/utils/currencies'
 import SendDialog from '@/components/invoicing/SendDialog.vue'
 import { RATE_SOURCES } from '@/services/invoicing'
@@ -398,6 +413,8 @@ export default {
       actTab: 'activity',
       emailLog: [],
       emailLogLoading: false,
+      emailLogSummary: null,
+      logTz: '',
       openLog: null,
       methods: PAYMENT_METHODS,
       pdfBusy: false,
@@ -408,6 +425,43 @@ export default {
     }
   },
   computed: {
+    /** Email summary: from the log once loaded (fresh after a send), else from the document. */
+    es() {
+      return this.emailLogSummary || this.doc?.email_status || null
+    },
+    orgTz() {
+      return this.logTz || orgDefaults.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    },
+    emailState() {
+      const s = this.es
+      const kind = (k) => ({ invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt' })[k] || 'Email'
+      if (!s || s.state === 'none') {
+        return { state: 'none', icon: 'fa-regular fa-envelope', text: s && s.recorded ? 'Opened in your email app (not sent from here)' : 'Not emailed yet', title: 'No email about this document has been sent from DASYIN' }
+      }
+      const cc = s.last_cc ? ` (+${s.last_cc} CC)` : ''
+      if (s.state === 'failed') {
+        return { state: 'failed', icon: 'fa-solid fa-triangle-exclamation', text: `Last email failed ${this.dtz(s.last_at)}`, title: s.last_error || 'The mail server refused the email' }
+      }
+      const times = s.sent > 1 ? ` · ${s.sent} emails` : ''
+      return { state: 'sent', icon: 'fa-solid fa-circle-check', text: `${kind(s.last_kind)} emailed ${this.dtz(s.last_sent_at)} to ${s.last_to}${cc}${times}`, title: 'Last email accepted by the mail server' }
+    },
+    emailSummaryText() {
+      const s = this.es
+      if (!s) return ''
+      const parts = [`${s.sent} sent`]
+      if (s.failed) parts.push(`${s.failed} failed`)
+      const k = s.by_kind || {}
+      const kinds = Object.entries(k).map(([a, n]) => `${n} ${a}${n === 1 ? '' : 's'}`)
+      return parts.join(', ') + (kinds.length ? ` (${kinds.join(', ')})` : '')
+    },
+    /** The send the client's view followed (the last sent email before viewed_at). */
+    viewedAfter() {
+      const v = this.doc?.viewed_at
+      if (!v) return null
+      const t = new Date(v).getTime()
+      const hit = this.emailLog.find((e) => e.status === 'sent' && e.mode !== 'test' && new Date(e.created_at).getTime() <= t)
+      return hit ? hit.id : null
+    },
     // Business block: invoice settings + the company logo (Settings → Business details).
     business() {
       const s = this.settings || {}
@@ -756,6 +810,8 @@ export default {
       try {
         const r = await invoicingApi.emailLog(this.doc.id)
         this.emailLog = r?.log || []
+        this.emailLogSummary = r?.summary || null
+        if (r?.timezone) this.logTz = r.timezone
       } catch {
         this.emailLog = []
       } finally {
@@ -772,6 +828,30 @@ export default {
           recorded: { label: 'Email app', cls: 'ui-badge--draft' }
         }[e.status] || { label: e.status, cls: 'ui-badge--draft' }
       )
+    },
+    /** Date and time in the organisation's time zone. */
+    dtz(v) {
+      if (!v) return '—'
+      try {
+        return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: this.orgTz }).format(new Date(v))
+      } catch {
+        return formatDateTime(v)
+      }
+    },
+    showEmails() {
+      this.actTab = 'emails'
+      this.loadEmailLog()
+      this.$nextTick(() => document.querySelector('[data-testid="activity-card"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    },
+    canResend(e) {
+      return this.canEdit !== false && e.mode !== 'test' && (e.status === 'sent' || e.status === 'failed') && this.doc.status !== 'void'
+    },
+    resend(e) {
+      if (e.kind === 'receipt') {
+        const p = (this.doc.payments || []).find((x) => x.id === e.payment_id)
+        if (p) return this.openSend('receipt', p)
+      }
+      this.openSend(e.kind === 'receipt' ? 'invoice' : e.kind || 'invoice')
     },
     logKind(e) {
       return { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt' }[e.kind] || 'Email'
@@ -857,6 +937,76 @@ export default {
 </script>
 
 <style scoped>
+.email-chip-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.email-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.email-chip span {
+  overflow-wrap: anywhere;
+}
+.email-chip.ec-sent {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--text);
+}
+.email-chip.ec-sent i {
+  color: var(--success);
+}
+.email-chip.ec-failed {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--text);
+}
+.email-chip.ec-failed i {
+  color: var(--danger);
+}
+.viewed-chip {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--info);
+}
+.elog-sum {
+  padding: 2px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.elog-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.elog-line .elog-row {
+  flex: 1;
+  min-width: 0;
+}
+.elog-line .resend {
+  flex-shrink: 0;
+}
+.elog-viewed {
+  font-size: 12px;
+  color: var(--info);
+  padding: 4px 0 4px 6px;
+  border-left: 2px solid var(--info);
+  margin: 4px 0;
+}
 .tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -958,9 +1108,7 @@ export default {
 .elog-main strong {
   font-size: 13px;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .elog-main small {
   color: var(--text-3);

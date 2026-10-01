@@ -11,6 +11,7 @@
         <router-link to="/invoices/new" class="ui-btn ui-btn--primary"><i class="fa-solid fa-plus"></i> New invoice</router-link>
       </div>
     </header>
+    <CountryDefaultsNotice />
 
     <div v-if="error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span></div>
 
@@ -142,6 +143,7 @@
 
 <script>
 import { orgCurrency } from '@/utils/orgDefaults'
+import CountryDefaultsNotice from '@/components/invoicing/CountryDefaultsNotice.vue'
 import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
@@ -149,6 +151,7 @@ import { formatCurrency, currencyDecimals } from '@/utils/currencies'
 
 export default {
   name: 'InvoicingOverview',
+  components: { CountryDefaultsNotice },
   data() {
     return { s: null, recent: null, attention: null, error: null, hover: null }
   },

@@ -21,6 +21,8 @@
       </div>
     </header>
 
+    <slot name="tabs"></slot>
+
     <div v-if="error" class="ui-alert ui-alert--danger mb">
       <i class="fa-solid fa-circle-exclamation"></i>
       <div>

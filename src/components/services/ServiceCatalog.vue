@@ -4,18 +4,18 @@
       <div>
         <div class="ui-eyebrow">
           <router-link v-if="group" to="/services/categories" class="crumb">Service categories</router-link>
-          <template v-else>Bookings &amp; Services</template>
+          <template v-else>{{ T.bookings }} &amp; {{ T.services }}</template>
         </div>
         <h1 class="title">
           <span v-if="group" class="title__icon"><i :class="group.icon"></i></span>
-          {{ group ? group.title : 'Services' }}
+          {{ group ? group.title : T.services }}
         </h1>
         <p>{{ group ? `Services in your ${group.title.toLowerCase()} categories.` : 'Your catalogue of bookable services: duration, price and availability.' }}</p>
       </div>
       <div class="ui-actions">
         <router-link v-if="!group" to="/services/categories" class="ui-btn"><i class="fa-solid fa-layer-group"></i> Categories</router-link>
         <button class="ui-btn" :disabled="!filtered.length" title="Download the current list as CSV" @click="exportCsv"><i class="fa-solid fa-download"></i> Export</button>
-        <button class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New service</button>
+        <button v-if="canCreate" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New {{ T.service.toLowerCase() }}</button>
       </div>
     </header>
 
@@ -87,7 +87,7 @@
         <p>{{ hasFilters ? 'Try a different search, category or status.' : 'Create the services you offer so customers can book them.' }}</p>
         <div style="margin-top: 14px">
           <button v-if="hasFilters" class="ui-btn" @click="clearFilters">Clear filters</button>
-          <button v-else class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New service</button>
+          <button v-else-if="canCreate" class="ui-btn ui-btn--primary" @click="openCreate"><i class="fa-solid fa-plus"></i> New {{ T.service.toLowerCase() }}</button>
         </div>
       </div>
 
@@ -168,6 +168,7 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatMoney, downloadBlob, isoDate } from '@/utils/format'
 import { orgCurrency } from '@/utils/orgDefaults'
+import { access, can } from '@/composables/useAccess'
 
 export default {
   name: 'ServiceCatalog',
@@ -193,6 +194,13 @@ export default {
     }
   },
   computed: {
+    // Business type words (Treatments, Labour & services…) and role permissions
+    T() {
+      return access.terms
+    },
+    canCreate() {
+      return can('bookings', 'create')
+    },
     group() {
       return SERVICE_GROUPS.find((g) => g.slug === this.groupSlug) || null
     },

@@ -4,11 +4,18 @@
  * inventory, manufacturing, accounting, hr, projects, documents, communication.
  * Items without a module are always available.
  *
+ * Business types (see useAccess): `t(terms)` builds the label from the
+ * organisation's words (Bookings → Job cards), `perm` names the role
+ * permission that shows the item (defaults to its module; `act` is the action
+ * needed, default view — management pages need create), `feature` limits
+ * it to types offering that feature and `minBase` to a role level.
+ *
  * Single source of truth for the app navigation.
  * Groups are rendered as collapsible sections in the sidebar and power the
  * command palette (Ctrl/Cmd + K).
  */
 import { hasModule } from '@/composables/useEntitlements'
+import { access, can, pathHidden, hasFeature, atLeast } from '@/composables/useAccess'
 
 export const navGroups = [
   {
@@ -17,6 +24,7 @@ export const navGroups = [
     icon: 'fa-solid fa-house',
     items: [
       { label: 'Dashboard', to: '/dashboard', module: 'core', icon: 'fa-solid fa-gauge-high' },
+      { label: 'Insights', to: '/insights', module: 'core', icon: 'fa-solid fa-lightbulb', minBase: 'manager', match: /^\/insights/ },
       { label: 'Ask DASYIN', to: '/assistant', module: 'core', icon: 'fa-solid fa-wand-magic-sparkles' },
       { label: 'Analytics', to: '/reports-analytics', module: 'core', icon: 'fa-solid fa-chart-column' },
       // Reports opens the Profit & loss statement (the old /analytics page was
@@ -49,22 +57,25 @@ export const navGroups = [
   {
     id: 'customers',
     label: 'Customers',
+    t: (T) => T.customers,
     icon: 'fa-solid fa-users',
     items: [
-      { label: 'Customers', to: '/customers', module: 'crm', icon: 'fa-solid fa-address-book' },
+      { label: 'Customers', t: (T) => T.customers, to: '/customers', module: 'crm', icon: 'fa-solid fa-address-book' },
       { label: 'CRM pipeline', to: '/crm', module: 'crm', icon: 'fa-solid fa-bullseye' }
     ]
   },
   {
     id: 'operations',
     label: 'Bookings & Services',
+    t: (T) => T.operations || `${T.bookings} & ${T.services}`,
     icon: 'fa-solid fa-calendar-check',
     items: [
-      { label: 'Bookings', to: '/bookings', module: 'bookings', icon: 'fa-solid fa-calendar-days' },
-      { label: 'Scheduling', to: '/scheduling', module: 'bookings', icon: 'fa-solid fa-clock' },
-      { label: 'Services', to: '/services', module: 'bookings', icon: 'fa-solid fa-bell-concierge', match: /^\/services$/ },
-      { label: 'Service categories', to: '/services/categories', module: 'bookings', icon: 'fa-solid fa-layer-group', match: /^\/services\/.+/ },
-      { label: 'Events', to: '/events', module: 'events', icon: 'fa-solid fa-ticket', match: /^\/events/ }
+      { label: 'Bookings', t: (T) => T.bookings, to: '/bookings', module: 'bookings', icon: 'fa-solid fa-calendar-days' },
+      { label: 'Vehicles', to: '/vehicles', module: 'bookings', act: 'create', feature: 'vehicles', icon: 'fa-solid fa-car-side' },
+      { label: 'Scheduling', to: '/scheduling', module: 'bookings', act: 'create', icon: 'fa-solid fa-clock' },
+      { label: 'Services', t: (T) => T.services, to: '/services', module: 'bookings', act: 'create', icon: 'fa-solid fa-bell-concierge', match: /^\/services$/ },
+      { label: 'Service categories', t: (T) => `${T.service} categories`, to: '/services/categories', module: 'bookings', act: 'create', icon: 'fa-solid fa-layer-group', match: /^\/services\/.+/ },
+      { label: 'Events', t: (T) => T.events, to: '/events', module: 'events', icon: 'fa-solid fa-ticket', match: /^\/events/ }
     ]
   },
   {
@@ -72,8 +83,8 @@ export const navGroups = [
     label: 'Inventory & Supply',
     icon: 'fa-solid fa-boxes-stacked',
     items: [
-      { label: 'Inventory', to: '/inventory', module: 'inventory', icon: 'fa-solid fa-box' },
-      { label: 'Suppliers', to: '/suppliers', module: 'inventory', icon: 'fa-solid fa-truck' },
+      { label: 'Inventory', t: (T) => T.inventory, to: '/inventory', module: 'inventory', icon: 'fa-solid fa-box' },
+      { label: 'Suppliers', to: '/suppliers', module: 'inventory', act: 'create', icon: 'fa-solid fa-truck' },
       { label: 'Production', to: '/production', module: 'manufacturing', icon: 'fa-solid fa-industry' }
     ]
   },
@@ -94,9 +105,9 @@ export const navGroups = [
     label: 'People & Projects',
     icon: 'fa-solid fa-people-group',
     items: [
-      { label: 'Staff', to: '/staff', module: 'hr', icon: 'fa-solid fa-user-tie' },
+      { label: 'Staff', t: (T) => T.staff, to: '/staff', module: 'core', perm: 'team', icon: 'fa-solid fa-user-tie' },
       { label: 'HR & payroll', to: '/hcm', module: 'hr', icon: 'fa-solid fa-id-card' },
-      { label: 'Projects', to: '/projects', module: 'projects', icon: 'fa-solid fa-diagram-project' },
+      { label: 'Projects', t: (T) => T.projects, to: '/projects', module: 'projects', icon: 'fa-solid fa-diagram-project' },
       { label: 'Documents', to: '/documents', module: 'documents', icon: 'fa-solid fa-folder-open' }
     ]
   },
@@ -118,10 +129,10 @@ export const navGroups = [
     icon: 'fa-solid fa-gear',
     items: [
       { label: 'Settings', to: '/settings', icon: 'fa-solid fa-sliders', match: /^\/settings\/?$/ },
-      { label: 'Plan & billing', to: '/plan', icon: 'fa-solid fa-gem' },
+      { label: 'Plan & billing', to: '/plan', icon: 'fa-solid fa-gem', minBase: 'admin' },
       { label: 'AI & MCP', to: '/settings/ai', icon: 'fa-solid fa-robot' },
-      { label: 'Expense sources', to: '/settings/expense-sources', icon: 'fa-solid fa-plug' },
-      { label: 'Import data', to: '/imports', icon: 'fa-solid fa-file-import', match: /^\/imports/ },
+      { label: 'Expense sources', to: '/settings/expense-sources', icon: 'fa-solid fa-plug', minBase: 'admin' },
+      { label: 'Import data', to: '/imports', icon: 'fa-solid fa-file-import', match: /^\/imports/, minBase: 'admin' },
       { label: 'My profile', to: '/profile', icon: 'fa-solid fa-user' },
       { label: 'Help & FAQ', to: '/faq', icon: 'fa-solid fa-circle-question' }
     ]
@@ -134,6 +145,7 @@ export const navGroups = [
     items: [
       { label: 'Platform overview', to: '/super-admin', icon: 'fa-solid fa-crown', match: /^\/super-admin$/ },
       { label: 'Plans & pricing', to: '/super-admin/plans', icon: 'fa-solid fa-tags' },
+      { label: 'Business types', to: '/super-admin/business-types', icon: 'fa-solid fa-shapes' },
       { label: 'Organizations', to: '/organizations', icon: 'fa-solid fa-building' },
       { label: 'Users', to: '/users-admin', icon: 'fa-solid fa-users-gear' },
       { label: 'Modules', to: '/module-management', icon: 'fa-solid fa-puzzle-piece' },
@@ -150,15 +162,48 @@ export function isItemActive(item, path) {
   return path === item.to || path.startsWith(item.to + '/')
 }
 
+/** The label of a nav item or group in the organisation's words. */
+export function navLabel(x) {
+  if (x && typeof x.t === 'function') {
+    try {
+      return x.t(access.terms) || x.label
+    } catch {
+      return x.label
+    }
+  }
+  return x?.label || ''
+}
+
 /**
- * Groups the current user may see. Items whose module is not in the
- * organisation's plan are hidden (super admins see everything); groups left
- * empty are dropped.
+ * Can the current user see this nav item? Plan ∩ business type (hasModule),
+ * then the role (view permission), then type-hidden entries, features and
+ * role level. Super admins see everything.
+ */
+export function itemVisible(item, isSuperAdmin) {
+  if (isSuperAdmin) return true
+  if (!hasModule(item.module)) return false
+  const perm = item.perm || item.module
+  if (perm && !can(perm, item.act || 'view')) return false
+  if (pathHidden(item.to)) return false
+  if (item.feature && !hasFeature(item.feature)) return false
+  if (item.minBase && !atLeast(item.minBase)) return false
+  return true
+}
+
+/**
+ * Groups the current user may see, with labels in the organisation's words.
+ * Items whose module is not in the plan or hidden for the business type,
+ * or that the user's role cannot view, are dropped; empty groups too.
  */
 export function visibleGroups(isSuperAdmin) {
+  void access.terms
   return navGroups
     .filter((g) => !g.superAdmin || isSuperAdmin)
-    .map((g) => (isSuperAdmin ? g : { ...g, items: g.items.filter((i) => hasModule(i.module)) }))
+    .map((g) => ({
+      ...g,
+      label: navLabel(g),
+      items: g.items.filter((i) => itemVisible(i, isSuperAdmin)).map((i) => ({ ...i, label: navLabel(i) }))
+    }))
     .filter((g) => g.items.length)
 }
 

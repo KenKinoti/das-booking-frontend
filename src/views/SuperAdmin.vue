@@ -272,7 +272,27 @@
               <label for="of-name">Organisation name *</label>
               <input id="of-name" ref="firstField" v-model.trim="form.data.name" class="ui-input" maxlength="255" required autocomplete="organization" />
             </div>
-            <div class="ui-field">
+            <div v-if="!form.id && registry.length" class="ui-field span-2">
+              <label id="of-type-label">Business type</label>
+              <div class="bt-cards" role="radiogroup" aria-labelledby="of-type-label" data-testid="org-type-cards">
+                <button
+                  v-for="t in registry"
+                  :key="t.key"
+                  type="button"
+                  role="radio"
+                  class="bt-card"
+                  :class="{ 'is-on': form.data.business_type === t.key }"
+                  :aria-checked="form.data.business_type === t.key"
+                  :data-type="t.key"
+                  @click="form.data.business_type = t.key"
+                >
+                  <i :class="t.icon" aria-hidden="true"></i>
+                  <span>{{ t.name }}</span>
+                </button>
+              </div>
+              <span class="ui-hint">{{ typeHint }}</span>
+            </div>
+            <div class="ui-field" :class="{ 'sr-only': !form.id && registry.length }">
               <label for="of-type">Business type</label>
               <select id="of-type" v-model="form.data.business_type" class="ui-select">
                 <option v-for="t in allTypes" :key="t" :value="t">{{ typeLabel(t) }}</option>
@@ -439,6 +459,7 @@ import { toast } from '@/composables/useToast'
 import { formatDate, formatDateTime, formatMoney, downloadBlob } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import { platformAPI, initials, timeAgo, roleLabel, startImpersonation, ensurePlatformSession, auditActionLabel } from '@/services/platform'
+import { industryAPI } from '@/services/industry'
 
 const TYPES = ['general', 'retail', 'hospitality', 'automotive', 'beauty', 'healthcare', 'professional', 'construction', 'events', 'manufacturing', 'education', 'nonprofit']
 const TYPE_LABELS = {
@@ -483,7 +504,8 @@ export default {
       timer: null,
       showDups: this.$route.query.duplicates === '1',
       dupCount: 0,
-      currencyGroups: currencyGroups()
+      currencyGroups: currencyGroups(),
+      registry: []
     }
   },
   computed: {
@@ -494,8 +516,14 @@ export default {
       return Array.from(new Set([...this.knownTypes].filter(Boolean))).sort()
     },
     allTypes() {
+      const keys = this.registry.length ? this.registry.map((t) => t.key) : TYPES
       const cur = this.form.data.business_type
-      return cur && !TYPES.includes(cur) ? [...TYPES, cur] : TYPES
+      return cur && !keys.includes(cur) ? [...keys, cur] : keys
+    },
+    typeHint() {
+      const t = this.registry.find((x) => x.key === this.form.data.business_type)
+      if (!t || t.key === 'general') return 'Every module of the plan stays available. The admin can choose a business type later.'
+      return `${t.description} The admin is guided through setting up a ${t.name.toLowerCase()} on first sign-in.`
     },
     drawerOrg() {
       return this.drawer.detail?.organization || this.rows.find((r) => r.id === this.drawer.id) || null
@@ -518,6 +546,7 @@ export default {
     }
     this.load()
     this.countDuplicates()
+    this.loadRegistry()
     const q = this.$route.query
     if (q.new) this.openCreate()
     if (q.open) this.openDrawer({ id: String(q.open) })
@@ -556,7 +585,16 @@ export default {
     formatMoney,
     typeLabel(t) {
       if (!t) return '—'
+      const r = this.registry.find((x) => x.key === t)
+      if (r) return r.name
       return TYPE_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1).replace(/_/g, ' ')
+    },
+    async loadRegistry() {
+      try {
+        this.registry = (await industryAPI.types()).types || []
+      } catch {
+        this.registry = []
+      }
     },
     tierLabel(t) {
       return TIER_LABELS[t] || t
@@ -740,7 +778,8 @@ export default {
           const admin = { ...this.form.admin }
           if (this.form.generatePassword) admin.password = ''
           const res = await platformAPI.createOrganization({ ...body, admin })
-          toast.success(`${res.organization.name} created`)
+          const typed = body.business_type && body.business_type !== 'general'
+          toast.success(typed ? `${res.organization.name} created — ${res.admin.email} will be guided through setup on first sign-in` : `${res.organization.name} created`)
           this.closeForm()
           if (res.temporary_password) this.secret = { org: res.organization.name, email: res.admin.email, password: res.temporary_password }
           this.reload()
@@ -824,6 +863,51 @@ export default {
 </script>
 
 <style scoped>
+.bt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.bt-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.bt-card i {
+  width: 18px;
+  text-align: center;
+  color: var(--text-3);
+}
+
+.bt-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.bt-card.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.bt-card.is-on i {
+  color: var(--accent);
+}
+
 .plan {
   white-space: nowrap;
 }

@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.8.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.9.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,14 +26,14 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Recurring bills with reminder emails that keep hosting, domains and subscriptions paid — and staff now get an email with a calendar invite for every booking assigned to them.'
+export const RELEASE_LEAD = 'Synergy costs now count in your P&L automatically — as service charges or as top-ups from your bank — with every amount shown per month in AUD and your own currency at the right rate.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-repeat', text: 'Recurring bills in Finance → Bills: weekly, monthly, quarterly, yearly or every N months, with an end date or count — the next bill is created as a draft or approved, in any currency, never twice for the same period' },
-  { icon: 'fa-regular fa-calendar-days', text: 'Upcoming bills: the next 90 days with a calendar strip and totals per month — mark paid, skip one, or snooze its reminders' },
-  { icon: 'fa-regular fa-bell', text: 'Bill reminder emails to admins 7 and 1 days before, on the due date and while overdue, plus a Monday digest with Synergy balance warnings (Settings → Bill reminders)' },
-  { icon: 'fa-solid fa-link', text: 'Turn a subscription detected in Expenses into a recurring bill — reminders without counting the cost twice' },
-  { icon: 'fa-regular fa-envelope', text: 'Staff booking emails with an .ics invite: assigned, rescheduled, reassigned, cancelled and no-show, plus an optional 7am agenda (switch off in My profile)' },
-  { icon: 'fa-solid fa-right-to-bracket', text: 'Sign in with Google or Microsoft (replaces the quick sign-in buttons); Zoho item prices imported in the right currency' }
+  { icon: 'fa-solid fa-server', text: 'Synergy expenses are created and approved automatically from your statements (upload or Gmail): choose service charges or top-ups from your bank — never both — with a reconciliation of top-ups, charges and balance' },
+  { icon: 'fa-solid fa-money-bill-transfer', text: 'Clear amounts everywhere: “A$4.25 / month ≈ KES 363 / month” with the rate, its source and date; each month converted at its own rate, Australian GST handled for non-Australian businesses' },
+  { icon: 'fa-solid fa-wand-magic-sparkles', text: 'Less manual work: Google Workspace invoices approved automatically within ±20% of last month, Synergy statement emails imported for you, and a “How automatic is this?” panel per source' },
+  { icon: 'fa-regular fa-envelope', text: 'Invoice email status: “Emailed 2 Oct 14:05 to … (+2 CC)”, failed sends with a Retry, and a timeline of every invoice, reminder and receipt email with when the client viewed it' },
+  { icon: 'fa-solid fa-earth-africa', text: 'Tax and time zone follow your country (Kenya → VAT 16%, Africa/Nairobi …) with a one-click fix when they don’t match' },
+  { icon: 'fa-solid fa-chart-line', text: 'Dashboard analytics with imported summaries and a Business opportunities view; business type (e.g. mechanic, salon) drives setup, menus and role templates' }
 ]

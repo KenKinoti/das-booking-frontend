@@ -6,6 +6,72 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.9.0] - 2026-10-01
+
+### Synergy costs counted automatically — as service charges or top-ups, never both
+
+- **Expenses → Synergy → How costs count**: choose **Service charges** (default; monthly hosting, renewals and support
+  fees minus credits, dated by charge date or service month — accrual-friendly) or **Top-ups from my bank** (cash: each
+  statement "Refill" is one expense on the top-up date, category **Synergy prepaid hosting**; charges then only feed the
+  analytics). Switching removes the other mode's expenses and bills, so Synergy is never counted twice; Synergy
+  receipts / invoices from Gmail are always treated as top-ups of the prepaid balance and ignored.
+- **Automatic**: every statement import (upload or Gmail) creates / updates the expenses for the chosen mode and, with
+  **Auto-approve Synergy expenses** (default on), approves them so the P&L and Expenses show them immediately.
+  Idempotent: re-uploads update, never duplicate. Statements uploaded before 2.9.0 are backfilled on first load with a
+  one-time notice ("Synergy expenses for Aug–Sep 2026 added: A$237.98 (KES …)").
+- **Reconciliation**: per statement month and for the period — opening balance + top-ups − charges = closing balance.
+- **Australian GST**: new setting **I'm registered for Australian GST** (default off outside Australia). Off: the 1/11
+  GST in Synergy's AUD prices is part of the cost ("incl. Australian GST — not claimable"); on: it is claimed as tax.
+
+### Correct amounts, periods and conversions
+
+- Amounts in Synergy / Expenses show their period and both currencies, e.g. "A$4.25 / month · ≈ KES 363 / month",
+  with the rate, its source and date ("rate 1 AUD = 85.4 KES, live, 1 Oct"). KPIs and totals in the home currency with
+  AUD secondary; plan prices per month and per year in AUD and KES; domain / hosting renewals per period with the
+  per-month equivalent (hosting renewal costs are estimated from the plan's learned monthly price instead of 0).
+- **Rates per month** (`expense_fx_months`): each expense is converted at the rate of the month it is dated in and
+  the rate is stored on the expense (`fx_rate`, `fx_basis`, `fx_note`). A month's rate is the last one seen while the
+  month was open (recorded on every conversion and by the daily sync); months that ended before any rate was recorded
+  use the rate of the day they were first needed, labelled "estimated". Set a month's rate by hand to re-convert it.
+  Current-view figures (run-rates, plan prices, per-site costs) use today's rate and say so.
+- Synergy page re-laid out: summary (4 KPIs) → charts | decisions → Sites / How costs count / Plan prices /
+  Month vs month / Uploads tabs. Works at 390px, light and dark. Expenses overview has a Synergy summary strip.
+
+### Less manual work: Gmail, Google Workspace and Synergy
+
+- **How automatic is this?** panel (Expense sources): per source what is automatic, what still needs you, and when it
+  was last fetched. Google Workspace customers who pay Google directly have no billing API (the Reseller API covers
+  resellers' customers, the Cloud Billing API Google Cloud), so Workspace invoices come from Gmail.
+- **Auto-approve rule per vendor** (default for Google Workspace: within ±20% of the last approved invoice in the same
+  currency); the first invoice and anything outside the range wait in the Inbox with the reason. EUR invoices are
+  converted at the invoice month's rate.
+- Synergy statement and hosting-usage CSVs attached to emails are imported into Expenses → Synergy by the Gmail sync
+  (then the expenses are applied as above). The Synergy API sync stores disk usage snapshots when `listHosting`
+  returns usage and limit (not in the public documentation, read defensively). Connecting Gmail or Synergy turns the
+  daily sync on (06:00, organisation time zone).
+
+### Invoice email status
+
+- Invoice header chip: "Invoice emailed 2 Oct 2026 14:05 to x@y (+2 CC)", "Not emailed yet" or "Last email failed" with
+  **Retry**, plus "Viewed …" when the client opened the link. Emails tab: a timeline of every invoice / reminder /
+  receipt / quote email with recipients, time in the organisation's time zone, status (SMTP error on failures), the
+  client's view after a send, and Resend. Invoice list: an email icon with "Emailed 3× · last 2 Oct". API:
+  `email_status` on invoices (list and detail) and `summary` on `GET /invoices/:id/email-log`.
+
+### Tax and time zone follow the country
+
+- Defaults per country (Kenya VAT 16% · Africa/Nairobi, Uganda / Tanzania / Rwanda VAT 18%, Nigeria VAT 7.5%, Ghana VAT
+  15% + levies note, South Africa VAT 15%, UK VAT 20%, Australia GST 10% (choose the time zone), New Zealand GST 15% …).
+  New organisations' invoice settings start from them; changing the country in Settings offers to update tax and time
+  zone (confirm dialog); organisations whose settings conflict get a one-time notice ("Your business is in Kenya but
+  tax is set to GST 10% and time zone to Adelaide — update to VAT 16% and Africa/Nairobi?"). Existing invoices never
+  change. API: `GET /org/country-defaults`, `POST /org/prefs/apply-defaults`, `POST /org/prefs/dismiss-notice`.
+
+### Also in this release
+
+- Dashboard analytics with imported summaries and a Business opportunities view (internal signals + public market data).
+- Business type (e.g. mechanic, salon) drives setup, menus and role templates; roles refine within the type.
+
 ## [2.8.0] - 2026-10-01
 
 ### Recurring bills and bill reminders — keep services online
