@@ -14,6 +14,32 @@
       </div>
     </header>
 
+    <section class="ui-card" style="margin-bottom: 20px">
+      <div class="ui-card__head">
+        <h2><i class="fa-solid fa-database"></i> Schema updates</h2>
+        <button class="ui-btn ui-btn--sm" :disabled="migrating || mig?.migrating" @click="rerunMigrations">
+          <i :class="migrating || mig?.migrating ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-wrench'"></i> Re-run database update
+        </button>
+      </div>
+      <div class="ui-card__body">
+        <p v-if="!mig" class="ui-hint">Checking…</p>
+        <template v-else>
+          <p>
+            <span v-if="mig.migrating" class="ui-badge ui-badge--warning">Updating…</span>
+            <span v-else-if="mig.migrations_done && !mig.migration_errors" class="ui-badge ui-badge--success">Up to date</span>
+            <span v-else-if="mig.migration_errors" class="ui-badge ui-badge--danger">{{ mig.migration_errors }} problem{{ mig.migration_errors === 1 ? '' : 's' }}</span>
+            <span v-else class="ui-badge ui-badge--draft">Not finished</span>
+            <span v-if="mig.skipped_same_build" class="ui-hint"> · this build was already applied, so start-up skipped the update</span>
+          </p>
+          <ul v-if="mig.errors && mig.errors.length" class="mig-errors">
+            <li v-for="(e, i) in mig.errors" :key="i"><code>{{ e }}</code></li>
+          </ul>
+          <p v-if="mig.pooler_warning" class="ui-hint"><i class="fa-solid fa-triangle-exclamation"></i> {{ mig.pooler_warning }}</p>
+          <p class="ui-hint">If a page reports a missing table after a release, re-run the update. It is safe to run any time.</p>
+        </template>
+      </div>
+    </section>
+
     <div v-if="error" class="ui-alert ui-alert--danger" style="margin-bottom: 20px">
       <i class="fa-solid fa-circle-exclamation"></i><span>{{ error }} <a href="#" @click.prevent="load">Try again</a></span>
     </div>
@@ -167,7 +193,7 @@
 
 <script>
 import '@/components/platform/platform.css'
-import { apiErrorMessage } from '@/services/api'
+import api, { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatDateTime } from '@/utils/format'
@@ -175,7 +201,7 @@ import { platformAPI, timeAgo, formatBytes, ensurePlatformSession } from '@/serv
 
 export default {
   name: 'DatabaseAdmin',
-  data: () => ({ data: null, loading: false, analyzing: false, error: '', q: '', sort: 'size', hideEmpty: false, shown: 50 }),
+  data: () => ({ mig: null, migrating: false, migTimer: null, data: null, loading: false, analyzing: false, error: '', q: '', sort: 'size', hideEmpty: false, shown: 50 }),
   computed: {
     nonEmpty() {
       return (this.data?.tables || []).filter((t) => t.rows > 0).length
@@ -229,8 +255,34 @@ export default {
       return
     }
     this.load()
+    this.loadMig()
+  },
+  beforeUnmount() {
+    clearTimeout(this.migTimer)
   },
   methods: {
+    async loadMig() {
+      clearTimeout(this.migTimer)
+      try {
+        const r = await api.get('/super-admin/db-status')
+        this.mig = r.data?.data || null
+      } catch (e) {
+        this.mig = { migrations_done: false, migration_errors: 0, errors: [apiErrorMessage(e, 'Could not read the database status')] }
+      }
+      if (this.mig?.migrating) this.migTimer = setTimeout(this.loadMig, 4000)
+    },
+    async rerunMigrations() {
+      this.migrating = true
+      try {
+        await api.post('/super-admin/db-migrate')
+        toast.info('Database update started — this takes about a minute.')
+        setTimeout(this.loadMig, 1500)
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not start the database update'))
+      } finally {
+        this.migrating = false
+      }
+    },
     formatDateTime,
     formatBytes,
     timeAgo,
@@ -410,5 +462,12 @@ export default {
   .side {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+.mig-errors {
+  margin: 8px 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--danger);
+  overflow-wrap: anywhere;
 }
 </style>
