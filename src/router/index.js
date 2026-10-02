@@ -396,6 +396,7 @@ const routes = [
   },
   { path: '/expenses', name: 'Expenses', component: () => import('../views/expenses/Expenses.vue'), meta: { requiresAuth: true, title: 'Expenses' } },
   { path: '/settings/expense-sources', name: 'ExpenseSources', component: () => import('../views/expenses/ExpenseSources.vue'), meta: { requiresAuth: true, title: 'Expense sources' } },
+  { path: '/supplier-prices', name: 'SupplierPrices', component: () => import('../views/pricebook/SupplierPrices.vue'), meta: { requiresAuth: true, title: 'Supplier prices' } },
   {
     path: '/banking',
     name: 'Banking',

@@ -76,6 +76,9 @@
 
     <ExpensesCard />
 
+    <!-- Industry watch: top headlines by relevance (shown once sources are followed) -->
+    <IndustryLatestCard />
+
     <div class="sec">
       <h2>Period performance</h2>
       <span>{{ periodText }}</span>
@@ -405,6 +408,7 @@ import SnapshotRow from '@/components/insights/SnapshotRow.vue'
 import HistoryCard from '@/components/insights/HistoryCard.vue'
 import HostingCard from '@/components/insights/HostingCard.vue'
 import CashForecastCard from '@/components/insights/CashForecastCard.vue'
+import IndustryLatestCard from '@/components/insights/IndustryLatestCard.vue'
 import { insightsApi } from '@/services/insights'
 import { hasModule } from '@/composables/useEntitlements'
 import {
@@ -427,7 +431,7 @@ const PREF = 'dash.period'
 
 export default {
   name: 'DashboardView',
-  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard },
+  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard, IndustryLatestCard },
   data() {
     return {
       data: null,

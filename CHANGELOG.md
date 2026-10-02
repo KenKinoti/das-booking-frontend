@@ -6,6 +6,105 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.10.0] - 2026-10-02
+
+### Insights: industry watch, trade & exports, strategy brief
+
+Three new tabs under **Insights** keep the business up to date with its industry, show its foreign-trade position
+from its own invoices, and turn both into a monthly brief with ranked actions.
+
+**Industry watch** — news and developments, stored in the database with history.
+
+- Follow RSS 2.0 / Atom feeds (tech and business press, regulators, platform vendors, trade bodies). For every entry
+  only the feed's own title, link, date and a plain-text summary of at most 400 characters are stored — articles are
+  never fetched or stored. Items are kept 180 days; saved items are kept for good.
+- **Sources**: paste a feed address → it is checked and the latest three items are previewed before you add it;
+  switch sources on and off, fetch one now, see the error of a source that fails. A catalogue of 20 **suggested
+  sources** (Techweez, TechCabal, CIO Africa, Business Daily, iTnews, Communications Authority of Kenya, KENIC, auDA,
+  ACSC alerts, Google Workspace Updates, Cloudflare, WordPress.org, WP Tavern, Synergy Wholesale, hosting.com, WTO,
+  UNCTAD, ITC, EAC, KenTrade) is offered with **Check & add**. **These addresses have not been verified yet** — the
+  build environment could not reach the sites — so none is switched on by itself: each one is tested when you add it
+  and is refused, with the reason, if it does not answer with a readable feed.
+- Fetched once a day (one instance at a time, Postgres advisory lock) and with **Refresh now**: conditional GET
+  (`ETag` / `Last-Modified`), 10 s timeout, 2 MB and 50 items per feed, https only. Addresses are typed in by users,
+  so the fetcher refuses private, loopback, link-local and metadata addresses — checked on the address actually
+  dialled, after DNS resolution and on every redirect.
+- **Tagging and relevance** are plain keyword rules you can read and edit (*Keyword rules*): hosting & domains, cloud,
+  AI & automation, payments & fintech, e-commerce, cybersecurity, regulation & tax, trade & export, FX & economy, web
+  & software platforms, competitors (your own list), clients' sectors. Score 0–100 = topic points (12 × weight ×
+  match strength × boost for your business type and the service lines you sold in the last 12 months) + 15 for your
+  home country or 10 for a country you have clients in. Every item shows **why it's relevant**.
+- List with topic / country / source / period filters, search, unread and saved views, save, dismiss, mark read.
+  The **dashboard** shows *Latest in your industry* (top three by relevance) once you follow a source.
+
+**Trade & exports** — "foreign trade" from the database.
+
+- Revenue by **client country** → domestic vs export share with the same period a year earlier and a monthly trend;
+  by **currency**; top export clients; average invoice and days to pay per country. A document without a client
+  country is filed under its currency's country (foreign currency) or assumed domestic (home currency) — counted and
+  flagged. Click a country or currency for the documents; every table downloads as CSV.
+- **Open receivables at today's rates**: unrealised FX gain / loss = open balance × today's rate − open balance ÷ the
+  rate locked on the invoice. **Realised FX** on paid foreign invoices = payment × the rate of the month it was
+  received − payment ÷ the locked rate, counted only where a month rate is recorded (Expenses → exchange rates).
+- **Natural hedge**: what you earn and spend in each foreign currency ("AUD in vs AUD out"), the share covered, the
+  net exposure and what a 5% rate move changes.
+- **Target markets**: a country list you choose (default KE, AU, UG, TZ, RW, GB, US, AE, ZA) with World Bank
+  indicators (GDP per capita, internet users, new businesses, trade % of GDP, service and ICT service exports), FX
+  volatility against your currency and your revenue there, combined into an **opportunity score** — weights shown and
+  editable, factors without data left out, a plain-English note per country.
+
+**Strategy brief** — a stored brief per month.
+
+- Performance snapshot, what changed against the month before, export & FX position, market signals, industry
+  headlines (with links), risks and **recommended actions** ranked with their rationale and an estimate in your
+  currency (the opportunity rules, plus exchange-rate and target-market actions). Revenue and net profit include
+  invoices in other currencies at their locked rates; the brief says how that differs from the Profit & loss report,
+  which lists one currency at a time.
+- The rule-based brief is deterministic and always available. With AI switched on, **Write with AI** produces a
+  second version from the same data — the model is told to use only the supplied numbers; it is labelled *AI-written
+  from your data* and the rule-based version is kept.
+- Generated automatically at the start of each month (can be switched off) and with **Generate now**; optional
+  **email to the admins** (off by default) with the shared email template; a **print** view; history of past briefs.
+
+Also in this release:
+
+- **Ask DASYIN key in the app.** A super admin pastes the Anthropic API key in *System settings → AI assistant*: it is
+  checked with Anthropic, stored encrypted and used immediately (no server variable, no restart) by the assistant,
+  meeting summaries, expense reading and market explanations. Model picker, **Test key**, usage today. Wherever the
+  assistant is off the app explains that *Claude connected with MCP* and the *in-app assistant* are two separate
+  things and shows the status of each ("Claude is connected to this workspace via MCP ✓"); an MCP access token pasted
+  by mistake is recognised and refused.
+- **Supplier prices** (Finance → Supplier prices). Price lists for wholesale suppliers, your own server and
+  competitors: CSV import / export with a dry-run preview, price history, "check price" after 90 days, **Auto-fill
+  Synergy** from your statements (and the Synergy API when connected). **Combo comparison**: what a domain + hosting
+  package costs from each supplier in its currency and yours (rate, source and date shown, editable for what-if),
+  the cheapest mix, a **cheapest-to-renew** mix, promo-then-renewal traps flagged, reseller plans spread over the
+  number of sites you host, competitors as market benchmarks only. **Own-server cost model** with break-even against
+  each wholesale plan. **Retail price helper**: margin or markup, payment fees, tax, friendly rounding, FX
+  sensitivity, position against the market, **Save as service**. AI / MCP tools `supplier_prices_compare` and
+  `supplier_prices_list`.
+
+API: `GET /insights/watch` (`topic`, `country`, `source`, `saved`, `unread`, `dismissed`, `q`, `days`, `sort`),
+`GET /insights/watch/latest`, `POST /insights/watch/refresh`, `PUT /insights/watch/items/:id`,
+`POST /insights/watch/read-all`, `GET|POST /insights/watch/feeds`, `POST /insights/watch/feeds/preview`,
+`POST /insights/watch/feeds/suggested`, `PUT|DELETE /insights/watch/feeds/:id`, `GET|PUT|DELETE /insights/watch/rules`;
+`GET /insights/trade`, `GET /insights/trade/documents`, `GET|PUT|DELETE /insights/trade/markets`,
+`GET /insights/trade/export/:dataset`; `GET /insights/briefs`, `GET /insights/briefs/preview`,
+`GET|DELETE /insights/briefs/:id`, `POST /insights/briefs/generate`, `POST /insights/briefs/:id/ai`,
+`POST /insights/briefs/:id/email`, `PUT /insights/briefs/settings`. AI / MCP tools: `industry_watch_latest`,
+`trade_exports_summary`, `insights_strategy_brief` (all read-only). New tables `insights_watch_feeds`,
+`insights_watch_items`, `insights_watch_rules`, `insights_settings`, `insights_briefs`. Environment:
+`INSIGHTS_SCHEDULER=off` disables the daily refresh and the monthly brief; `INDUSTRY_WATCH_BASE_URL` is for tests only.
+
+Supplier prices API (under `/finance/supplier-prices`, admins and managers): `GET /`, `GET /context`, `PUT /tiers`,
+`GET|POST /suppliers`, `PUT|DELETE /suppliers/:id`, `GET /suppliers/:id/model`, `GET|POST /items`,
+`PUT|DELETE /items/:id`, `GET /items/:id/history`, `POST /import` (`dry_run`), `GET /export.csv`, `GET /template.csv`,
+`POST /synergy/autofill`, `POST /compare`, `POST /retail`, `POST /services`, `GET|POST /scenarios`,
+`PUT|DELETE /scenarios/:id`. AI settings API (super admin): `GET|PUT|DELETE /super-admin/ai/settings`,
+`POST /super-admin/ai/settings/test`, `GET /super-admin/ai/settings/models`. New tables `pricebook_suppliers`,
+`pricebook_items`, `pricebook_price_changes`, `pricebook_scenarios`, `pricebook_settings`,
+`assistant_platform_settings`.
+
 ## [2.9.1] - 2026-10-02
 
 ### Bookings are easy to add to a calendar

@@ -25,6 +25,25 @@
       <span v-else>{{ testResult.message }}</span>
     </div>
 
+    <!-- Two ways to use AI: Claude over MCP (this page) vs the in-app assistant (needs an API key) -->
+    <section class="ui-card ways-card" data-test="two-ways">
+      <div class="ui-card__head">
+        <h2><i class="fa-solid fa-signs-post"></i> Two ways to use AI</h2>
+        <button class="ui-btn ui-btn--ghost ui-btn--sm" :disabled="assistant.statusLoading" aria-label="Refresh status" @click="loadAssistantStatus">
+          <i class="fa-solid fa-rotate" :class="{ 'fa-spin': assistant.statusLoading }"></i>
+        </button>
+      </div>
+      <div class="ui-card__body">
+        <p class="ways-intro">
+          They are set up separately. This page is about the first one: connecting Claude to DASYIN. The Ask DASYIN panel inside the app is the second, and needs an Anthropic API
+          key of its own.
+        </p>
+        <AiWays v-if="assistant.status" :status="assistant.status" variant="page" :link-mcp="false" />
+        <div v-else-if="assistant.statusError" class="ui-hint">{{ assistant.statusError }}</div>
+        <div v-else class="ui-skeleton" style="height: 96px"></div>
+      </div>
+    </section>
+
     <!-- Server URL -->
     <section class="ui-card url-card">
       <div class="ui-card__head">
@@ -279,13 +298,17 @@ import api, { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatDate, formatDateTime } from '@/utils/format'
+import AiWays from '@/components/assistant/AiWays.vue'
+import { assistant, loadStatus } from '@/composables/useAssistant'
 
 const TAB_KEYS = ['tokens', 'apps', 'tools', 'activity']
 
 export default {
   name: 'AiSettings',
+  components: { AiWays },
   data() {
     return {
+      assistant,
       info: null,
       tokens: [],
       connections: [],
@@ -342,10 +365,15 @@ export default {
   },
   created() {
     this.loadAll()
+    this.loadAssistantStatus()
   },
   methods: {
     formatDate,
     formatDateTime,
+    /** Status of both ways (MCP connection + in-app assistant) for the "Two ways to use AI" box. */
+    loadAssistantStatus() {
+      return loadStatus(true)
+    },
     async loadAll() {
       this.loading = true
       this.loadError = ''
@@ -440,6 +468,7 @@ export default {
         this.created = data.data
         this.lastSecret = data.data.secret
         await this.loadTokens()
+        this.loadAssistantStatus()
         toast.success('Token created')
       } catch (e) {
         this.formError = apiErrorMessage(e, 'Could not create the token')
@@ -453,6 +482,7 @@ export default {
       try {
         await api.delete(`/mcp/tokens/${t.id}`)
         await this.loadTokens()
+        this.loadAssistantStatus()
         toast.success('Token revoked')
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not revoke the token'))
@@ -465,6 +495,7 @@ export default {
         await api.delete(`/mcp/connections/${c.id}`)
         const { data } = await api.get('/mcp/connections')
         this.connections = data.data.connections || []
+        this.loadAssistantStatus()
         toast.success('App disconnected')
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not disconnect the app'))
@@ -476,6 +507,8 @@ export default {
 
 <style scoped>
 .url-card { margin-bottom: 16px; }
+.ways-card { margin-bottom: 16px; }
+.ways-intro { margin: 0 0 14px; max-width: 860px; font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
 .head-badges { display: flex; gap: 6px; }
 .url-row { display: flex; gap: 8px; align-items: center; }
 .url-input { flex: 1; min-width: 0; }

@@ -38,6 +38,58 @@ export const analyticsApi = {
   resetServiceMap: () => api.delete('/analytics/service-map').then(data)
 }
 
+// Industry watch: stored headlines from RSS / Atom sources, tagged and scored.
+export const watchApi = {
+  list: (p) => api.get('/insights/watch', { params: clean(p) }).then(data),
+  latest: (n = 3) => api.get('/insights/watch/latest', { params: { n } }).then(data),
+  refresh: (feedId) => api.post('/insights/watch/refresh', feedId ? { feed_id: feedId } : {}, { timeout: 130000 }).then(data),
+  setItem: (id, patch) => api.put(`/insights/watch/items/${id}`, patch).then(data),
+  readAll: () => api.post('/insights/watch/read-all').then(data),
+  feeds: () => api.get('/insights/watch/feeds').then(data),
+  preview: (url) => api.post('/insights/watch/feeds/preview', { url }, { timeout: 30000 }).then(data),
+  addFeed: (body) => api.post('/insights/watch/feeds', body, { timeout: 40000 }).then(data),
+  addSuggested: (keys = []) => api.post('/insights/watch/feeds/suggested', { keys }, { timeout: 130000 }).then(data),
+  updateFeed: (id, patch) => api.put(`/insights/watch/feeds/${id}`, patch, { timeout: 40000 }).then(data),
+  removeFeed: (id) => api.delete(`/insights/watch/feeds/${id}`).then(data),
+  rules: () => api.get('/insights/watch/rules').then(data),
+  saveRules: (rules) => api.put('/insights/watch/rules', { rules }).then(data),
+  resetRules: () => api.delete('/insights/watch/rules').then(data)
+}
+
+// Trade & exports: revenue by client country / currency, FX position, target markets.
+export const tradeApi = {
+  get: (p) => api.get('/insights/trade', { params: { ...clean(p), tz: tz() } }).then(data),
+  documents: (p) => api.get('/insights/trade/documents', { params: { ...clean(p), tz: tz() } }).then(data),
+  markets: (refresh = false) => api.get('/insights/trade/markets', { params: { ...(refresh ? { refresh: 1 } : {}), tz: tz() }, timeout: 60000 }).then(data),
+  saveMarkets: (body) => api.put('/insights/trade/markets', body, { timeout: 60000 }).then(data),
+  resetMarkets: () => api.delete('/insights/trade/markets', { timeout: 60000 }).then(data),
+  exportCsv: (dataset, p) => api.get(`/insights/trade/export/${dataset}`, { params: { ...clean(p), tz: tz() }, responseType: 'blob', timeout: 120000 }).then((r) => r.data)
+}
+
+// Strategy brief: stored monthly briefs (rule-based, optionally AI-written from the same data).
+export const briefApi = {
+  list: () => api.get('/insights/briefs', { params: { tz: tz() } }).then(data),
+  get: (id) => api.get(`/insights/briefs/${id}`).then(data),
+  generate: (period) => api.post('/insights/briefs/generate', { period: period || '' }, { params: { tz: tz() }, timeout: 90000 }).then(data),
+  ai: (id) => api.post(`/insights/briefs/${id}/ai`, {}, { timeout: 120000 }).then(data),
+  email: (id) => api.post(`/insights/briefs/${id}/email`, {}, { timeout: 60000 }).then(data),
+  remove: (id) => api.delete(`/insights/briefs/${id}`).then(data),
+  settings: (body) => api.put('/insights/briefs/settings', body, { params: { tz: tz() } }).then(data)
+}
+
+/** "3 hours ago", "2 days ago", else a date. */
+export function ago(value) {
+  if (!value) return ''
+  const t = new Date(value).getTime()
+  if (Number.isNaN(t)) return ''
+  const s = Math.max(0, (Date.now() - t) / 1000)
+  if (s < 90) return 'just now'
+  if (s < 3600) return `${Math.round(s / 60)} min ago`
+  if (s < 36 * 3600) return `${Math.round(s / 3600)} h ago`
+  if (s < 14 * 86400) return `${Math.round(s / 86400)} days ago`
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(t))
+}
+
 export const LINE_COLORS = {
   web_dev: 'var(--viz-1)',
   hosting: 'var(--viz-2)',

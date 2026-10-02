@@ -97,6 +97,7 @@ export const navGroups = [
       { label: 'Accounting', to: '/finance', module: 'accounting', icon: 'fa-solid fa-scale-balanced' },
       { label: 'Bills', to: '/bills', module: 'accounting', icon: 'fa-solid fa-money-bill-wave' },
       { label: 'Expenses', to: '/expenses', module: 'core', icon: 'fa-solid fa-receipt' },
+      { label: 'Supplier prices', to: '/supplier-prices', module: 'accounting', icon: 'fa-solid fa-tags', minBase: 'manager' },
       { label: 'Banking', to: '/banking', module: 'accounting', icon: 'fa-solid fa-building-columns' }
     ]
   },

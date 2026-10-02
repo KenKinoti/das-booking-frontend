@@ -9,6 +9,10 @@
     </label>
     <div v-if="status" class="as__meta">
       <div><span>Model</span><strong>{{ status.model || '—' }}</strong></div>
+      <div v-if="status.super_admin" data-test="asst-key-source">
+        <span>API key</span>
+        <strong>{{ keySource }} · <router-link to="/system-settings?tab=ai">Manage</router-link></strong>
+      </div>
       <div><span>Tools available</span><strong>{{ status.tools_count ?? 0 }}</strong></div>
       <div v-if="status.rate_limit"><span>Limit</span><strong>{{ status.rate_limit.limit }} messages / {{ Math.round(status.rate_limit.window_seconds / 60) }} min</strong></div>
       <template v-if="status.usage_today">
@@ -36,6 +40,9 @@ export default {
     },
     enabled() {
       return !!assistant.status?.enabled
+    },
+    keySource() {
+      return { settings: 'Saved in app', environment: 'Environment variable' }[assistant.status?.source] || 'Not set'
     },
     autoApprove() {
       return !!assistant.status?.settings?.auto_approve

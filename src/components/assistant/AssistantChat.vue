@@ -2,15 +2,14 @@
   <div class="ac" :class="`ac--${variant}`">
     <div class="ac__scroll" ref="scroll" @scroll.passive="onScroll" @click="onContentClick">
       <!-- Not configured -->
-      <div v-if="disabled" class="ac__setup">
+      <div v-if="disabled" class="ac__setup ac__setup--ways" data-test="asst-off">
         <div class="ac__setup-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
         <h3>Ask DASYIN isn't switched on yet</h3>
-        <p v-if="isSuperAdmin">
-          Set <code>ANTHROPIC_API_KEY</code> on the backend service (optionally <code>ASSISTANT_MODEL</code>) and restart it. The assistant will then be available to everyone in
-          your workspace.
-        </p>
-        <p v-else>The AI assistant needs to be enabled for your workspace. Ask your administrator to turn it on.</p>
-        <button class="ui-btn ui-btn--ghost ui-btn--sm" @click="refreshStatus"><i class="fa-solid fa-rotate"></i> Check again</button>
+        <p>There are two ways to use AI with DASYIN. They are set up separately:</p>
+        <AiWays :status="assistant.status" variant="panel" @navigate="$emit('navigate')" />
+        <button class="ui-btn ui-btn--ghost ui-btn--sm" :disabled="assistant.statusLoading" data-test="asst-check-again" @click="refreshStatus">
+          <i class="fa-solid fa-rotate" :class="{ 'fa-spin': assistant.statusLoading }"></i> Check again
+        </button>
       </div>
 
       <div v-else-if="statusMissing" class="ac__setup">
@@ -135,14 +134,15 @@
 
 <script>
 import api, { apiErrorMessage } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
 import { renderMarkdown } from '@/utils/miniMarkdown'
 import { assistant, loadStatus, pageContext, suggestionsFor, streamSSE, upsertConversation, emitDataChanged } from '@/composables/useAssistant'
+import AiWays from './AiWays.vue'
 
 let keySeq = 0
 
 export default {
   name: 'AssistantChat',
+  components: { AiWays },
   props: {
     variant: { type: String, default: 'panel' },
     conversationId: { type: String, default: '' },
@@ -167,9 +167,6 @@ export default {
     }
   },
   computed: {
-    isSuperAdmin() {
-      return useAuthStore().isSuperAdmin
-    },
     disabled() {
       return !!assistant.status && assistant.status.enabled === false
     },
@@ -203,10 +200,13 @@ export default {
     },
     active(v) {
       if (v) this.$nextTick(() => this.scrollToBottom(true))
+      // "Off" may be stale: an administrator can add the API key at any time
+      // and it works straight away, so look again whenever the chat is shown.
+      if (v && this.disabled) loadStatus(true)
     }
   },
   mounted() {
-    loadStatus()
+    loadStatus(this.active && this.disabled)
     if (this.active) this.focus()
   },
   beforeUnmount() {
@@ -551,6 +551,17 @@ export default {
 .ac__setup-icon.is-warn {
   background: var(--warning-soft);
   color: var(--warning);
+}
+
+/* "Two ways to use AI" card: left-aligned rows under a centred heading */
+.ac__setup--ways {
+  padding-top: 22px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.ac__setup--ways > .aw {
+  margin: 6px 0 4px;
 }
 
 .ac__chips {

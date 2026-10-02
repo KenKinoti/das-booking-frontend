@@ -164,7 +164,7 @@
             <li>Paste the client ID and secret above, choose what to look for, then <strong>Connect Google</strong> and allow read-only access.</li>
             <li>The first sync reads about 13 months of billing emails; later syncs read new ones only.</li>
           </ol>
-          <p class="muted">{{ src.ai_enabled ? 'AI extraction is on: documents the rules cannot read are read by Claude and marked "AI-extracted, please confirm".' : 'Tip: set ANTHROPIC_API_KEY on the server to let AI read scanned invoices and photos.' }}</p>
+          <p class="muted">{{ src.ai_enabled ? 'AI extraction is on: documents the rules cannot read are read by Claude and marked "AI-extracted, please confirm".' : 'Tip: add an Anthropic API key in System settings → AI assistant to let AI read scanned invoices and photos.' }}</p>
         </div>
       </section>
     </template>

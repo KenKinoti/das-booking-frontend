@@ -25,7 +25,12 @@
         </div>
       </div>
 
-      <div v-if="!settings" class="ui-card__body">
+      <!-- AI assistant: the platform's Anthropic API key and model (loads on its own) -->
+      <div v-if="tab === 'ai'" class="ui-card__body">
+        <AiKeySettings />
+      </div>
+
+      <div v-else-if="!settings" class="ui-card__body">
         <div v-for="n in 6" :key="n" class="ui-skeleton" style="height: 40px; margin-bottom: 14px; max-width: 640px"></div>
       </div>
 
@@ -286,6 +291,7 @@ import { currencyGroups } from '@/utils/currencies'
 import { platformAPI, ensurePlatformSession } from '@/services/platform'
 import EmailSettingsPanel from '@/components/settings/EmailSettingsPanel.vue'
 import SignInProviders from '@/components/auth/SignInProviders.vue'
+import AiKeySettings from '@/components/assistant/AiKeySettings.vue'
 import { paymentsApi } from '@/services/payments'
 import { SOURCE_LABELS, SECURITY_LABELS } from '@/services/emailSettings'
 
@@ -336,7 +342,7 @@ const SECTIONS = {
 
 export default {
   name: 'SystemSettings',
-  components: { EmailSettingsPanel, SignInProviders },
+  components: { EmailSettingsPanel, SignInProviders, AiKeySettings },
   data() {
     return {
       settings: null,
@@ -349,7 +355,7 @@ export default {
       saving: false,
       testing: false,
       error: '',
-      tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'signin', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
+      tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'signin', 'ai', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
       testTo: '',
       sendingTest: false,
       testResult: null,
@@ -364,6 +370,7 @@ export default {
         { value: 'twilio', label: 'SMS', icon: 'fa-solid fa-comment-sms', section: 'twilio_settings' },
         { value: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', section: 'whatsapp_settings' },
         { value: 'signin', label: 'Sign-in providers', icon: 'fa-solid fa-right-to-bracket' },
+        { value: 'ai', label: 'AI assistant', icon: 'fa-solid fa-wand-magic-sparkles' },
         { value: 'activity', label: 'Activity', icon: 'fa-solid fa-list-check' }
       ]
     }
@@ -393,6 +400,12 @@ export default {
         { key: 'twilio', label: 'Twilio SMS', icon: 'fa-solid fa-comment-sms', enabled: tw.enabled, verified: !!tw.connection_verified, tested: !!tw.last_tested_at, detail: tw.account_sid ? `From ${tw.from_phone_number || '—'}` : 'No account saved' },
         { key: 'whatsapp', label: 'WhatsApp Business', icon: 'fa-brands fa-whatsapp', enabled: wa.enabled, verified: !!wa.connection_verified, tested: !!wa.last_tested_at, detail: wa.phone_number_id ? `Phone number ID ${wa.phone_number_id}` : 'No credentials saved' }
       ]
+    }
+  },
+  watch: {
+    // Deep links such as "Add API key" (/system-settings?tab=ai) while this page is already open.
+    '$route.query.tab'(t) {
+      if (t && t !== this.tab && this.tabs.some((x) => x.value === t)) this.tab = t
     }
   },
   created() {

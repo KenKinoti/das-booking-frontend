@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.9.1'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,15 +26,14 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Synergy costs now count in your P&L automatically — as service charges or as top-ups from your bank — with every amount shown per month in AUD and your own currency at the right rate.'
+export const RELEASE_LEAD = 'Insights now keeps you up to date with your industry, shows your export and exchange-rate position, and turns both into a monthly strategy brief with ranked actions.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-server', text: 'Synergy expenses are created and approved automatically from your statements (upload or Gmail): choose service charges or top-ups from your bank — never both — with a reconciliation of top-ups, charges and balance' },
-  { icon: 'fa-solid fa-money-bill-transfer', text: 'Clear amounts everywhere: “A$4.25 / month ≈ KES 363 / month” with the rate, its source and date; each month converted at its own rate, Australian GST handled for non-Australian businesses' },
-  { icon: 'fa-solid fa-wand-magic-sparkles', text: 'Less manual work: Google Workspace invoices approved automatically within ±20% of last month, Synergy statement emails imported for you, and a “How automatic is this?” panel per source' },
-  { icon: 'fa-regular fa-envelope', text: 'Invoice email status: “Emailed 2 Oct 14:05 to … (+2 CC)”, failed sends with a Retry, and a timeline of every invoice, reminder and receipt email with when the client viewed it' },
-  { icon: 'fa-regular fa-calendar-plus', text: 'Bookings in your own calendar: one-tap “Add to calendar” (Google, Outlook, Apple) in booking emails and the app, plus a calendar link to subscribe once and stay in sync (My profile → My bookings calendar)' },
-  { icon: 'fa-solid fa-earth-africa', text: 'Tax and time zone follow your country (Kenya → VAT 16%, Africa/Nairobi …) with a one-click fix when they don’t match' },
-  { icon: 'fa-solid fa-chart-line', text: 'Dashboard analytics with imported summaries and a Business opportunities view; business type (e.g. mechanic, salon) drives setup, menus and role templates' }
+  { icon: 'fa-solid fa-rss', text: 'Industry watch: headlines from the news feeds you follow (tech press, regulators, vendors, trade bodies), stored with history, tagged and scored against your business with keyword rules you can edit — and the top three on your dashboard' },
+  { icon: 'fa-solid fa-plane-departure', text: 'Trade & exports: domestic vs export revenue by client country and currency, open foreign invoices at today’s rate (unrealised gain or loss), realised FX on paid invoices and your natural hedge — “AUD in vs AUD out”' },
+  { icon: 'fa-solid fa-earth-africa', text: 'Target markets: World Bank indicators, currency stability and what you already earn in each country, combined into an opportunity score whose weights you can change' },
+  { icon: 'fa-solid fa-chess-knight', text: 'Strategy brief: a stored monthly brief — performance, what changed, export & FX position, market signals, industry headlines, risks and recommended actions with estimates; optional AI version, email to admins and a print view' },
+  { icon: 'fa-solid fa-key', text: 'AI assistant key can be saved in System settings (no server restart); clearer explanation of Claude-via-MCP vs the in-app assistant' },
+  { icon: 'fa-solid fa-tags', text: 'Supplier price book: compare domain + hosting combos across suppliers in your currency, with margin and retail price suggestions' }
 ]
