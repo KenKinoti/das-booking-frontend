@@ -160,7 +160,16 @@
             </div>
           </template>
 
-          <!-- 4. Team -->
+          <!-- 4. Bar setup (nightclub / bar / lounge) -->
+          <template v-else-if="current.id === 'bar'">
+            <div class="sw__head">
+              <h1 :id="'sw-h-' + current.id">Set up your bar</h1>
+              <p>Where you keep and sell stock, the measure you pour and the drinks you carry. DASYIN then deducts every drink sold at the till from the right bar. You can change all of it later in Bar stock.</p>
+            </div>
+            <BarSetupStep ref="bar" @saved="onBarSaved" />
+          </template>
+
+          <!-- 5. Team -->
           <template v-else-if="current.id === 'team'">
             <div class="sw__head">
               <h1 :id="'sw-h-' + current.id">Invite your {{ termLower('staff') }}</h1>
@@ -211,7 +220,7 @@
             </div>
           </template>
 
-          <!-- 5. Services -->
+          <!-- 6. Services -->
           <template v-else-if="current.id === 'services'">
             <div class="sw__head">
               <h1 :id="'sw-h-' + current.id">Your {{ termLower('services') }}</h1>
@@ -243,18 +252,52 @@
             <button type="button" class="ui-btn ui-btn--sm sw__add-svc" @click="services.push({ name: '', category: services[0]?.category || 'General', duration: 60, price: 0, on: true })"><i class="fa-solid fa-plus"></i> Add a line</button>
           </template>
 
-          <!-- 6. Done -->
+          <!-- 7. Done -->
           <template v-else>
             <div class="sw__head sw__head--done">
               <span class="sw__done-icon"><i class="fa-solid fa-circle-check"></i></span>
               <h1 :id="'sw-h-' + current.id">{{ orgName }} is ready</h1>
               <p>DASYIN is set up for a {{ typeName.toLowerCase() }}. Here's what most businesses like yours do next.</p>
             </div>
+            <div v-if="barSummary && steps.some((s) => s.id === 'bar')" class="sw__bar" data-testid="bar-summary">
+              <h3><i class="fa-solid fa-martini-glass-citrus"></i> Your bar</h3>
+              <dl class="sw__bar-facts">
+                <div class="sw__bar-wide">
+                  <dt>Bars &amp; store</dt>
+                  <dd class="chips">
+                    <span v-for="l in barSummary.locations" :key="l.name" class="chip chip--soft" :data-testid="`bar-summary-loc`">
+                      {{ l.name }} <small>· {{ l.main ? 'main store' : locationTypeLabel(l.type) }}</small>
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Tot size</dt>
+                  <dd>{{ barSummary.tot_ml }} ml</dd>
+                </div>
+                <div>
+                  <dt>Business day ends</dt>
+                  <dd>{{ barSummary.day_cutoff }}</dd>
+                </div>
+                <div>
+                  <dt>Stock items</dt>
+                  <dd data-testid="bar-summary-items">{{ barSummary.items }} added<template v-if="barSummary.skipped"> · {{ barSummary.skipped }} already there</template></dd>
+                </div>
+                <div v-if="barSummary.makeMenuItems || barSummary.menuItems">
+                  <dt>Menu items</dt>
+                  <dd>{{ menuItemsText(barSummary) }}</dd>
+                </div>
+              </dl>
+              <div class="sw__bar-links">
+                <button type="button" class="ui-btn ui-btn--sm ui-btn--primary" :disabled="busy" data-testid="bar-open" @click="finishTo('/bar-stock')"><i class="fa-solid fa-martini-glass-citrus"></i> Open Bar stock</button>
+                <button type="button" class="ui-btn ui-btn--sm" :disabled="busy" @click="finishTo('/bar-stock?tab=recipes')"><i class="fa-solid fa-tags"></i> Set menu prices</button>
+                <button type="button" class="ui-btn ui-btn--sm" :disabled="busy" @click="finishTo('/bar-stock?tab=setup')"><i class="fa-solid fa-sliders"></i> Bar settings</button>
+              </div>
+            </div>
             <ul class="sw__checklist">
               <li v-for="c in checklist" :key="c.key">
-                <button type="button" class="sw__check" :disabled="busy" @click="finishTo(c.to)">
+                <button type="button" class="sw__check" :disabled="busy" :data-key="c.key" @click="finishTo(c.to)">
                   <i class="fa-regular fa-circle"></i>
-                  <span>{{ c.label }}</span>
+                  <span>{{ c.label }}<small v-if="c.hint">{{ c.hint }}</small></span>
                   <i v-if="c.to" class="fa-solid fa-arrow-right sw__check-go"></i>
                 </button>
               </li>
@@ -283,6 +326,8 @@
 import BrandMark from '@/components/layout/BrandMark.vue'
 import CountryPicker from '@/components/customers/CountryPicker.vue'
 import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
+import BarSetupStep from './BarSetupStep.vue'
+import { LOCATION_TYPES, menuItemsText, summaryToast } from './barSetup'
 import api, { apiErrorMessage } from '@/services/api'
 import { industryAPI, moduleLabel } from '@/services/industry'
 import { useAuthStore } from '@/stores/auth'
@@ -294,12 +339,12 @@ import { saveOrgPrefs, loadOrgPrefs } from '@/composables/useOrgPrefs'
 import { useBranding } from '@/composables/useBranding'
 import { currencyGroups, currencyForCountry, CURRENCY_CODES } from '@/utils/currencies'
 
-const STEP_LABELS = { type: 'Business type', region: 'Country & currency', details: 'Business details', team: 'Team', services: 'Services', done: 'Done' }
+const STEP_LABELS = { type: 'Business type', region: 'Country & currency', details: 'Business details', bar: 'Bar setup', team: 'Team', services: 'Services', done: 'Done' }
 const blankRow = (roleId = '') => ({ key: Math.random().toString(36).slice(2), first_name: '', last_name: '', email: '', role_id: roleId, error: '' })
 
 export default {
   name: 'SetupWizard',
-  components: { BrandMark, CountryPicker, OrgLogoUploader },
+  components: { BrandMark, CountryPicker, OrgLogoUploader, BarSetupStep },
   data() {
     return {
       loading: true,
@@ -317,6 +362,7 @@ export default {
       invited: [],
       services: [],
       servicesFor: '',
+      barSummary: null,
       currencyGroups: currencyGroups(),
       timezones: typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [],
       origin: window.location.origin,
@@ -345,8 +391,16 @@ export default {
     planHasBookings() {
       return !access.planModules.length || access.planModules.includes('bookings')
     },
+    /** Bar stock (bars & store, tots, starter stock list) for the nightclub type. */
+    barStep() {
+      const t = this.chosenType
+      if (!t || !(t.key === 'nightclub' || (t.features || []).includes('bar_stock'))) return false
+      return !access.planModules.length || access.planModules.includes('inventory')
+    },
     steps() {
-      const ids = ['type', 'region', 'details', 'team']
+      const ids = ['type', 'region', 'details']
+      if (this.barStep) ids.push('bar')
+      ids.push('team')
       const t = this.chosenType
       const typeHasBookings = t && (t.modules.includes('*') || t.modules.includes('bookings'))
       if (t && t.sample_services?.length && typeHasBookings && this.planHasBookings) ids.push('services')
@@ -357,12 +411,13 @@ export default {
       return this.steps[Math.min(this.index, this.steps.length - 1)]
     },
     skippable() {
-      return ['region', 'details', 'team', 'services'].includes(this.current.id) && !this.invited.length
+      return ['region', 'details', 'bar', 'team', 'services'].includes(this.current.id) && !this.invited.length
     },
     nextLabel() {
       if (this.current.id === 'done') return 'Go to DASYIN'
       if (this.current.id === 'team') return this.invited.length ? 'Continue' : this.team.some((r) => r.email) ? 'Invite & continue' : 'Continue'
       if (this.current.id === 'services') return 'Add services & continue'
+      if (this.current.id === 'bar') return 'Set up the bar & continue'
       return 'Continue'
     },
     canLeave() {
@@ -407,6 +462,14 @@ export default {
     },
     toggleTheme() {
       globalTheme.toggleTheme()
+    },
+    menuItemsText,
+    onBarSaved(summary) {
+      this.barSummary = summary
+      toast.success(summaryToast(summary))
+    },
+    locationTypeLabel(t) {
+      return (LOCATION_TYPES.find((x) => x.value === t)?.label || t || '').toLowerCase()
     },
     async init() {
       this.loading = true
@@ -576,6 +639,10 @@ export default {
           return 'stay'
         }
         return failed ? 'stay' : true
+      }
+      if (id === 'bar') {
+        const step = this.$refs.bar
+        return step ? step.save() : true
       }
       if (id === 'services') {
         const rows = this.services.filter((s) => s.on && s.name)
@@ -1078,6 +1145,69 @@ function moduleLabelsAll() {
 
 .sw__check span {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sw__check span small {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.sw__bar {
+  max-width: 560px;
+  margin: 0 auto 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+}
+
+.sw__bar h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.sw__bar h3 i {
+  margin-right: 6px;
+  color: var(--accent);
+}
+
+.sw__bar-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0 0 12px;
+}
+
+.sw__bar-facts dt {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sw__bar-facts dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sw__bar-wide {
+  grid-column: 1 / -1;
+}
+
+.sw__bar-facts .chip small {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.sw__bar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .sw__check i {

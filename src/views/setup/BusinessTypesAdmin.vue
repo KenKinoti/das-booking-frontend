@@ -108,6 +108,10 @@
               <input id="bt-res" v-model.trim="ed.resourceLabel" class="ui-input" placeholder="Bay, Chair / station, Room…" />
             </div>
             <div class="ui-field">
+              <label for="bt-dur">Default length (minutes)</label>
+              <input id="bt-dur" v-model.number="ed.defaultDuration" class="ui-input" type="number" min="5" max="1440" step="5" placeholder="60" />
+            </div>
+            <div class="ui-field">
               <label for="bt-widgets">Dashboard widgets (comma separated)</label>
               <input id="bt-widgets" v-model="ed.widgets" class="ui-input" />
             </div>
@@ -143,7 +147,7 @@ import { DEFAULT_TERMS } from '@/composables/useAccess'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 
-const BUILT_IN = ['mechanic', 'salon', 'spa', 'clinic', 'ndis', 'consulting', 'agency', 'retail', 'restaurant', 'events', 'construction', 'manufacturer', 'education', 'nonprofit', 'general']
+const BUILT_IN = ['mechanic', 'salon', 'spa', 'clinic', 'ndis', 'consulting', 'agency', 'retail', 'restaurant', 'nightclub', 'events', 'construction', 'manufacturer', 'education', 'nonprofit', 'general']
 const MODULES = ['smallbiz', 'invoicing', 'pos', 'ecommerce', 'crm', 'bookings', 'events', 'inventory', 'manufacturing', 'accounting', 'hr', 'projects', 'documents', 'communication']
 const list = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean)
 
@@ -197,6 +201,7 @@ export default {
         terms,
         vehicleRequired: !!x.booking_defaults?.vehicle_required,
         resourceLabel: x.booking_defaults?.resource_label || '',
+        defaultDuration: Number(x.booking_defaults?.default_duration) || '',
         widgets: (x.dashboard_widgets || []).join(', '),
         hidden: (x.hidden_paths || []).join(', '),
         features: (x.features || []).join(', '),
@@ -225,11 +230,18 @@ export default {
         roles: extra.roles || [],
         checklist: extra.checklist || [],
         sample_services: extra.sample_services || [],
-        booking_defaults: { ...(this.ed.base.booking_defaults || {}), vehicle_required: this.ed.vehicleRequired, resource_label: this.ed.resourceLabel },
+        booking_defaults: this.bookingDefaults(),
         dashboard_widgets: list(this.ed.widgets),
         hidden_paths: list(this.ed.hidden),
         features: list(this.ed.features)
       }
+    },
+    bookingDefaults() {
+      const b = { ...(this.ed.base.booking_defaults || {}), vehicle_required: this.ed.vehicleRequired, resource_label: this.ed.resourceLabel }
+      const d = Number(this.ed.defaultDuration)
+      if (d > 0 && d <= 1440) b.default_duration = Math.round(d)
+      else delete b.default_duration
+      return b
     },
     async save() {
       this.ed.error = ''

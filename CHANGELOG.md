@@ -6,6 +6,114 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.11.0] - 2026-10-12
+
+### Bar stock for nightclubs, bars and lounges
+
+Clubs using DASYIN can now run their whole drinks stock in the app: bottles and tots sold through the POS, a main
+store and one or more bars, stock takes on a phone with variance, wastage and comps, and purchasing. Everything lives
+under **Inventory & Supply → Bar stock** (`/bar-stock`), which appears for business types that offer bar stock.
+
+**New business type "Nightclub / bar / lounge".**
+
+- Words of the trade: Guests, **Table reservations** (resource "Table", 4-hour default), Reservation, **Drinks menu** /
+  Menu item, Stock item, "Tables & events". The deals pipeline and the generic Inventory page are hidden for clubs
+  (the products live in Bar stock). A new club gets the hospitality plan bundle (POS, inventory, bookings, events…).
+- Ready-made roles: **Owner**; **Bar manager** (bar stock incl. approvals and costs, POS, reservations, events, HR
+  view); **Store keeper** (receives deliveries, issues stock, counts — no approvals, no costs; home Bar stock);
+  **Bartender** (sells at the till, counts, logs wastage, requests and receives stock for their bar; home POS);
+  **Cashier / waiter**; **Host / door**.
+- The setup wizard has a **Bar setup** step: name the store and bars (one main store), tot size and when the night
+  ends, tick drinks from a **starter list** of 34 products common in Kenya (beers, spirits, wines, sodas, mixers,
+  energy drinks, water, garnish, ice — no prices invented) and create the tot / bottle menu items in one go. Re-running
+  it never duplicates locations or items. A getting-started checklist leads through bars → stock items → menu →
+  first delivery → first stock take → first sale.
+
+**How stock is kept.** Quantities are stored in base units — **ml** for poured drinks, **units** for bottles of beer,
+cans and garnish — and shown the way staff think: "3 bottles + 420 ml", "2 crates + 5 bottles", with tots alongside.
+Each stock item has a bottle size, a purchase pack ("case of 12", "crate of 25"), an optional tot size of its own
+(default 25 ml for the club), optional full / empty weights for counting on a scale, a preferred supplier and a par
+level and reorder point per location. Every change writes a ledger line (received, transfer in/out, sale, sale voided,
+wastage, count adjustment, opening, returned to supplier, manual) with its cost and **business date** — clubs trade
+past midnight, so anything before the day cutoff (default 06:00) belongs to the previous night. Costs are the
+**weighted average** per ml / unit, updated by every delivery. The product's own stock figure follows bar stock, so
+low-stock alerts and the AI tools keep working.
+
+**Menu & recipes.** A menu item is a POS product with a recipe: "Jameson tot" → 25 ml of Jameson, "Jameson bottle"
+→ a whole 750 ml bottle, "Mojito" → 50 ml white rum, 20 ml lime cordial, 2 mint sprigs, 1 soda. Recipes are entered in
+ml, tots or bottles (units for counted items), and show their **cost, price before VAT, pour cost % and margin**;
+items over the category's **pour-cost target** (optional, set per category — none are invented) are flagged.
+**Create tot & bottle menu items** from any spirit in one click (suggested prices only when a target is set).
+Beers and sodas can be **sold as they are**; menu items can also use no stock at all (entry fee, cloakroom).
+
+**POS.** A **"Selling from"** selector (remembered on each till/device; tills can also be mapped to a bar in Setup)
+decides which bar a sale takes stock from; the sale carries the bar, and voids put the stock back. Drink tiles show
+what the bar can still pour ("180 tots", "low · 3 bottles") and are **never disabled** for being out — a quiet
+"0 at Main bar" hint instead; the sale goes through and is flagged "sold more than recorded" (an organisation can turn
+on blocking). Stock items without a price (mint, cordial, a spirit's stock bottle) are kept off the till.
+
+**Transfers.** The bar **requests** stock (or taps **Top up to par**: par − on hand, whole bottles), the store keeper
+**issues** it, the bar **confirms what arrived** — any shortfall is recorded as a difference on the transfer. Managers
+can make a one-step direct move. Cancelling an issued transfer returns the stock to the store.
+
+**Wastage, comps and staff drinks.** Quick log with reason chips (breakage, spillage, comp, staff drink, expired,
+other; damaged on delivery and returns are recorded automatically), entered in tots, ml or bottles. Breakages and
+spills leave stock at once; comps and staff drinks beyond the **per-shift allowance** (drinks per staff member per
+night, 0 = every one) wait for a manager's approval.
+
+**Stock takes on a phone.** Full, spot (e.g. the top 10 spirits nightly), opening or closing counts, optionally
+**blind**, with the staff on shift. The counting screen is made for a phone behind a dark bar (one tap for a dark
+screen): big rows grouped by category, search and **barcode scanning** (camera with the BarcodeDetector API where the
+browser has it, typed or handheld-scanner codes elsewhere), **+/−** for full bottles and the open bottle as **tenths**
+(slider), **ml** or a **scale weight** in grams (ml = (weight − empty) ÷ (full − empty) × size, checked against the
+bottle's weights) with a live "= 525 ml". Every change autosaves; with no connection the count is kept on the phone and
+sent when it's back. Managers review **expected vs counted** — expected = opening + received + transfers in −
+transfers out − sold − wastage − returns since the previous approved count — with the variance in quantity, **tots**,
+% of usage and money, flags over the thresholds, **send selected items back for a recount**, and **approve**, which
+sets stock to what was counted and locks the count.
+
+**Purchasing.** Reorder suggestions per location or for the whole club: par − on hand − already on order, **rounded
+up to whole cases**, grouped by preferred (or last) supplier with the last and best recent price → **Create purchase
+orders** (drafts in Suppliers, one per supplier). **Receive a delivery** against a purchase order or without one:
+delivery note, cases or units, cost per bottle (prefilled from the PO / last price), damaged units written off; price
+history per supplier. Open purchase orders show what's expected and overdue.
+
+**Variance & reports.** Variance for a count or a period: per item, category, location, **shift and staff** (each
+count's losses shared equally between the staff recorded on it), flags, and the period's pour cost. Pour-cost report by
+category and menu item, stock **valuation** by location and category, **slow movers** with days of cover, CSV exports
+(stock, movements, variance, wastage, valuation), and an optional **night report** email after each night to the
+people who approve stock (sales by category, pour cost, wastage, comps, the last count's variance, low stock, pending
+transfers and approvals) with a preview and "Send now".
+
+**Overview and dashboard.** Bar stock opens on the night's figures — bar sales, pour cost, wastage incl. comps, stock
+value — sales by category, low stock at the bars with **Top up**, what's waiting (requests to issue, transfers on the
+way, comps and counts to approve), the last count and stock value by location; a **business-date picker** goes back to
+any night. The dashboard gets a small **Tonight at the bar** card for clubs.
+
+**Who sees what.** Bar stock follows the inventory permissions of each role: view = stock at their bars without money,
+create = counts, wastage and requests (and receiving at their bar), edit = issue transfers, deliveries, items and
+recipes, approve = costs, values, variance money, pour cost, approvals, settings and purchase orders, delete = items,
+recipes, locations. **Money fields are removed by the server** for anyone without approve. Staff can optionally be
+assigned to locations and then only see and count those. Bartenders open Bar stock on **My bar**: count, request
+stock, top up to par, log wastage, receive what's on the way.
+
+API (all under `/api/v1/bar`, signed in): `GET|PUT /settings`, `GET /setup/catalog`, `POST /setup`,
+`GET|POST /locations`, `PUT|DELETE /locations/:id`, `GET|PUT /terminals`, `GET|POST /items`,
+`GET|PUT|DELETE /items/:product_id`, `POST /items/:product_id/menu-items`, `PUT /par`, `GET|POST /recipes`,
+`GET|PUT|DELETE /recipes/:pos_product_id`, `GET /pos-availability`, `GET /stock`, `GET /movements`,
+`GET|POST /transfers`, `GET /transfers/suggest`, `GET /transfers/:id`, `POST /transfers/:id/issue|receive|cancel`,
+`GET|POST /wastage`, `POST /wastage/:id/approve|reject`, `GET|POST /counts`, `GET|DELETE /counts/:id`,
+`PUT /counts/:id/lines`, `POST /counts/:id/submit|approve|recount`, `GET /reorder`, `POST /reorder/create-pos`,
+`GET /purchase-orders`, `GET|POST /deliveries`, `GET /overview`, `GET /variance`, `GET /reports/pour-cost`,
+`GET /reports/valuation`, `GET /reports/slow-movers`, `GET /reports/night`, `POST /reports/night/send`,
+`GET /reports/export/:dataset.csv`. The POS sale body accepts `location_id`; receiving a purchase order books bar
+stock items into the main store. AI / MCP tools: `bar_stock_levels`, `bar_variance_report`, `bar_reorder_suggestions`
+(read-only), `bar_record_wastage`, `bar_request_transfer` (confirm before writing). New tables `bar_settings`,
+`bar_items`, `bar_stock`, `bar_movements`, `bar_recipes`, `bar_recipe_lines`, `bar_par`, `bar_location_staff`,
+`bar_terminals`, `bar_price_history`, `bar_deliveries`, `bar_delivery_lines`, `bar_transfers`, `bar_transfer_lines`,
+`bar_wastage`, `bar_counts`, `bar_count_lines`, `bar_sale_lines`, `bar_night_reports`. Environment:
+`BAR_SCHEDULER=off` disables the night report scheduler (one instance sends, advisory lock).
+
 ## [2.10.0] - 2026-10-02
 
 ### Insights: industry watch, trade & exports, strategy brief

@@ -1,0 +1,24 @@
+/* Shared bits of the bar stock pages (loaded by views/bar/*). */
+.bar-ui .ui-empty.small {
+  padding: 22px 16px;
+}
+.bar-ui .ui-empty.small .ui-empty__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+.bar-ui .ui-empty.small .ui-empty__icon.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.bar-ui .ui-empty.small p {
+  margin: 0;
+  font-size: 13.5px;
+}
+.bar-ui .ui-empty p {
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}

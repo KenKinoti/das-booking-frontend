@@ -39,6 +39,9 @@
     <!-- Profit & loss: one calculation shared with Reports, Finance, the Business hub and Analytics -->
     <PnlCard :period="period" />
 
+    <!-- Clubs / bars: tonight's bar figures (only when the organisation has bar locations) -->
+    <BarTonightCard />
+
     <!-- Cash: the next 90 days + what clients owe today -->
     <div v-if="mod.invoicing" class="grid-row row-2">
       <CashForecastCard v-if="ins && ins.cashflow" :f="ins.cashflow" :currency="ins.currency" />
@@ -409,6 +412,7 @@ import HistoryCard from '@/components/insights/HistoryCard.vue'
 import HostingCard from '@/components/insights/HostingCard.vue'
 import CashForecastCard from '@/components/insights/CashForecastCard.vue'
 import IndustryLatestCard from '@/components/insights/IndustryLatestCard.vue'
+import BarTonightCard from '@/components/bar/BarTonightCard.vue'
 import { insightsApi } from '@/services/insights'
 import { hasModule } from '@/composables/useEntitlements'
 import {
@@ -431,7 +435,7 @@ const PREF = 'dash.period'
 
 export default {
   name: 'DashboardView',
-  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard, IndustryLatestCard },
+  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard, IndustryLatestCard, BarTonightCard },
   data() {
     return {
       data: null,

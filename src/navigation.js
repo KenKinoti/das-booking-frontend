@@ -84,6 +84,8 @@ export const navGroups = [
     icon: 'fa-solid fa-boxes-stacked',
     items: [
       { label: 'Inventory', t: (T) => T.inventory, to: '/inventory', module: 'inventory', icon: 'fa-solid fa-box' },
+      // Club / bar stock: bottles & tots, counts, transfers and purchasing — for business types offering it (nightclub / bar / lounge)
+      { label: 'Bar stock', to: '/bar-stock', module: 'inventory', feature: 'bar_stock', icon: 'fa-solid fa-martini-glass-citrus', match: /^\/bar-stock/ },
       { label: 'Suppliers', to: '/suppliers', module: 'inventory', act: 'create', icon: 'fa-solid fa-truck' },
       { label: 'Production', to: '/production', module: 'manufacturing', icon: 'fa-solid fa-industry' }
     ]

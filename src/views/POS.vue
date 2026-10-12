@@ -6,6 +6,13 @@
         <h1>Point of Sale</h1>
       </div>
       <div class="ui-actions">
+        <label v-if="barMode" class="sell-from" :title="'Stock for bar drinks comes from this bar (remembered on this device)'">
+          <i class="fa-solid fa-martini-glass-citrus"></i>
+          <span class="hide-xs">Selling from</span>
+          <select v-model="barLoc" class="ui-select" aria-label="Selling from" data-testid="pos-sell-from">
+            <option v-for="l in barLocs" :key="l.id" :value="l.id">{{ l.name }}</option>
+          </select>
+        </label>
         <button class="drawer-pill" :class="drawer ? 'is-open' : 'is-closed'" :disabled="drawerLoading" @click="showDrawer = true">
           <span class="dot"></span>
           <span v-if="drawer">Drawer open · <strong>{{ money(drawer.expected_amount) }}</strong></span>
@@ -44,7 +51,7 @@
         </div>
 
         <div v-if="categories.length > 1" class="chips" role="tablist" aria-label="Categories">
-          <button class="chip" :class="{ 'is-active': !activeCat }" role="tab" :aria-selected="!activeCat" @click="activeCat = ''">All <span>{{ products.length }}</span></button>
+          <button class="chip" :class="{ 'is-active': !activeCat }" role="tab" :aria-selected="!activeCat" @click="activeCat = ''">All <span>{{ posProducts.length }}</span></button>
           <button v-for="c in categories" :key="c.name" class="chip" :class="{ 'is-active': activeCat === c.name }" role="tab" :aria-selected="activeCat === c.name" @click="activeCat = activeCat === c.name ? '' : c.name">
             {{ c.name }} <span>{{ c.count }}</span>
           </button>
@@ -60,8 +67,10 @@
           <div v-else-if="!products.length" class="ui-empty">
             <div class="ui-empty__icon"><i class="fa-solid fa-boxes-stacked"></i></div>
             <h3>No products to sell yet</h3>
-            <p>Add products with a selling price in Inventory and they will appear here.</p>
-            <router-link to="/inventory" class="ui-btn ui-btn--primary" style="margin-top: 12px"><i class="fa-solid fa-plus"></i> Add products in Inventory</router-link>
+            <p v-if="clubType">Create your drinks (tots, bottles, cocktails) in Bar stock → Menu &amp; recipes and they will appear here.</p>
+            <p v-else>Add products with a selling price in Inventory and they will appear here.</p>
+            <router-link v-if="clubType" to="/bar-stock?tab=recipes" class="ui-btn ui-btn--primary" style="margin-top: 12px"><i class="fa-solid fa-plus"></i> Set up the drinks menu</router-link>
+            <router-link v-else to="/inventory" class="ui-btn ui-btn--primary" style="margin-top: 12px"><i class="fa-solid fa-plus"></i> Add products in Inventory</router-link>
           </div>
 
           <div v-else-if="!filtered.length" class="ui-empty">
@@ -79,6 +88,7 @@
               :class="{ 'is-out': available(p) <= 0, 'in-cart': qtyInCart(p.id) }"
               :disabled="available(p) <= 0"
               :aria-label="`Add ${p.name}, ${money(p.selling_price)}${available(p) <= 0 ? ', out of stock' : ''}`"
+              :data-product="p.name"
               @click="addProduct(p)"
             >
               <span v-if="qtyInCart(p.id)" class="tile__qty">{{ qtyInCart(p.id) }}</span>
@@ -148,12 +158,12 @@
           <div v-for="(l, i) in cart" :key="l.product_id" class="line">
             <div class="line__main">
               <div class="line__name">{{ l.name }}</div>
-              <div class="line__meta">{{ money(l.price) }} each<span v-if="l.qty >= l.stock" class="warn"> · max stock</span></div>
+              <div class="line__meta">{{ money(l.price) }} each<span v-if="!l.bar && l.qty >= l.stock" class="warn"> · max stock</span></div>
             </div>
             <div class="stepper">
               <button :aria-label="`Decrease ${l.name}`" @click="setQty(i, l.qty - 1)"><i class="fa-solid fa-minus"></i></button>
-              <input :value="l.qty" type="number" min="1" :max="l.stock" inputmode="numeric" :aria-label="`${l.name} quantity`" @change="setQty(i, $event.target.value)" @focus="$event.target.select()" />
-              <button :aria-label="`Increase ${l.name}`" :disabled="l.qty >= l.stock" @click="setQty(i, l.qty + 1)"><i class="fa-solid fa-plus"></i></button>
+              <input :value="l.qty" type="number" min="1" :max="l.bar ? undefined : l.stock" inputmode="numeric" :aria-label="`${l.name} quantity`" @change="setQty(i, $event.target.value)" @focus="$event.target.select()" />
+              <button :aria-label="`Increase ${l.name}`" :disabled="!l.bar && l.qty >= l.stock" @click="setQty(i, l.qty + 1)"><i class="fa-solid fa-plus"></i></button>
             </div>
             <div class="line__total">{{ money(lineTotal(l)) }}</div>
             <button class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm line__remove" :aria-label="`Remove ${l.name}`" @click="cart.splice(i, 1)"><i class="fa-solid fa-xmark"></i></button>
@@ -230,6 +240,10 @@ import { apiErrorMessage } from '@/services/api'
 import { formatMoney } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
+import { barApi } from '@/services/bar'
+import { hasModule } from '@/composables/useEntitlements'
+import { hasFeature } from '@/composables/useAccess'
+import { devicePosLocation, setDevicePosLocation } from '@/components/bar/barContext'
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 const LS_CURRENT = 'pos.current.v1'
@@ -296,17 +310,36 @@ export default {
       payError: '',
       receipt: null,
       organization: null,
-      cartOpen: false
+      cartOpen: false,
+
+      // Bar stock (clubs): the bar this device sells from and what it can make
+      barLocs: [],
+      barLoc: '',
+      barAvail: {},
+      barIngredients: {},
+      barAvailTimer: null,
+      barChecked: false
     }
   },
   computed: {
+    // Bar stock is set up: drinks sell from a bar and use its stock (pkg/barstock).
+    barMode() {
+      return this.barLocs.length > 0
+    },
+    clubType() {
+      return hasFeature('bar_stock')
+    },
     // The organisation's home currency (Settings → Business details).
     currency() {
       return orgCurrency()
     },
+    // Bar stock items without a selling price are ingredients (mint, cordial, a spirit's stock bottle): not sold as they are.
+    posProducts() {
+      return this.products.filter((p) => !(this.barIngredients[p.id] && !(Number(p.selling_price) > 0)))
+    },
     categories() {
       const map = new Map()
-      for (const p of this.products) {
+      for (const p of this.posProducts) {
         const n = p.category?.name || 'Uncategorised'
         map.set(n, (map.get(n) || 0) + 1)
       }
@@ -314,7 +347,7 @@ export default {
     },
     filtered() {
       const q = this.query.trim().toLowerCase()
-      return this.products.filter((p) => {
+      return this.posProducts.filter((p) => {
         if (this.activeCat && (p.category?.name || 'Uncategorised') !== this.activeCat) return false
         if (this.hideOutOfStock && this.available(p) <= 0 && !this.qtyInCart(p.id)) return false
         if (!q) return true
@@ -366,6 +399,11 @@ export default {
     }
   },
   watch: {
+    barLoc(id, old) {
+      if (!id) return
+      setDevicePosLocation(id)
+      if (old !== undefined) this.loadAvailability()
+    },
     cart: { handler: 'persist', deep: true },
     customer: 'persist',
     discountMode: 'persist',
@@ -381,6 +419,7 @@ export default {
     this.loadProducts()
     this.loadDrawer()
     this.loadSettings()
+    this.loadBar()
     posService
       .organization()
       .then((o) => (this.organization = o))
@@ -395,6 +434,7 @@ export default {
     document.removeEventListener('keydown', this.onKey)
     document.removeEventListener('mousedown', this.onDocClick)
     clearTimeout(this.customerTimer)
+    clearInterval(this.barAvailTimer)
   },
   methods: {
     personName,
@@ -471,7 +511,9 @@ export default {
         .filter((l) => byId.has(l.product_id))
         .map((l) => {
           const p = byId.get(l.product_id)
-          return { ...l, name: p.name, sku: p.sku, price: Number(p.selling_price) || 0, stock: p.current_stock, qty: Math.min(l.qty, Math.max(p.current_stock, 0)) }
+          // Bar drinks are not capped by product stock (also while the bar's menu is still loading)
+          if (this.isBarManaged(p) || (l.bar && !this.barChecked)) return { ...l, name: p.name, sku: p.sku, price: Number(p.selling_price) || 0, stock: p.current_stock, bar: true }
+          return { ...l, name: p.name, sku: p.sku, price: Number(p.selling_price) || 0, stock: p.current_stock, qty: Math.min(l.qty, Math.max(p.current_stock, 0)), bar: false }
         })
         .filter((l) => l.qty > 0)
     },
@@ -487,15 +529,22 @@ export default {
       return this.cart.find((l) => l.product_id === id)?.qty || 0
     },
     available(p) {
+      // Bar-managed drinks are never out: the sale is recorded even when the bar shows no stock.
+      if (this.isBarManaged(p)) return Infinity
       return (Number(p.current_stock) || 0) - this.qtyInCart(p.id)
     },
     stockClass(p) {
+      if (this.isBarManaged(p)) {
+        const a = this.barAvail[p.id]
+        return a.available === null || a.available === undefined ? '' : a.available - this.qtyInCart(p.id) <= 0 ? 'is-bar-out' : a.low ? 'is-low' : ''
+      }
       const s = Number(p.current_stock) || 0
       if (s <= 0) return 'is-out'
       if (s <= Math.max(5, p.min_stock || 0)) return 'is-low'
       return ''
     },
     stockLabel(p) {
+      if (this.isBarManaged(p)) return this.barLabel(p)
       const s = Number(p.current_stock) || 0
       if (s <= 0) return 'Out of stock'
       return `${s} in stock`
@@ -512,6 +561,17 @@ export default {
       const stock = Number(p.current_stock) || 0
       const line = this.cart.find((l) => l.product_id === p.id)
       const have = line?.qty || 0
+      if (this.isBarManaged(p)) {
+        if (line) {
+          line.qty += qty
+          line.bar = true
+          this.cart.splice(this.cart.indexOf(line), 1)
+          this.cart.unshift(line)
+        } else {
+          this.cart.unshift({ product_id: p.id, name: p.name, sku: p.sku, price: Number(p.selling_price) || 0, qty, stock, bar: true })
+        }
+        return true
+      }
       if (stock <= 0) {
         toast.warning(`${p.name} is out of stock`)
         return false
@@ -541,7 +601,7 @@ export default {
         raw = m[2].trim()
       }
       const code = raw.toLowerCase()
-      let p = this.products.find((x) => (x.barcode && String(x.barcode).toLowerCase() === code) || (x.sku && String(x.sku).toLowerCase() === code))
+      let p = this.posProducts.find((x) => (x.barcode && String(x.barcode).toLowerCase() === code) || (x.sku && String(x.sku).toLowerCase() === code))
       if (!p && this.filtered.length === 1) p = this.filtered[0]
       if (!p) {
         toast.error(`No product matches “${raw}”`)
@@ -578,7 +638,7 @@ export default {
         this.cart.splice(i, 1)
         return
       }
-      if (q > l.stock) {
+      if (!l.bar && q > l.stock) {
         toast.warning(`Only ${l.stock} × ${l.name} in stock`)
         q = l.stock
       }
@@ -718,6 +778,7 @@ export default {
           tax_rate: this.taxRate,
           tax_inclusive: !!this.taxRate && this.taxInclusive
         }
+        if (this.barMode && this.barLoc) payload.location_id = this.barLoc
         if (this.discountMode === 'percent' && this.discountAmount > 0) payload.discount_percent = Number(this.discountValue)
         else if (this.discountMode === 'amount' && this.discountAmount > 0) payload.discount_amount = this.discountAmount
         const txn = await posService.createTransaction(payload)
@@ -726,6 +787,7 @@ export default {
         this.resetSale()
         this.loadProducts()
         this.loadDrawer()
+        if (this.barMode) this.loadAvailability()
       } catch (e) {
         this.payError = apiErrorMessage(e, 'The sale could not be completed')
         if (e?.response?.status === 409) this.loadProducts()
@@ -736,6 +798,69 @@ export default {
     newSale() {
       this.receipt = null
       this.$nextTick(() => this.focusScan())
+    },
+
+    // ---------- bar stock ----------
+    async loadBar() {
+      // Only organisations with bar locations (clubs, bars, lounges) sell from a bar.
+      if (!hasModule('inventory')) {
+        this.barChecked = true
+        return
+      }
+      try {
+        let locs = null
+        try {
+          locs = await barApi.locations()
+        } catch {
+          locs = null
+        }
+        if (locs === null) {
+          // No stock permission (e.g. a cashier): the default bar's menu, so drinks are never blocked.
+          const d = await barApi.posAvailability('')
+          this.barAvail = Object.fromEntries((d?.items || []).map((x) => [x.product_id, x]))
+          return
+        }
+        const sellable = locs.filter((l) => l.is_active !== false && l.type !== 'store')
+        if (!sellable.length) return
+        const terms = await barApi.terminals().catch(() => [])
+        const saved = devicePosLocation()
+        const mapped = (terms || []).find((t) => t.terminal_id === 'main')?.location_id
+        const def = sellable.find((l) => l.is_default_bar)?.id
+        this.barLocs = sellable
+        this.barLoc = [saved, mapped, def, sellable[0].id].find((id) => id && sellable.some((l) => l.id === id))
+        const items = await barApi.items().catch(() => [])
+        this.barIngredients = Object.fromEntries(items.map((it) => [it.product_id, true]))
+        await this.loadAvailability()
+        this.barAvailTimer = setInterval(() => this.loadAvailability(), 60000)
+      } catch {
+        /* bar stock is optional for the POS */
+      } finally {
+        this.barChecked = true
+        if (this.products.length) this.syncCartWithStock()
+      }
+    },
+    async loadAvailability() {
+      if (!this.barLoc) return
+      try {
+        const d = await barApi.posAvailability(this.barLoc)
+        this.barAvail = Object.fromEntries((d?.items || []).map((x) => [x.product_id, x]))
+        this.syncCartWithStock()
+      } catch {
+        /* availability is a hint only */
+      }
+    },
+    isBarManaged(p) {
+      return !!(p && this.barAvail[p.id])
+    },
+    barLabel(p) {
+      const a = this.barAvail[p.id]
+      if (a.available === null || a.available === undefined) return ''
+      const left = a.available - this.qtyInCart(p.id)
+      const where = this.barLocs.find((l) => l.id === this.barLoc)?.name || 'the bar'
+      if (left <= 0) return `0 at ${where}`
+      const unit = a.unit_label || 'serving'
+      const label = left === 1 ? unit : /s$/.test(unit) ? unit : unit + 's'
+      return a.low ? `low · ${left} ${label}` : `${left} ${label}`
     },
 
     // ---------- drawer ----------
@@ -1060,6 +1185,47 @@ export default {
 .stock.is-out {
   color: var(--danger);
   font-weight: 600;
+}
+/* Bar drinks never block: a quiet hint instead of "out of stock" */
+.stock.is-bar-out {
+  color: var(--text-3);
+  font-style: italic;
+}
+.sell-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13.5px;
+  margin: 0;
+}
+.sell-from > i {
+  color: var(--accent);
+}
+.sell-from > span {
+  white-space: nowrap;
+}
+.sell-from .ui-select {
+  height: 30px;
+  min-width: 110px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-left: 4px;
+  border: 0;
+  border-radius: 999px;
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text);
+  font-weight: 600;
+}
+/* Bar availability hints ("0 at Main bar") may need their own line on narrow tiles */
+.tile__foot {
+  flex-wrap: wrap;
 }
 
 /* ---------- cart ---------- */

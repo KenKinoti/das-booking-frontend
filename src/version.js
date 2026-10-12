@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,14 +26,14 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Insights now keeps you up to date with your industry, shows your export and exchange-rate position, and turns both into a monthly strategy brief with ranked actions.'
+export const RELEASE_LEAD = 'Bar stock for nightclubs, bars and lounges: bottles and tots sold through the POS, a store and bars with transfers, stock counts on a phone with variance, wastage and comps with approvals, and reorders into purchase orders.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-rss', text: 'Industry watch: headlines from the news feeds you follow (tech press, regulators, vendors, trade bodies), stored with history, tagged and scored against your business with keyword rules you can edit — and the top three on your dashboard' },
-  { icon: 'fa-solid fa-plane-departure', text: 'Trade & exports: domestic vs export revenue by client country and currency, open foreign invoices at today’s rate (unrealised gain or loss), realised FX on paid invoices and your natural hedge — “AUD in vs AUD out”' },
-  { icon: 'fa-solid fa-earth-africa', text: 'Target markets: World Bank indicators, currency stability and what you already earn in each country, combined into an opportunity score whose weights you can change' },
-  { icon: 'fa-solid fa-chess-knight', text: 'Strategy brief: a stored monthly brief — performance, what changed, export & FX position, market signals, industry headlines, risks and recommended actions with estimates; optional AI version, email to admins and a print view' },
-  { icon: 'fa-solid fa-key', text: 'AI assistant key can be saved in System settings (no server restart); clearer explanation of Claude-via-MCP vs the in-app assistant' },
-  { icon: 'fa-solid fa-tags', text: 'Supplier price book: compare domain + hosting combos across suppliers in your currency, with margin and retail price suggestions' }
+  { icon: 'fa-solid fa-martini-glass-citrus', text: 'New business type “Nightclub / bar / lounge”: Guests, Table reservations and a Drinks menu, ready-made roles (bar manager, store keeper, bartender, cashier / waiter, host / door) and a bar setup step with a starter list of common drinks' },
+  { icon: 'fa-solid fa-whiskey-glass', text: 'Tots, bottles and cocktails: menu items with recipes in ml, tots or bottles, their cost, pour cost % and margin; the POS sells from the bar you pick on each till, shows what the bar can still pour and never blocks a drink' },
+  { icon: 'fa-solid fa-clipboard-check', text: 'Stock counts made for a phone behind the bar: full bottles plus tenths, ml or a scale weight, blind counts, barcode scanning and drafts that survive a dropped connection; variance per item, category, location and shift' },
+  { icon: 'fa-solid fa-right-left', text: 'Store → bar transfers: the bar requests, the store keeper issues, the bar confirms what arrived (differences recorded) — or “Top up to par” in one tap' },
+  { icon: 'fa-solid fa-wine-glass-empty', text: 'Wastage, comps and staff drinks: breakages and spills leave stock at once; comps over the per-shift allowance wait for a manager' },
+  { icon: 'fa-solid fa-cart-flatbed', text: 'Purchasing: reorder suggestions rounded up to whole cases per supplier become draft purchase orders; deliveries update the weighted average cost and price history; optional night report email' }
 ]

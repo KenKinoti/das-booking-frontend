@@ -553,6 +553,13 @@ routes.push(
   { path: '/vehicles', name: 'Vehicles', component: () => import('../views/Vehicles.vue'), meta: { requiresAuth: true, title: 'Vehicles' } }
 )
 
+// Club / bar stock: one area with tabs (?tab=overview|home|stock|recipes|counts|transfers|wastage|purchasing|reports|setup)
+// and the full-screen counting screen for phones.
+routes.push(
+  { path: '/bar-stock', name: 'BarStock', component: () => import('../views/bar/BarStock.vue'), meta: { requiresAuth: true, title: 'Bar stock' } },
+  { path: '/bar-stock/count/:id', name: 'BarCount', component: () => import('../views/bar/BarCount.vue'), props: true, meta: { requiresAuth: true, title: 'Stock count' } }
+)
+
 routes.push({ path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound, meta: { requiresAuth: false, title: 'Page not found' } })
 
 const router = createRouter({
