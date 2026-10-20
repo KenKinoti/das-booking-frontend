@@ -79,6 +79,7 @@
           <input v-model="recipientsText" class="ui-input" placeholder="accounts@example.com" aria-label="Extra reminder recipients" data-testid="br-recipients" />
         </label>
         <p class="ui-hint">Currently: {{ preview.length ? preview.join(', ') : 'nobody — add a recipient' }}</p>
+        <p v-if="isOrgAdmin" class="ui-hint who-link"><router-link :to="{ path: '/settings', hash: '#who-gets-emails' }" data-testid="br-who-link">Choose who gets these emails →</router-link></p>
       </fieldset>
 
       <div class="foot">
@@ -110,10 +111,17 @@ import { apiErrorMessage } from '@/services/api'
 import { formatDateTime } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { ensureEntitlements, hasModule } from '@/composables/useEntitlements'
+import { atLeast, can, ensureAccess } from '@/composables/useAccess'
 
 export default {
   name: 'BillRemindersPanel',
   props: { canEdit: { type: Boolean, default: true } },
+  computed: {
+    // Settings → Who gets emails is for owners and admins.
+    isOrgAdmin() {
+      return atLeast('admin')
+    }
+  },
   data() {
     return {
       form: null,
@@ -131,10 +139,15 @@ export default {
     }
   },
   async created() {
-    // Bill reminders are part of Accounting (the API answers 402 without it).
-    await Promise.resolve(ensureEntitlements()).catch(() => {})
+    // Bill reminders are part of Accounting (the API answers 402 without it,
+    // and 403 to a role without access to Accounting).
+    await Promise.all([ensureEntitlements(), ensureAccess()].map((p) => Promise.resolve(p).catch(() => {})))
     if (!hasModule('accounting')) {
       this.error = 'Bill reminders are part of the Accounting module, which isn’t in your plan.'
+      return
+    }
+    if (!can('accounting', 'view')) {
+      this.error = 'Your role doesn’t include Accounting, so you can’t see bill reminders.'
       return
     }
     this.load()

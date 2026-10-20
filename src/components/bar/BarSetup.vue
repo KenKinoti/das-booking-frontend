@@ -123,6 +123,7 @@
           </label>
           <p class="ui-hint">Sales by category, pour cost, wastage and comps, the last count’s variance, low stock and pending approvals — to users who can approve stock.</p>
         </div>
+        <p v-if="isOrgAdmin" class="ui-hint"><router-link :to="{ path: '/settings', hash: '#who-gets-emails' }" data-testid="bar-who-link">Choose who gets these emails →</router-link></p>
       </div>
 
       <h4 class="sub">Pour-cost targets</h4>
@@ -152,6 +153,7 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { CATEGORIES, locationIcon, locationTypeLabel } from '@/utils/barUnits'
 import LocationModal from './LocationModal.vue'
+import { atLeast } from '@/composables/useAccess'
 
 const numOrNull = (v) => (v === '' || v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v))
 
@@ -167,6 +169,10 @@ export default {
     return { bar, locModal: null, busy: false, terminals: [], termBusy: false, termError: '', form: null, saving: false, formError: '' }
   },
   computed: {
+    // Settings → Who gets emails is for owners and admins.
+    isOrgAdmin() {
+      return atLeast('admin')
+    },
     cur() {
       return currency()
     },

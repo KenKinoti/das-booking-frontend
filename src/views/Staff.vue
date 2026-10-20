@@ -110,6 +110,7 @@
               <td>
                 <span class="ui-badge" :class="roleInfo(u.role).badge" :data-testid="`role-${u.email}`">{{ roleName(u) }}</span>
                 <small v-if="assignments[u.id]?.scope === 'own'" class="scope-hint">Own {{ termLower('bookings') }} only</small>
+                <router-link v-if="!allOrgs && emailsOff[u.id]" :to="{ path: '/settings', hash: '#who-gets-emails' }" class="ui-badge ui-badge--draft emails-off" :title="emailsOff[u.id]" :data-testid="`emails-off-${u.email}`" @click.stop><i class="fa-solid fa-bell-slash"></i> Emails off</router-link>
               </td>
               <td v-if="allOrgs" class="hide-md muted">{{ orgNames[u.organization_id] || '—' }}</td>
               <td class="hide-md nowrap card-show">{{ u.phone || '—' }}</td>
@@ -301,6 +302,7 @@ import { confirmDialog } from '@/composables/useConfirm'
 import { formatDate, formatDateTime, downloadBlob, isoDate } from '@/utils/format'
 import { industryAPI, BASE_LEVELS } from '@/services/industry'
 import { term, termLower } from '@/composables/useAccess'
+import { emailRecipientsApi } from '@/services/emailPrefs'
 
 const blank = () => ({ first_name: '', last_name: '', email: '', phone: '', role: 'staff', role_template: '', password: '', is_active: true })
 
@@ -336,7 +338,8 @@ export default {
       copied: false,
       origin: window.location.origin,
       templates: [],
-      assignments: {}
+      assignments: {},
+      emailsOff: {}
     }
   },
   computed: {
@@ -369,6 +372,7 @@ export default {
   created() {
     this.load()
     this.loadRoles()
+    this.loadEmailsOff()
   },
   beforeUnmount() {
     clearTimeout(this.timer)
@@ -398,6 +402,17 @@ export default {
       } catch {
         this.templates = []
         this.assignments = {}
+      }
+    },
+    /** Who gets no emails at all (Settings → Who gets emails), for the "Emails off" badge. */
+    async loadEmailsOff() {
+      if (!this.isAdmin) return
+      try {
+        const d = await emailRecipientsApi.get()
+        const why = d.mode === 'owners' ? 'Only owners get emails' : d.mode === 'owners_managers' ? 'Only owners and managers get emails' : ''
+        this.emailsOff = Object.fromEntries((d.people || []).filter((p) => p.emails_off).map((p) => [p.user_id, p.all_off ? 'All emails turned off by an admin' : p.self_all_off ? 'They paused their emails' : why || 'Every email is turned off']))
+      } catch {
+        this.emailsOff = {}
       }
     },
     defaultTemplate() {
@@ -620,6 +635,14 @@ export default {
 </script>
 
 <style scoped>
+.emails-off {
+  margin-left: 6px;
+  height: 22px;
+  font-size: 11.5px;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
 .scope-hint {
   display: block;
   margin-top: 3px;

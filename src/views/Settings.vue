@@ -17,7 +17,7 @@
 
     <div class="layout">
       <nav class="side" aria-label="Settings sections">
-        <a v-for="s in sections.filter((x) => (x.id !== 'bill-reminders' || hasModule('accounting')) && (x.id !== 'booking-emails' || hasModule('bookings')) && (x.id !== 'business-type' || showBusinessType))" :key="s.id" :href="`#${s.id}`" :class="{ 'is-active': active === s.id }" @click.prevent="scrollTo(s.id)"><i :class="s.icon"></i> {{ s.label }}</a>
+        <a v-for="s in sections.filter((x) => (x.id !== 'bill-reminders' || showBillReminders) && (x.id !== 'booking-emails' || hasModule('bookings')) && (x.id !== 'business-type' || showBusinessType) && (x.id !== 'who-gets-emails' || isOrgAdmin))" :key="s.id" :href="`#${s.id}`" :class="{ 'is-active': active === s.id }" @click.prevent="scrollTo(s.id)"><i :class="s.icon"></i> {{ s.label }}</a>
       </nav>
 
       <div class="stack">
@@ -161,7 +161,7 @@
           </div>
         </section>
 
-        <section v-if="hasModule('accounting')" id="bill-reminders" class="ui-card">
+        <section v-if="showBillReminders" id="bill-reminders" class="ui-card">
           <div class="ui-card__head">
             <div>
               <h2>Bill reminders</h2>
@@ -194,6 +194,18 @@
           </div>
           <div class="ui-card__body">
             <EmailSettingsPanel scope="organisation" />
+          </div>
+        </section>
+
+        <section v-if="isOrgAdmin" id="who-gets-emails" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Who gets emails</h2>
+              <p class="sub">Choose who receives the emails DASYIN sends your team: booking emails, the daily agenda, bill reminders, the bar night report and the strategy brief.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <EmailRecipientsPanel />
           </div>
         </section>
 
@@ -266,7 +278,8 @@ import { hasModule } from '@/composables/useEntitlements'
 import BillRemindersPanel from '@/components/finance/BillRemindersPanel.vue'
 import BookingEmailSettingsPanel from '@/components/bookings/BookingEmailSettingsPanel.vue'
 import BusinessTypeSettings from '@/components/settings/BusinessTypeSettings.vue'
-import { atLeast } from '@/composables/useAccess'
+import EmailRecipientsPanel from '@/components/settings/EmailRecipientsPanel.vue'
+import { atLeast, can } from '@/composables/useAccess'
 import SsoDomains from '@/components/auth/SsoDomains.vue'
 import { refreshOrgPrefs } from '@/composables/useOrgPrefs'
 import { suggestCountryDefaults } from '@/utils/countryDefaults'
@@ -282,7 +295,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
-  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel, BusinessTypeSettings },
+  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel, BusinessTypeSettings, EmailRecipientsPanel },
   data() {
     return {
       org: blankOrg(),
@@ -304,6 +317,7 @@ export default {
         { id: 'bill-reminders', label: 'Bill reminders', icon: 'fa-solid fa-file-invoice-dollar' },
         { id: 'booking-emails', label: 'Booking emails', icon: 'fa-regular fa-calendar-check' },
         { id: 'email', label: 'Outgoing email', icon: 'fa-regular fa-paper-plane' },
+        { id: 'who-gets-emails', label: 'Who gets emails', icon: 'fa-solid fa-envelope-circle-check' },
         { id: 'payments', label: 'Online payments', icon: 'fa-regular fa-credit-card' },
         { id: 'security', label: 'Security', icon: 'fa-solid fa-shield-halved' },
         { id: 'more', label: 'More settings', icon: 'fa-solid fa-grip' },
@@ -325,6 +339,15 @@ export default {
       return atLeast('manager')
     },
     businessTypeEditable() {
+      return atLeast('admin')
+    },
+    // Bill reminders: the Accounting module and permission to see it (the
+    // API's own rule for /finance — a club's Bar manager may have neither).
+    showBillReminders() {
+      return hasModule('accounting') && can('accounting', 'view')
+    },
+    // Who gets emails: owners and admins.
+    isOrgAdmin() {
       return atLeast('admin')
     },
     snapshot() {
@@ -360,6 +383,13 @@ export default {
         { value: 'YYYY-MM-DD', example: `${y}-${mm}-${dd}` },
         { value: 'DD-MM-YYYY', example: `${dd}-${mm}-${y}` }
       ]
+    }
+  },
+  watch: {
+    // In-page links such as "Choose who gets these emails →".
+    '$route.hash'(h) {
+      const id = (h || '').slice(1)
+      if (id && this.sections.some((x) => x.id === id)) this.$nextTick(() => this.scrollTo(id))
     }
   },
   created() {

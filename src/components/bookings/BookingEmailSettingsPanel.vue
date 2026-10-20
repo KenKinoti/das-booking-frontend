@@ -29,7 +29,7 @@
           <option v-for="r in reminders" :key="r.value" :value="r.value">{{ r.label }}</option>
         </select>
       </div>
-      <p class="ui-hint">Staff can turn these emails off for themselves in My profile. Customers aren't emailed from here.</p>
+      <p class="ui-hint">Staff can turn these emails off for themselves in My profile. Customers aren't emailed from here. <router-link v-if="isOrgAdmin" :to="{ path: '/settings', hash: '#who-gets-emails' }" data-testid="be-who-link">Choose who gets these emails →</router-link></p>
     </fieldset>
 
     <div v-if="form && feeds && feeds.can_manage_org" class="org-feed" data-testid="be-org-feed">
@@ -47,7 +47,7 @@
 import { bookingEmailsApi, bookingCalendarApi } from '@/services/recurringBills'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
-import { termLower } from '@/composables/useAccess'
+import { termLower, atLeast } from '@/composables/useAccess'
 import { ensureEntitlements, hasModule } from '@/composables/useEntitlements'
 import CalendarFeedLinks from './CalendarFeedLinks.vue'
 
@@ -61,6 +61,9 @@ export default {
     return { form: null, tz: '', saving: false, sending: false, error: '', choices: [0, 15, 30, 60], feeds: null, feedBusy: false }
   },
   computed: {
+    isOrgAdmin() {
+      return atLeast('admin')
+    },
     word() {
       return termLower('booking')
     },

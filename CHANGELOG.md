@@ -6,6 +6,76 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.12.0] - 2026-10-20
+
+### Who gets emails
+
+Owners and admins now decide which people receive the emails DASYIN sends a team, in **Settings → Who gets emails**
+(also linked from Bar stock → Setup, Settings → Bill reminders and Settings → Booking emails: "Choose who gets these
+emails →"). One resolver now decides for every internal email: booking emails (assigned, moved, reassigned,
+cancelled, no-show) and the daily agenda, bill reminders and the weekly bills digest, the bar night report and the
+monthly strategy brief. Customer emails (invoices, receipts, quotes) are not affected, and meeting invitations still go
+to the people invited.
+
+**Three modes for the organisation.**
+
+- **Everyone involved (default)**: each email goes to the people it concerns, exactly as before.
+- **Owners and managers**: owners, admins and managers get emails. Other staff get none.
+- **Only owners (staff get no emails)**: only owners and admins get emails.
+
+Who is an owner, a manager or staff comes from each person's business-type role (Owner → owner, Bar manager →
+manager, Bartender / Store keeper / Cashier → staff), with a fallback on the account role (owner, admin, org admin and
+super admin → owner, manager → manager, everyone else → staff). Super admins who are not members of an organisation
+never receive its emails.
+
+**Nightclubs start with "Only owners".** The mode is decided the first time an organisation's email policy is read
+(Nightclub / bar / lounge → only owners, every other business type → everyone involved) and is then stored, so a
+later change of business type does not change it by itself. **This also applies to nightclub organisations created
+before 2.12.** None of them used staff emails yet, so from this release their bartenders and bar managers get no
+booking emails or night reports until an owner picks another mode or switches someone on.
+
+**Per person.** A table lists everyone in the organisation with an "All emails" switch and one switch for each kind
+of email. Each switch shows what the person gets now, with a hint: Default, Off · owners only, Turned off, Switched
+on, Turned off by them, or "—" when that email is not for their role. Admins can turn every email, or one kind, off
+for anyone. They can also switch a kind on as an exception to the mode, for example the night report for the bar
+manager while the mode is "Only owners". An exception never goes beyond who an email is for: a bartender cannot be
+given the night report or bill reminders. **Reset** puts a person back on the defaults, and the table has a search.
+**Preview recipients** shows the exact addresses the next email of each kind goes to, worked out by that email's own
+sending code, with a note when that email is switched off. Every change is written to the audit log.
+
+**Lists an admin typed in.** The Outgoing email "Notification recipients", the bill reminder "Also send to" list and
+a recurring bill's extra recipients are kept as they are for addresses outside the team. An address that belongs to a
+member of the organisation (matched without regard to case) follows that member's switches in every mode: it is left
+out when that email is off for them, whether all their emails are off, an admin turned it off, they turned it off
+themselves, or the mode leaves them out (staff in "Owners and managers", managers and staff in "Only owners"). An
+admin's "on" exception keeps it. So "Emails off" and "Turned off by your administrator" hold for these lists too, and
+Preview recipients shows it.
+
+**My profile → Email notifications** replaces the "Booking emails" card. It has a switch for each email the
+organisation sends you, plus **Pause all my emails**. You can turn your own emails off. Anything an administrator,
+or the organisation's mode, turned off shows "Turned off by your administrator" and cannot be switched back on. Admins
+see "Turned off by them" for a person's own choices and cannot override them. Existing "Email me about my bookings"
+choices were moved over once during the upgrade (off → booking emails and daily agenda off), and
+`GET/PUT /booking-emails/me` keeps working on the new store.
+
+Also new: the Staff list shows an **Emails off** badge for anyone who gets no emails at all. Booking emails skipped by
+these rules are logged with the reason ("the organisation only emails owners", "turned off by an administrator",
+"turned off in the staff member's profile").
+
+Fixed: Settings no longer shows the Bill reminders section, or calls its API, for a role without access to Accounting
+(for example a club's Bar manager when Accounting is switched on). Before, that user got a 403 error on the page.
+
+API (signed in): `GET /api/v1/email-recipients` returns the mode, the modes, the categories, and the people with
+`effective`, `overrides`, `self_off`, `all_off`, `reason_per_category` and `emails_off`. `PUT /email-recipients/policy`
+takes `{mode}`. `PUT /email-recipients/users/:id` takes `{all_off?, overrides?: {category: true | false | null}}`.
+`GET /email-recipients/preview?category=` returns the recipients. These four are for owners and admins, or a super
+admin acting in the organisation. `GET|PUT /me/email-preferences` takes `{all_off?, categories?: {category: bool}}`,
+and turning on something an administrator turned off answers 403 `LOCKED_BY_ADMIN`. Modes: `everyone`,
+`owners_managers`, `owners`. Categories: `bookings`, `agenda`, `bill_reminders`, `bar_night_report`, `strategy_brief`.
+New tables `email_recipient_policies`, `email_recipient_prefs` and `email_recipient_meta`; `booking_email_user_prefs`
+is no longer read or written. Unchanged: a night report sent through the API to explicitly named people
+(`POST /bar/reports/night/send` with `to`) still goes to them, and test emails go to the address typed in.
+
 ## [2.11.0] - 2026-10-12
 
 ### Bar stock for nightclubs, bars and lounges

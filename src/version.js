@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.12.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,14 +26,12 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Bar stock for nightclubs, bars and lounges: bottles and tots sold through the POS, a store and bars with transfers, stock counts on a phone with variance, wastage and comps with approvals, and reorders into purchase orders.'
+export const RELEASE_LEAD = 'Who gets emails: owners decide who receives booking emails, the daily agenda, bill reminders, the bar night report and the strategy brief — everyone involved, owners and managers, or only owners — and can switch any person off.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-martini-glass-citrus', text: 'New business type “Nightclub / bar / lounge”: Guests, Table reservations and a Drinks menu, ready-made roles (bar manager, store keeper, bartender, cashier / waiter, host / door) and a bar setup step with a starter list of common drinks' },
-  { icon: 'fa-solid fa-whiskey-glass', text: 'Tots, bottles and cocktails: menu items with recipes in ml, tots or bottles, their cost, pour cost % and margin; the POS sells from the bar you pick on each till, shows what the bar can still pour and never blocks a drink' },
-  { icon: 'fa-solid fa-clipboard-check', text: 'Stock counts made for a phone behind the bar: full bottles plus tenths, ml or a scale weight, blind counts, barcode scanning and drafts that survive a dropped connection; variance per item, category, location and shift' },
-  { icon: 'fa-solid fa-right-left', text: 'Store → bar transfers: the bar requests, the store keeper issues, the bar confirms what arrived (differences recorded) — or “Top up to par” in one tap' },
-  { icon: 'fa-solid fa-wine-glass-empty', text: 'Wastage, comps and staff drinks: breakages and spills leave stock at once; comps over the per-shift allowance wait for a manager' },
-  { icon: 'fa-solid fa-cart-flatbed', text: 'Purchasing: reorder suggestions rounded up to whole cases per supplier become draft purchase orders; deliveries update the weighted average cost and price history; optional night report email' }
+  { icon: 'fa-solid fa-envelope-circle-check', text: 'Settings → Who gets emails: one place for every internal email, with three modes — Everyone involved (the default), Owners and managers, or Only owners (staff get no emails)' },
+  { icon: 'fa-solid fa-user-slash', text: 'Switch emails off for one person — all of them or one kind — or on as an exception to the mode, and preview the exact addresses the next email of each kind goes to' },
+  { icon: 'fa-solid fa-martini-glass-citrus', text: 'Nightclubs, bars and lounges start with “Only owners”: the owner gets the important emails, bartenders and other staff get none' },
+  { icon: 'fa-regular fa-bell', text: 'My profile → Email notifications: everyone can turn their own emails off; anything an admin turned off shows “Turned off by your administrator”' }
 ]
