@@ -40,6 +40,8 @@
 <script>
 import { visibleGroups } from '@/navigation'
 import { useAuthStore } from '@/stores/auth'
+import { hasModule } from '@/composables/useEntitlements'
+import { can, pathHidden } from '@/composables/useAccess'
 
 export default {
   name: 'CommandPalette',
@@ -50,11 +52,13 @@ export default {
   },
   computed: {
     entries() {
+      // isSuperAdmin is false in owner view: the organisation owner's pages and actions.
+      const superAdmin = useAuthStore().isSuperAdmin
       const actions = [
-        { key: 'a-inv', label: 'Create invoice', to: '/invoices/new', icon: 'fa-solid fa-plus', group: 'Action' },
-        { key: 'a-quo', label: 'Create quote', to: '/quotes/new', icon: 'fa-solid fa-plus', group: 'Action' }
-      ]
-      const pages = visibleGroups(useAuthStore().isSuperAdmin).flatMap((g) =>
+        { key: 'a-inv', label: 'Create invoice', to: '/invoices/new', icon: 'fa-solid fa-plus', group: 'Action', module: 'invoicing' },
+        { key: 'a-quo', label: 'Create quote', to: '/quotes/new', icon: 'fa-solid fa-plus', group: 'Action', module: 'invoicing' }
+      ].filter((a) => superAdmin || (hasModule(a.module) && can(a.module, 'create') && !pathHidden(a.to)))
+      const pages = visibleGroups(superAdmin).flatMap((g) =>
         g.items.map((i) => ({ key: i.to, label: i.label, to: i.to, icon: i.icon, group: g.label }))
       )
       return [...actions, ...pages]

@@ -86,6 +86,7 @@
       </div>
     </div>
   </header>
+  <ViewAsBar />
   <BusinessTypeBanner />
 </template>
 
@@ -100,12 +101,13 @@ import { assistant, toggleAssistant } from '@/composables/useAssistant'
 import { pwa, canInstall, promptInstall } from '@/composables/usePwa'
 import NotificationCenter from './NotificationCenter.vue'
 import BusinessTypeBanner from './BusinessTypeBanner.vue'
+import ViewAsBar from './ViewAsBar.vue'
 import { access, can, term, termLower, atLeast } from '@/composables/useAccess'
 import { navLabel } from '@/navigation'
 
 export default {
   name: 'AppTopbar',
-  components: { NotificationCenter, BusinessTypeBanner },
+  components: { NotificationCenter, BusinessTypeBanner, ViewAsBar },
   emits: ['toggle-menu', 'open-search'],
   data() {
     return {
@@ -139,14 +141,16 @@ export default {
       return assistant.open
     },
     visibleCreateActions() {
-      // re-evaluate when the plan loads
+      // re-evaluate when the plan loads (and on the owner view / all menus toggle)
       void entitlements.modules
       void access.permissions
+      void this.auth.isSuperAdmin
       return this.createActions
         .filter((a) => hasModule(a.module) && can(a.module, 'create'))
         .map((a) => (a.term ? { ...a, label: term(a.term), hint: a.term === 'booking' ? `Schedule a new ${termLower('booking')}` : `Add a ${termLower('customer')}` } : a))
     },
     planChip() {
+      // Organisation admins only; a super admin in owner view sees the owner's chip.
       const p = entitlements.plan
       if (!p || !p.tier || this.auth.isSuperAdmin || !atLeast('admin')) return null
       const tier = p.subscription?.tier
@@ -608,6 +612,20 @@ export default {
 .pop-leave-to {
   opacity: 0;
   transform: translateY(-4px) scale(0.98);
+}
+
+/* Mid widths: a trial plan chip ("SME trial · 14d left Choose plan"), the
+   breadcrumb group and the name no longer push the bar past the window or
+   under the buttons */
+@media (max-width: 1199px) {
+  .tb__plan strong,
+  .tb__crumb-group,
+  .tb__sep {
+    display: none;
+  }
+  .tb__who strong {
+    max-width: 110px;
+  }
 }
 
 @media (max-width: 991px) {

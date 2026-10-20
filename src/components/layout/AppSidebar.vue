@@ -24,7 +24,7 @@
 
     <!-- Super admins: which organisation this session is working in (orgs can share a name). -->
     <router-link
-      v-if="auth.isSuperAdmin && !rail && currentOrgId"
+      v-if="auth.isPlatformAdmin && !rail && currentOrgId"
       :to="{ path: '/organizations', query: { open: currentOrgId } }"
       class="sb__org-chip"
       :title="`Organisation ID ${currentOrgId} — open in Organisations`"
@@ -150,6 +150,7 @@ export default {
       return useAuthStore()
     },
     groups() {
+      // isSuperAdmin is false in owner view: the organisation owner's menus.
       return visibleGroups(this.auth.isSuperAdmin)
     },
     // Company users (and super admins signed in as an organisation) see their
@@ -190,6 +191,7 @@ export default {
       return u.organization?.name || u.organization_name || (this.auth.isSuperAdmin ? 'Platform admin' : 'Workspace')
     },
     plan() {
+      // Organisation admins (and a super admin in owner view) see the plan card.
       const p = entitlements.plan
       void access.role
       if (!p || !p.tier || this.auth.isSuperAdmin || !atLeast('admin')) return null

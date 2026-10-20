@@ -8,6 +8,11 @@
  *     → the user's role (module × action, data scope)
  *     → super admins bypass everything.
  *
+ * Owner view: a super admin signed in as an organisation is treated as that
+ * organisation's owner (role base admin: every action on every module that
+ * is on), not as a super admin — the API's all-true `permissions` for a
+ * super-admin token are not used then. See utils/session.js.
+ *
  * Until /industry/me has loaded, or if it fails, everything stays allowed
  * (fail open — the API enforces it anyway) and the default words are used.
  */
@@ -72,8 +77,24 @@ function sessionKey() {
   return `${u.id || u.email || ''}:${u.organization_id || ''}:${a.token.slice(-16)}`
 }
 
+/** Acts as a super admin (false in owner view). */
 function isSuper() {
   return !!auth()?.isSuperAdmin
+}
+
+/** A super admin viewing an organisation as its owner. */
+function ownerView() {
+  return !!auth()?.isOwnerView
+}
+
+/**
+ * What the organisation's owner may do on module key: the owner's role has
+ * base admin, so every action on every module that is on (plan ∩ type, plus
+ * extras) and on the core / team pseudo modules.
+ */
+function ownerCan(key) {
+  if (key === 'core' || key === 'team') return true
+  return access.effectiveModules.includes(key)
 }
 
 /** Apply a /industry/me payload. */
@@ -160,6 +181,7 @@ export function can(module, action = 'view') {
   const key = module || 'core'
   const acts = access.permissions[key]
   if (!acts) return true // unknown key: not governed by roles
+  if (ownerView()) return ownerCan(key)
   return acts.includes(action)
 }
 

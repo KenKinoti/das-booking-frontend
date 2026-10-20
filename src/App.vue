@@ -27,6 +27,7 @@
     <AssistantPanel />
     <BottomNav :drawer-open="mobileOpen" @more="mobileOpen = !mobileOpen" />
     <InstallPrompt />
+    <OnboardingHost />
   </div>
 
   <div v-else class="auth-container">
@@ -49,6 +50,7 @@ import AssistantPanel from './components/assistant/AssistantPanel.vue'
 import RegionSetupPrompt from './components/RegionSetupPrompt.vue'
 import BottomNav from './components/layout/BottomNav.vue'
 import InstallPrompt from './components/layout/InstallPrompt.vue'
+import OnboardingHost from './components/onboarding/OnboardingHost.vue'
 import { resetNotifications } from './composables/useNotifications'
 import { useAuthStore } from './stores/auth'
 import { globalTheme } from './composables/useTheme'
@@ -56,7 +58,7 @@ import { APP_VERSION } from './version'
 
 export default {
   name: 'App',
-  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew, AssistantPanel, RegionSetupPrompt, BottomNav, InstallPrompt },
+  components: { AppSidebar, AppTopbar, CommandPalette, ToastHost, ConfirmHost, OrganizationContext, WhatsNew, AssistantPanel, RegionSetupPrompt, BottomNav, InstallPrompt, OnboardingHost },
   data() {
     let rail = false
     try {

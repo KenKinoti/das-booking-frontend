@@ -180,7 +180,9 @@ export function navLabel(x) {
 /**
  * Can the current user see this nav item? Plan ∩ business type (hasModule),
  * then the role (view permission), then type-hidden entries, features and
- * role level. Super admins see everything.
+ * role level. Super admins see everything. Pass the auth store's
+ * `isSuperAdmin`: it is false in owner view (a super admin signed in as an
+ * organisation), so they get exactly the owner's items.
  */
 export function itemVisible(item, isSuperAdmin) {
   if (isSuperAdmin) return true
@@ -196,7 +198,8 @@ export function itemVisible(item, isSuperAdmin) {
 /**
  * Groups the current user may see, with labels in the organisation's words.
  * Items whose module is not in the plan or hidden for the business type,
- * or that the user's role cannot view, are dropped; empty groups too.
+ * or that the user's role cannot view, are dropped; empty groups too. The
+ * Platform admin group needs isSuperAdmin (hidden in owner view).
  */
 export function visibleGroups(isSuperAdmin) {
   void access.terms

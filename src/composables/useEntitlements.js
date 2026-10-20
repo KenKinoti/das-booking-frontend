@@ -4,15 +4,17 @@
  *   import { hasModule, ensureEntitlements, entitlements } from '@/composables/useEntitlements'
  *
  * Loaded from GET /plans/me after sign-in (the router guard calls
- * ensureEntitlements). Super admins see everything. Until the plan is known,
- * or if it cannot be loaded, everything stays visible (fail open — the API
- * enforces the plan anyway).
+ * ensureEntitlements). Super admins see everything — except in owner view
+ * (signed in as an organisation), where the organisation's plan applies as
+ * it does for its owner. Until the plan is known, or if it cannot be loaded,
+ * everything stays visible (fail open — the API enforces the plan anyway).
  */
 import { reactive } from 'vue'
 import api from '@/services/api'
 import { plansAPI } from '@/services/plans'
 import { useAuthStore } from '@/stores/auth'
 import { typeShows } from '@/composables/useAccess'
+import { tokenClaims } from '@/utils/session'
 
 export const entitlements = reactive({
   loaded: false,
@@ -29,12 +31,15 @@ function sessionKey() {
   try {
     const auth = useAuthStore()
     const u = auth.user || {}
-    return auth.token ? `${u.id || u.email || ''}:${u.organization_id || ''}` : ''
+    // The token's organisation too: a super admin signed in as another
+    // organisation keeps their own user record.
+    return auth.token ? `${u.id || u.email || ''}:${u.organization_id || ''}:${tokenClaims(auth.token).org_id || ''}` : ''
   } catch {
     return ''
   }
 }
 
+/** Acts as a super admin (false in owner view). */
 function isSuperAdmin() {
   try {
     return useAuthStore().isSuperAdmin

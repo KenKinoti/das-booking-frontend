@@ -4,6 +4,7 @@ import { useModulesStore } from '../stores/modules'
 import { ensureEntitlements, inPlan } from '../composables/useEntitlements'
 import { access, ensureAccess, typeShows, can, homePath } from '../composables/useAccess'
 import { moduleForPath, findNav, itemVisible, navLabel } from '../navigation'
+import { viewAs } from '../utils/session'
 // import { usePermissionsStore } from '../stores/permissions' // unused import
 
 // Lazy load components for better performance
@@ -595,7 +596,9 @@ router.beforeEach(async (to) => {
       }
     }
 
-    if (to.meta.requiresSuperAdmin && !authStore.isSuperAdmin) {
+    // Platform admin pages: the super admin's identity, in any session (they
+    // restore the platform session themselves — ensurePlatformSession).
+    if (to.meta.requiresSuperAdmin && !authStore.isPlatformAdmin) {
       return '/dashboard'
     }
 
@@ -605,22 +608,11 @@ router.beforeEach(async (to) => {
       if (!modulesStore.hasModule(to.meta.requiresModule)) return '/dashboard'
     }
 
-    // Precedence: plan → business type → role (super admins bypass).
-    if (!authStore.isSuperAdmin) {
-      await ensureAccess()
-      // A new organisation's admin finishes the setup wizard first.
-      if (access.needsSetup) return '/setup'
-      const mod = moduleForPath(to.path)
-      if (mod) {
-        await ensureEntitlements()
-        // Modules outside the plan go to the upgrade page
-        if (!inPlan(mod)) return { path: '/plan', query: { module: mod, from: to.fullPath } }
-        if (!typeShows(mod) || !can(mod, 'view')) return deny(to)
-      } else {
-        ensureEntitlements()
-      }
-      const nav = findNav(to.path)
-      if (nav && !itemVisible(nav.item, false)) return deny(to)
+    // Precedence: plan → business type → role (super admins bypass; in
+    // owner view a super admin gets exactly what the owner gets).
+    if (!authStore.isSuperAdmin && !to.meta.requiresSuperAdmin) {
+      const res = await orgAccess(to, authStore)
+      if (res !== true) return res
     }
 
     if (to.name && to.name !== 'Login') {
@@ -638,13 +630,67 @@ router.beforeEach(async (to) => {
   return true
 })
 
+/**
+ * May the organisation user (or a super admin in owner view) open `to`?
+ * Returns true or where to go instead: modules outside the plan go to the
+ * upgrade page, pages the business type or the role does not allow go home.
+ */
+async function orgAccess(to, authStore) {
+  await ensureAccess()
+  const ownerView = authStore.isOwnerView
+  // A new organisation's admin finishes the setup wizard first. A super admin
+  // viewing it is not sent there: the "Viewing" bar links to the wizard.
+  if (access.needsSetup && !ownerView) return '/setup'
+  const mod = moduleForPath(to.path)
+  if (mod) {
+    await ensureEntitlements()
+    if (!inPlan(mod)) return blocked(to, 'plan', ownerView, { path: '/plan', query: { module: mod, from: to.fullPath } })
+    if (!typeShows(mod) || !can(mod, 'view')) return blocked(to, 'type', ownerView, deny(to))
+  } else {
+    ensureEntitlements()
+  }
+  const nav = findNav(to.path)
+  if (nav && !itemVisible(nav.item, false)) return blocked(to, 'type', ownerView, deny(to))
+  return true
+}
+
 // A page the business type or the role does not allow: go to the user's home.
 function deny(to) {
   const home = homePath()
   return home === to.path ? true : home
 }
 
+// In owner view, remember why the super admin was kept out (the "Viewing"
+// bar explains it and offers "All menus" / "Exit to platform").
+function blocked(to, reason, ownerView, target) {
+  if (ownerView && target !== true) {
+    const nav = findNav(to.path)
+    viewAs.blocked = {
+      from: to.fullPath,
+      label: nav ? navLabel(nav.item) : to.meta.title || to.path,
+      reason,
+      at: typeof target === 'string' ? target : target.path
+    }
+  }
+  return target
+}
+
+/**
+ * Re-check the current page after switching to owner view: a page only
+ * "All menus" allows is left for the one the owner would get.
+ */
+export async function recheckRoute() {
+  const to = router.currentRoute.value
+  const authStore = useAuthStore()
+  if (!to || to.meta.public || to.meta.setup || to.meta.requiresAuth === false || to.meta.requiresSuperAdmin) return
+  if (authStore.isSuperAdmin) return
+  const res = await orgAccess(to, authStore)
+  if (res !== true) await router.replace(res)
+}
+
 router.afterEach((to) => {
+  // The owner-view "kept out" note belongs to the page it redirected to.
+  if (viewAs.blocked && to.path !== viewAs.blocked.at) viewAs.blocked = null
   const base = import.meta.env.VITE_APP_TITLE || 'DASYIN ERP'
   // Pages named after a business-type word use the organisation's word
   const nav = findNav(to.path)

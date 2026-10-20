@@ -25,6 +25,7 @@
             <div><dt>Member since</dt><dd>{{ date(me.created_at) }}</dd></div>
             <div><dt>Last sign-in</dt><dd>{{ me.last_login_at ? dateTime(me.last_login_at) : '—' }}</dd></div>
           </dl>
+          <button v-if="canGettingStarted" type="button" class="ui-btn ui-btn--ghost ui-btn--sm gs-again" data-testid="show-getting-started" @click="showGettingStarted"><i class="fa-solid fa-flag-checkered"></i> Show getting started again</button>
           <button class="ui-btn signout" @click="signOut"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign out</button>
         </template>
         <template v-else>
@@ -120,6 +121,8 @@ import { confirmDialog } from '@/composables/useConfirm'
 import LinkedAccounts from '@/components/auth/LinkedAccounts.vue'
 import MyEmailNotificationsCard from '@/components/settings/MyEmailNotificationsCard.vue'
 import MyBookingsCalendarCard from '@/components/bookings/MyBookingsCalendarCard.vue'
+import { reopenOnboarding } from '@/components/onboarding/onboarding'
+import { isPlatformAdminSession } from '@/utils/session'
 
 const ROLES = { super_admin: 'Super admin', admin: 'Admin', manager: 'Manager', owner: 'Owner', care_worker: 'Staff', support_coordinator: 'Coordinator' }
 
@@ -149,6 +152,10 @@ export default {
     roleLabel() {
       return ROLES[this.me.role] || this.me.role
     },
+    canGettingStarted() {
+      // Organisation users only (a super admin's own platform session has none)
+      return !isPlatformAdminSession()
+    },
     dirty() {
       if (!this.me) return false
       return ['first_name', 'last_name', 'phone'].some((k) => (this.form[k] || '') !== (this.me[k] || ''))
@@ -169,6 +176,9 @@ export default {
     this.load()
   },
   methods: {
+    showGettingStarted() {
+      reopenOnboarding()
+    },
     date: formatDate,
     dateTime: formatDateTime,
     async load() {
@@ -304,6 +314,16 @@ export default {
   width: 100%;
   justify-content: center;
   margin-top: 20px;
+}
+
+.gs-again {
+  width: 100%;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.gs-again + .signout {
+  margin-top: 8px;
 }
 
 .ui-card__head h2 i {

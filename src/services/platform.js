@@ -1,6 +1,7 @@
 // Platform admin (super admin) API + "log in as organisation" helpers.
 import api from './api'
 import { useOrganizationContext } from '@/composables/useOrganizationContext'
+import { clearViewMode, tokenClaims } from '@/utils/session'
 
 const BASE = '/super-admin/platform'
 const d = (r) => r.data?.data ?? r.data
@@ -45,6 +46,8 @@ export const AUDIT_LABELS = {
   'organization.activate': 'Organisation reactivated',
   'organization.delete': 'Organisation deleted',
   'organization.impersonate': 'Signed in as organisation',
+  'organization.reset': 'Reset organisation for handover',
+  'organization.export': 'Downloaded organisation backup',
   'organization.merge': 'Organisations merged',
   'organization.merged_into': 'Merged into another organisation',
   'user.create': 'User created',
@@ -132,8 +135,11 @@ export async function copyText(text) {
 // ---------------------------------------------------------------------------
 // "Log in as" an organisation. The backend issues a one-hour token that keeps
 // the super admin's identity but scopes every request to that organisation.
-// The super admin's own session is parked in localStorage and restored when
-// the organisation banner's "Exit" returns to the platform overview.
+// The super admin's own session is parked in localStorage and restored by
+// "Exit to platform" on the "Viewing <org>" bar (or by opening any platform
+// admin page). While viewing, the app shows the organisation as its owner
+// sees it ("owner view", see utils/session.js); the bar can switch to all
+// menus for support work.
 
 const PARK_KEY = 'platform_impersonation'
 
@@ -164,6 +170,8 @@ export async function startImpersonation(org) {
   localStorage.setItem('auth_token', res.token)
   // The org session cannot be refreshed; it simply ends after an hour.
   localStorage.removeItem('refresh_token')
+  // Every impersonation starts in owner view.
+  clearViewMode()
   const { setOrganizationContext } = useOrganizationContext()
   setOrganizationContext({ ...res.organization, id: res.organization.id, name: res.organization.name })
   window.location.assign('/dashboard')
@@ -187,5 +195,24 @@ export function ensurePlatformSession() {
   if (park.refresh_token) localStorage.setItem('refresh_token', park.refresh_token)
   localStorage.removeItem(PARK_KEY)
   clearOrganizationContext()
+  clearViewMode()
   return true
+}
+
+/**
+ * "Exit to platform": end the organisation session and go back to that
+ * organisation in Platform admin → Organizations with the super admin's own
+ * session. Without a parked session (it was cleared elsewhere) the
+ * organisation session cannot be turned back, so the super admin signs in
+ * again.
+ */
+export function exitToPlatform() {
+  const orgId = tokenClaims().org_id || ''
+  if (ensurePlatformSession()) {
+    window.location.assign(orgId ? `/organizations?open=${encodeURIComponent(orgId)}` : '/super-admin')
+    return
+  }
+  clearViewMode()
+  ;['auth_token', 'refresh_token', 'current_user'].forEach((k) => localStorage.removeItem(k))
+  window.location.assign('/login')
 }

@@ -78,7 +78,7 @@
               <th class="pf-hide-sm">Last active</th>
               <th class="pf-hide-md">Created</th>
               <th>Status</th>
-              <th style="width: 96px"></th>
+              <th style="width: 128px"></th>
             </tr>
           </thead>
           <tbody>
@@ -112,6 +112,7 @@
                     <i :class="busy[o.id] === 'login' ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-right-to-bracket'"></i>
                   </button>
                   <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Edit ${o.name}`" title="Edit details" @click="openEdit(o)"><i class="fa-regular fa-pen-to-square"></i></button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon pf-hide-sm" :aria-label="`Reset ${o.name} for handover`" :title="o.id === ownOrgId ? 'You cannot reset your own organisation' : 'Reset for handover…'" :disabled="o.id === ownOrgId" data-testid="row-reset" @click="openReset(o)"><i class="fa-solid fa-rotate-left"></i></button>
                   <button class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" :aria-label="`Open ${o.name}`" title="Open" @click="openDrawer(o)"><i class="fa-solid fa-chevron-right"></i></button>
                 </div>
               </td>
@@ -198,6 +199,11 @@
               <p v-if="drawerOrg.description" class="desc">{{ drawerOrg.description }}</p>
             </div>
             <div class="pf-section">
+              <div class="pf-danger-zone" style="margin-bottom: 12px">
+                <h4>Reset for handover</h4>
+                <p>Finished setting up and testing for the client? Remove the test data (sales, invoices, bookings, stock, messages…) and give the owner the setup wizard on their next sign-in. Settings, branding, plan and integrations are kept.</p>
+                <button class="ui-btn ui-btn--danger ui-btn--sm" :disabled="drawerOrg.id === ownOrgId" :title="drawerOrg.id === ownOrgId ? 'You cannot reset your own organisation' : ''" data-testid="drawer-reset" @click="openReset(drawerOrg)"><i class="fa-solid fa-rotate-left"></i> Reset for handover…</button>
+              </div>
               <div class="pf-danger-zone">
                 <h4>Delete organisation</h4>
                 <p>Removes the organisation from the platform and deactivates all {{ drawerOrg.users }} of its users. This cannot be undone from the app.</p>
@@ -437,6 +443,8 @@
       </form>
     </div>
 
+    <OrgResetModal v-if="resetOrg" :org="resetOrg" @close="resetOrg = null" @reset="onReset" @login-as="loginAs" />
+
     <OneTimeSecret
       v-if="secret"
       title="Organisation created"
@@ -452,6 +460,7 @@
 import '@/components/platform/platform.css'
 import OneTimeSecret from '@/components/platform/OneTimeSecret.vue'
 import DuplicateMerge from '@/components/platform/DuplicateMerge.vue'
+import OrgResetModal from '@/components/platform/OrgResetModal.vue'
 import CountryPicker from '@/components/customers/CountryPicker.vue'
 import { currencyGroups, currencyForCountry, countryFlag, countryName, CURRENCY_CODES } from '@/utils/currencies'
 import { apiErrorMessage } from '@/services/api'
@@ -474,7 +483,7 @@ const emptyAdmin = () => ({ first_name: '', last_name: '', email: '', phone: '',
 
 export default {
   name: 'SuperAdminOrganizations',
-  components: { OneTimeSecret, DuplicateMerge, CountryPicker },
+  components: { OneTimeSecret, DuplicateMerge, CountryPicker, OrgResetModal },
   data() {
     const q = this.$route.query
     return {
@@ -500,6 +509,7 @@ export default {
       form: { open: false, id: null, data: emptyOrg(), admin: emptyAdmin(), generatePassword: true, saving: false, error: '' },
       suspend: { open: false, org: null, reason: '', saving: false },
       del: { open: false, org: null, confirm: '', saving: false, error: '' },
+      resetOrg: null,
       secret: null,
       timer: null,
       showDups: this.$route.query.duplicates === '1',
@@ -608,6 +618,7 @@ export default {
     actionLabel: auditActionLabel,
     onKey(e) {
       if (e.key !== 'Escape') return
+      if (this.resetOrg) return // the reset modal closes itself
       if (this.secret) this.secret = null
       else if (this.del.open) this.del.open = false
       else if (this.suspend.open) this.suspend.open = false
@@ -844,6 +855,15 @@ export default {
       } finally {
         this.del.saving = false
       }
+    },
+
+    // Reset for handover (OrgResetModal)
+    openReset(o) {
+      this.resetOrg = o
+    },
+    onReset() {
+      this.load()
+      if (this.drawer.open) this.loadDetail()
     },
 
     // Log in as

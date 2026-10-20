@@ -6,6 +6,53 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.13.0] - 2026-10-20
+
+### Handing an organisation to its owner
+
+**Owner view when logged in as an organisation.** When a super admin uses Platform admin → Organizations → Log in as,
+DASYIN now shows the organisation exactly as its owner sees it: the sidebar, Ctrl K search, Create menu and phone bottom
+bar list only the organisation's modules (its plan and business type, plus any extras), in its own words and with its
+features (e.g. Bar stock for clubs). Pages outside them show the owner's screens — the "isn't included in your plan"
+page, or home for modules the business type hides — with a note explaining why. The plan/trial chip, plan card and
+business-type banner appear as they do for the owner, and the Platform admin menu is hidden. A "Viewing ‹organisation›
+as its owner" bar shows the business type and plan, an **Owner view / All menus** switch (All menus shows everything as
+before, for support work; remembered for that session only) and **Exit to platform**, which returns to the organisation
+in Organizations. Organisations that haven't finished setup no longer push the super admin into the wizard; the bar
+links to it instead.
+
+**Reset organisation for handover.** In Platform admin → Organizations, "Reset for handover…" hands a tested
+organisation to its owner. A preview shows, by group and table, what will be removed, what changes and what stays;
+a one-click backup downloads a ZIP of everything the reset removes. Test business records (sales, invoices, quotes,
+payments, bookings, events, CRM, cash book, bills, expenses and imports, purchase orders, all stock and bar stock
+activity, notifications, messages, meetings, insights items) are removed, customers too unless kept; the catalogue
+(products, services, stock items, recipes, locations, suppliers) and staff accounts are kept by default. After the
+organisation's name is typed, the reset runs in one transaction, restarts numbering (INV-1001, QUO-1001, RCT-0001,
+PO-00001 …), sets stock and balances back to zero and records an audit entry. The owner gets the setup wizard and
+getting-started steps again on the next sign-in. The organisation itself, its plan, business type, branding,
+preferences, email and payment settings, integrations and the owners' accounts are never touched; tables no rule
+knows are reported and left alone. The platform's own organisation, organisations with super admins and "log in as"
+sessions are refused.
+
+**Getting started, from each person's point of view.** After the setup wizard (owners) or on first sign-in (staff),
+DASYIN welcomes each person with 3–6 steps for their role and business type — a club owner prices the drinks menu,
+adds staff, receives the first delivery and reads the variance report; a bartender picks their bar, rings up a tot,
+asks the store for stock, counts at closing and logs breakages; a store keeper receives deliveries, issues stock and
+counts the store; every role of every business type has its own. Each step has a Go button, and steps tick themselves
+once done (a sale, a delivery, an approved count, staff added, a logo…). A "Getting started 2/5" pill opens the
+checklist without covering the till's Charge button and waits until first-run prompts (such as the country prompt)
+are answered. It goes away when everything is done or hidden (reopen it from My profile), restarts for everyone after
+a handover reset, and shows super admins viewing an organisation a read-only preview of the owner's steps.
+
+Also: Ctrl K's "Create invoice / Create quote" only appear when invoicing is available; the top bar no longer
+overflows between 992 and 1199 px with a trial plan chip; the audit log names resets and backups.
+
+API: `POST /super-admin/platform/organizations/:id/reset` (`dry_run`, `keep_customers`, `keep_catalogue`,
+`keep_staff`, `confirm_name`), `GET /super-admin/platform/organizations/:id/export` (also under
+`/super-admin/organizations/:id/…`); `GET /onboarding/me`, `POST /onboarding/me/welcomed`,
+`POST /onboarding/me/steps/:key`, `POST /onboarding/me/dismiss`, `POST /onboarding/me/restart`. New table
+`onboarding_progress`; new package `pkg/orghooks` (reset hooks).
+
 ## [2.12.0] - 2026-10-20
 
 ### Who gets emails

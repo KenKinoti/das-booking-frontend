@@ -17,6 +17,7 @@
 <script>
 import { access } from '@/composables/useAccess'
 import { useAuthStore } from '@/stores/auth'
+import { tokenClaims } from '@/utils/session'
 
 const KEY = 'business_type_banner_dismissed'
 
@@ -32,6 +33,7 @@ function dismissedList() {
  * Admins of an organisation that never chose a business type (existing
  * "general" organisations) are invited to choose one. Shown on the
  * dashboard; "Not now" hides it for this organisation on this device.
+ * A super admin viewing the organisation as its owner sees it too.
  */
 export default {
   name: 'BusinessTypeBanner',
@@ -40,7 +42,10 @@ export default {
   },
   computed: {
     orgId() {
-      return useAuthStore().user?.organization_id || ''
+      // The token's organisation: a super admin signed in as an organisation
+      // keeps their own user record (and its organisation id).
+      const auth = useAuthStore()
+      return (auth.token && tokenClaims(auth.token).org_id) || auth.user?.organization_id || ''
     },
     visible() {
       if (!this.access.loaded || !this.access.showBanner || useAuthStore().isSuperAdmin) return false

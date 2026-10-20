@@ -26,6 +26,9 @@
       </div>
     </div>
 
+    <!-- Getting started: how to use DASYIN in this person's role (pkg/onboarding) -->
+    <GettingStartedCard />
+
     <!-- Business snapshot: month & financial year to date, home currency (pkg/insights) -->
     <SnapshotRow :d="ins" :loading="insLoading" :show-invoicing="mod.invoicing" />
     <div v-if="insError" class="ui-alert ui-alert--warning mb">
@@ -413,6 +416,7 @@ import HostingCard from '@/components/insights/HostingCard.vue'
 import CashForecastCard from '@/components/insights/CashForecastCard.vue'
 import IndustryLatestCard from '@/components/insights/IndustryLatestCard.vue'
 import BarTonightCard from '@/components/bar/BarTonightCard.vue'
+import GettingStartedCard from '@/components/onboarding/GettingStartedCard.vue'
 import { insightsApi } from '@/services/insights'
 import { hasModule } from '@/composables/useEntitlements'
 import {
@@ -435,7 +439,7 @@ const PREF = 'dash.period'
 
 export default {
   name: 'DashboardView',
-  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard, IndustryLatestCard, BarTonightCard },
+  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard, IndustryLatestCard, BarTonightCard, GettingStartedCard },
   data() {
     return {
       data: null,

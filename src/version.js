@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.12.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.13.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,12 +26,11 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Who gets emails: owners decide who receives booking emails, the daily agenda, bill reminders, the bar night report and the strategy brief — everyone involved, owners and managers, or only owners — and can switch any person off.'
+export const RELEASE_LEAD = 'Hand a tested organisation to its owner: super admins see an organisation exactly as its owner does, can reset it for handover, and every person gets getting-started steps for their own role.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-envelope-circle-check', text: 'Settings → Who gets emails: one place for every internal email, with three modes — Everyone involved (the default), Owners and managers, or Only owners (staff get no emails)' },
-  { icon: 'fa-solid fa-user-slash', text: 'Switch emails off for one person — all of them or one kind — or on as an exception to the mode, and preview the exact addresses the next email of each kind goes to' },
-  { icon: 'fa-solid fa-martini-glass-citrus', text: 'Nightclubs, bars and lounges start with “Only owners”: the owner gets the important emails, bartenders and other staff get none' },
-  { icon: 'fa-regular fa-bell', text: 'My profile → Email notifications: everyone can turn their own emails off; anything an admin turned off shows “Turned off by your administrator”' }
+  { icon: 'fa-solid fa-user-tie', text: 'Owner view: when a super admin logs in as an organisation, the menus, search, Create menu and plan are exactly what its owner sees — with an "All menus" switch for support work and Exit to platform' },
+  { icon: 'fa-solid fa-rotate-left', text: 'Reset for handover: preview what goes, download a backup, then clear test sales, invoices, bookings and stock activity, restart numbering and send the owner back through the setup wizard' },
+  { icon: 'fa-solid fa-list-check', text: 'Getting started for everyone: 3–6 steps for each person’s role and business type (owner, bar manager, bartender, store keeper, cashier, mechanic …) that tick themselves as they are done' }
 ]

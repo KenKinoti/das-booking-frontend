@@ -4,6 +4,7 @@ import { apiErrorMessage } from '../services/api'
 import { ssoApi } from '../services/sso'
 import { seedBranding, loadBranding, clearBranding } from '../composables/useBranding'
 import { loadOrgPrefs, clearOrgPrefs } from '../composables/useOrgPrefs'
+import { isViewingAsOrg, isOwnerView } from '../utils/session'
 
 function readJSON(key) {
   try {
@@ -32,7 +33,18 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated: (state) => !!state.token && !!state.user,
-    isSuperAdmin: (state) => state.user?.role === 'super_admin',
+    /** The signed-in person is a platform super admin (their identity, in any session). */
+    isPlatformAdmin: (state) => state.user?.role === 'super_admin',
+    /** A super admin signed in as another organisation ("Log in as"). */
+    isViewingAsOrg: (state) => !!state.token && state.user?.role === 'super_admin' && isViewingAsOrg(state.token),
+    /** Viewing an organisation as its owner sees it (the default while viewing as an org). */
+    isOwnerView: (state) => !!state.token && state.user?.role === 'super_admin' && isOwnerView(state.token),
+    /**
+     * Acts as a super admin: bypasses plan, business-type and role checks.
+     * False in owner view, where the session is treated as the organisation's
+     * owner for everything that decides what is visible.
+     */
+    isSuperAdmin: (state) => state.user?.role === 'super_admin' && !(state.token && isOwnerView(state.token)),
     isAdmin: (state) => ['super_admin', 'admin'].includes(state.user?.role),
     userName: (state) => {
       if (!state.user) return 'User'
