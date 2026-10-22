@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.13.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.14.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,11 +26,14 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Hand a tested organisation to its owner: super admins see an organisation exactly as its owner does, can reset it for handover, and every person gets getting-started steps for their own role.'
+export const RELEASE_LEAD = 'Your phone as a till with camera scanning, client subscriptions that warn you before a suspension, who opened each email, encrypted call links, announcements and seasonal themes.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-user-tie', text: 'Owner view: when a super admin logs in as an organisation, the menus, search, Create menu and plan are exactly what its owner sees — with an "All menus" switch for support work and Exit to platform' },
-  { icon: 'fa-solid fa-rotate-left', text: 'Reset for handover: preview what goes, download a backup, then clear test sales, invoices, bookings and stock activity, restart numbering and send the owner back through the setup wizard' },
-  { icon: 'fa-solid fa-list-check', text: 'Getting started for everyone: 3–6 steps for each person’s role and business type (owner, bar manager, bartender, store keeper, cashier, mechanic …) that tick themselves as they are done' }
+  { icon: 'fa-solid fa-barcode', text: 'Fast sale on any device: scan bottles with the phone camera or a Bluetooth scanner, favourites, one-tap M-Pesa and cash with change, and who sold what on which phone' },
+  { icon: 'fa-solid fa-arrows-rotate', text: 'Client subscriptions: invoices go out automatically, reminders to clients, and you hear at least 3 days before any hosting is suspended' },
+  { icon: 'fa-solid fa-envelope-open-text', text: 'Know who read it: each person gets their own copy, and the Emails tab shows who opened, viewed and paid' },
+  { icon: 'fa-solid fa-shield-halved', text: 'Secure calls: share a link, guests join from any phone without an account; the key stays in the link, so DASYIN itself cannot listen in' },
+  { icon: 'fa-solid fa-bullhorn', text: 'Announcements from DASYIN with holiday nudges, and seasonal themes: a little spooky for Halloween, Kenyan colours on national days' },
+  { icon: 'fa-solid fa-video-slash', text: 'Google sign-in that shows exactly why a button would be hidden, and the camera and microphone only ever start on your tap' }
 ]

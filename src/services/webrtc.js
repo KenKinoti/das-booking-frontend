@@ -1,5 +1,6 @@
 import { WS_ORIGIN } from '../config'
 import api from './api'
+import { openMedia, stopStream } from './mediaGuard'
 
 // WebRTC Configuration with STUN/TURN servers for low latency
 const DEFAULT_RTC_CONFIGURATION = {
@@ -155,7 +156,8 @@ export class WebRTCService {
   // Get user media with specified constraints
   async getUserMedia(constraints = DEFAULT_MEDIA_CONSTRAINTS) {
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia(constraints)
+      // only from a tap (see mediaGuard): registered so leaving the page / signing out stops it
+      this.localStream = await openMedia(constraints)
 
       // Add tracks to peer connection
       if (this.peerConnection) {
@@ -215,13 +217,14 @@ export class WebRTCService {
   async requestPermissions() {
     try {
       // Try to get a minimal stream to trigger permission request
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // only from a tap (see mediaGuard)
+      const stream = await openMedia({
         video: true,
         audio: true
       })
 
       // Stop tracks immediately as we just wanted to trigger permission
-      stream.getTracks().forEach(track => track.stop())
+      stopStream(stream)
 
       return { success: true, permissions: await this.checkPermissions() }
     } catch (error) {

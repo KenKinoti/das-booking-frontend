@@ -91,6 +91,7 @@ import { APP_VERSION, VERSION_LABEL } from '../version'
 import BrandMark from '../components/layout/BrandMark.vue'
 import ProviderButton from '../components/auth/ProviderButton.vue'
 import { ssoApi } from '../services/sso'
+import { safeReturnPath } from '../services/mediaGuard'
 
 export default {
   name: 'LoginView',
@@ -115,16 +116,17 @@ export default {
     expired() {
       return this.$route.query.expired === '1' && !this.error
     },
+    // Where to go after signing in — never a camera / microphone page (then home).
     redirectTarget() {
-      const r = this.$route.query.redirect
-      return typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : ''
+      return safeReturnPath(this.$route.query.redirect, this.$router)
     }
   },
   async mounted() {
     // Back from the provider via the browser's back button: clear the spinner.
     window.addEventListener('pageshow', this.onPageShow)
     try {
-      this.providers = await ssoApi.providers()
+      // One retry: a flaky network must not silently hide the buttons.
+      this.providers = await ssoApi.providers({ retries: 1 })
     } catch {
       this.providers = []
     }
@@ -137,7 +139,8 @@ export default {
       this.leaving = ''
     },
     startUrl(provider) {
-      return ssoApi.startUrl(provider, this.redirectTarget)
+      const p = this.providers.find((x) => x.id === provider)
+      return ssoApi.startUrl(provider, this.redirectTarget, p?.start_url)
     },
     async handleLogin() {
       this.error = null

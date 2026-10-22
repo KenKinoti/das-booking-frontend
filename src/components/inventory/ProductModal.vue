@@ -27,7 +27,10 @@
           </div>
           <div class="ui-field">
             <label for="pr_barcode">Barcode</label>
-            <input id="pr_barcode" v-model="form.barcode" class="ui-input mono" maxlength="100" placeholder="EAN / UPC" />
+            <div class="with-btn">
+              <input id="pr_barcode" v-model="form.barcode" class="ui-input mono" maxlength="100" placeholder="EAN / UPC" data-testid="product-barcode" />
+              <button type="button" class="ui-btn ui-btn--icon" title="Scan the barcode with the camera" aria-label="Scan barcode" data-testid="product-barcode-scan" @click="scanning = true"><i class="fa-solid fa-camera"></i></button>
+            </div>
           </div>
           <div class="ui-field">
             <label for="pr_cat">Category</label>
@@ -118,6 +121,7 @@
         </button>
       </div>
     </form>
+    <BarcodeScanner v-if="scanning" title="Scan the product’s barcode" @code="onScanned" @close="scanning = false" />
   </div>
 </template>
 
@@ -126,9 +130,11 @@ import { inventoryService, suggestSku, UNITS } from '@/services/inventoryService
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney } from '@/utils/format'
 import { toast } from '@/composables/useToast'
+import BarcodeScanner from '@/components/bar/BarcodeScanner.vue'
 
 export default {
   name: 'ProductModal',
+  components: { BarcodeScanner },
   props: {
     product: { type: Object, default: null },
     categories: { type: Array, default: () => [] },
@@ -139,6 +145,7 @@ export default {
   data() {
     const p = this.product || {}
     return {
+      scanning: false,
       form: {
         name: p.name || '',
         sku: p.sku || '',
@@ -193,9 +200,14 @@ export default {
     document.removeEventListener('keydown', this.onKey)
   },
   methods: {
+    onScanned(code) {
+      this.scanning = false
+      this.form.barcode = String(code || '').trim()
+      toast.success(`Barcode ${this.form.barcode} scanned`)
+    },
     money: (v) => formatMoney(v),
     onKey(e) {
-      if (e.key === 'Escape' && !this.newCat.open) this.close()
+      if (e.key === 'Escape' && !this.newCat.open && !this.scanning) this.close()
     },
     close() {
       if (!this.saving) this.$emit('close')

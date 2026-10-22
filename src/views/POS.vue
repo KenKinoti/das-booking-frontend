@@ -1,7 +1,7 @@
 <template>
-  <div class="ui-page ui-page--wide pos">
+  <div class="ui-page ui-page--wide pos" :class="{ 'has-cart': cart.length }">
     <header class="ui-page-head pos-head">
-      <div>
+      <div class="pos-title">
         <div class="ui-eyebrow">Sales</div>
         <h1>Point of Sale</h1>
       </div>
@@ -15,15 +15,21 @@
         </label>
         <button class="drawer-pill" :class="drawer ? 'is-open' : 'is-closed'" :disabled="drawerLoading" @click="showDrawer = true">
           <span class="dot"></span>
-          <span v-if="drawer">Drawer open · <strong>{{ money(drawer.expected_amount) }}</strong></span>
+          <span v-if="drawer">Drawer open<span class="hide-phone"> · <strong>{{ money(drawer.expected_amount) }}</strong></span></span>
           <span v-else>Drawer closed<span class="hide-xs"> · Open</span></span>
         </button>
-        <button class="ui-btn" @click="showParked = true">
+        <button class="ui-btn hide-phone" @click="showParked = true">
           <i class="fa-regular fa-clock"></i> Parked<span v-if="parked.length" class="count">{{ parked.length }}</span>
         </button>
-        <router-link to="/pos-transactions" class="ui-btn"><i class="fa-solid fa-receipt"></i> <span class="hide-xs">Transactions</span></router-link>
+        <router-link to="/pos-transactions" class="ui-btn hide-phone"><i class="fa-solid fa-receipt"></i> <span class="hide-xs">Transactions</span></router-link>
+        <OverflowMenu :items="moreItems" label="More till actions" btn-class="pos-more" />
       </div>
     </header>
+
+    <div v-if="offlineAt" class="ui-alert ui-alert--warning pos-offline" role="status" data-testid="pos-offline">
+      <i class="fa-solid fa-wifi"></i>
+      <span>No connection — searching the products and prices saved on this device at {{ offlineAt }}. Sales go through once you’re back online. <a href="#" @click.prevent="loadProducts">Try again</a></span>
+    </div>
 
     <div class="pos-grid">
       <!-- ============ Catalogue ============ -->
@@ -36,14 +42,18 @@
               v-model="query"
               class="ui-input"
               type="search"
-              placeholder="Search, or scan a barcode / SKU and press Enter"
+              :placeholder="narrow ? 'Search products' : 'Search or scan a barcode / SKU'"
               aria-label="Search products or scan barcode"
               autocomplete="off"
+              enterkeyhint="search"
               @keydown.enter.prevent="onScan"
               @keydown.esc="query = ''"
             />
             <kbd v-if="!query" class="kbd hide-sm">/</kbd>
           </div>
+          <button type="button" class="ui-btn scan-cam" data-testid="pos-scan" aria-label="Scan barcodes with the camera" title="Scan barcodes with the camera" @click="openScanner">
+            <i class="fa-solid fa-camera"></i><span class="hide-sm">Scan</span>
+          </button>
           <label class="ui-switch stock-toggle hide-sm">
             <input v-model="hideOutOfStock" type="checkbox" />
             <span>In stock only</span>
@@ -73,34 +83,76 @@
             <router-link v-else to="/inventory" class="ui-btn ui-btn--primary" style="margin-top: 12px"><i class="fa-solid fa-plus"></i> Add products in Inventory</router-link>
           </div>
 
-          <div v-else-if="!filtered.length" class="ui-empty">
-            <div class="ui-empty__icon"><i class="fa-solid fa-magnifying-glass"></i></div>
-            <h3>No matching products</h3>
-            <p>Nothing matches “{{ query || activeCat }}”.</p>
-            <button class="ui-btn" style="margin-top: 12px" @click="resetFilters">Clear filters</button>
-          </div>
+          <template v-else>
+            <!-- Quick picks: this person's favourites at this bar, then top sellers -->
+            <div v-if="showPicks" class="picks" data-testid="quick-picks">
+              <div class="picks__head">
+                <h3>{{ picksTitle }}</h3>
+                <span class="muted hide-xs">{{ picksSub }}</span>
+                <button v-if="lastSale && !cart.length" type="button" class="ui-btn ui-btn--sm picks__repeat" data-testid="repeat-last" :title="`Add the ${lastSale.count} items of your last sale again`" @click="repeatLast">
+                  <i class="fa-solid fa-rotate-right"></i> Repeat<span class="hide-phone"> last sale</span>
+                </button>
+              </div>
+              <div class="picks__row">
+                <button
+                  v-for="k in picks"
+                  :key="k.product.id"
+                  type="button"
+                  class="pick"
+                  :class="{ 'in-cart': qtyInCart(k.product.id), 'is-out': available(k.product) <= 0 }"
+                  :disabled="available(k.product) <= 0"
+                  :data-pick="k.product.name"
+                  :aria-label="`Add ${k.product.name}, ${money(k.product.selling_price)}`"
+                  @click="addProduct(k.product)"
+                >
+                  <span v-if="qtyInCart(k.product.id)" class="pick__qty">{{ qtyInCart(k.product.id) }}</span>
+                  <span class="pick__name">{{ k.product.name }}</span>
+                  <span class="pick__price">{{ money(k.product.selling_price) }}</span>
+                </button>
+              </div>
+            </div>
+            <div v-else-if="lastSale && !cart.length && !query" class="picks picks--bare">
+              <button type="button" class="ui-btn ui-btn--sm picks__repeat" data-testid="repeat-last" @click="repeatLast"><i class="fa-solid fa-rotate-right"></i> Repeat last sale</button>
+            </div>
 
-          <div v-else class="grid">
-            <button
-              v-for="p in filtered"
-              :key="p.id"
-              class="tile"
-              :class="{ 'is-out': available(p) <= 0, 'in-cart': qtyInCart(p.id) }"
-              :disabled="available(p) <= 0"
-              :aria-label="`Add ${p.name}, ${money(p.selling_price)}${available(p) <= 0 ? ', out of stock' : ''}`"
-              :data-product="p.name"
-              @click="addProduct(p)"
-            >
-              <span v-if="qtyInCart(p.id)" class="tile__qty">{{ qtyInCart(p.id) }}</span>
-              <span class="tile__avatar">{{ initials(p.name) }}</span>
-              <span class="tile__name">{{ p.name }}</span>
-              <span class="tile__sku">{{ p.sku }}</span>
-              <span class="tile__foot">
-                <strong>{{ money(p.selling_price) }}</strong>
-                <span class="stock" :class="stockClass(p)">{{ stockLabel(p) }}</span>
-              </span>
-            </button>
-          </div>
+            <div v-if="!filtered.length" class="ui-empty">
+              <div class="ui-empty__icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+              <h3>No matching products</h3>
+              <p>Nothing matches “{{ query || activeCat }}”.</p>
+              <div class="empty-actions">
+                <button class="ui-btn" @click="resetFilters">Clear filters</button>
+                <button v-if="isManager && /^\d{6,14}$/.test(query.trim())" class="ui-btn ui-btn--primary" @click="openLink(query.trim())"><i class="fa-solid fa-link"></i> Link this barcode</button>
+              </div>
+            </div>
+
+            <template v-else>
+              <h3 v-if="showPicks" class="all-head">All products <span class="muted">{{ filtered.length }}</span></h3>
+              <div class="grid">
+                <button
+                  v-for="p in visibleProducts"
+                  :key="p.id"
+                  class="tile"
+                  :class="{ 'is-out': available(p) <= 0, 'in-cart': qtyInCart(p.id) }"
+                  :disabled="available(p) <= 0"
+                  :aria-label="`Add ${p.name}, ${money(p.selling_price)}${available(p) <= 0 ? ', out of stock' : ''}`"
+                  :data-product="p.name"
+                  @click="addProduct(p)"
+                >
+                  <span v-if="qtyInCart(p.id)" class="tile__qty">{{ qtyInCart(p.id) }}</span>
+                  <span class="tile__avatar">{{ initials(p.name) }}</span>
+                  <span class="tile__name">{{ p.name }}</span>
+                  <span class="tile__sku">{{ p.sku }}</span>
+                  <span class="tile__foot">
+                    <strong>{{ money(p.selling_price) }}</strong>
+                    <span class="stock" :class="stockClass(p)">{{ stockLabel(p) }}</span>
+                  </span>
+                </button>
+              </div>
+              <div v-if="filtered.length > visibleProducts.length" ref="more" class="grid-more">
+                <button type="button" class="ui-btn" @click="showMore">Show more ({{ filtered.length - visibleProducts.length }})</button>
+              </div>
+            </template>
+          </template>
         </div>
       </section>
 
@@ -154,6 +206,7 @@
           <div v-if="!cart.length" class="cart-empty">
             <i class="fa-solid fa-cart-shopping"></i>
             <p>Tap a product or scan a barcode to start a sale.</p>
+            <button v-if="lastSale" type="button" class="ui-btn ui-btn--sm" data-testid="repeat-last-cart" @click="repeatLast"><i class="fa-solid fa-rotate-right"></i> Repeat last sale · {{ lastSale.count }} item{{ lastSale.count === 1 ? '' : 's' }}</button>
           </div>
           <div v-for="(l, i) in cart" :key="l.product_id" class="line">
             <div class="line__main">
@@ -172,7 +225,12 @@
 
         <!-- Adjustments & totals -->
         <div class="cart__foot">
-          <div class="adjust">
+          <button type="button" class="adjust-toggle" :aria-expanded="adjustOpen" @click="adjustOpen = !adjustOpen">
+            <span>Discount &amp; tax</span>
+            <span class="muted">{{ discountAmount > 0 ? `−${money(discountAmount)}` : taxRate ? taxName : 'None' }}</span>
+            <i :class="adjustOpen ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"></i>
+          </button>
+          <div class="adjust" :class="{ 'is-open': adjustOpen }">
             <div class="adjust__row">
               <span class="adjust__label">Discount</span>
               <div class="seg">
@@ -207,48 +265,101 @@
             <div class="totals__grand"><dt>Total</dt><dd>{{ money(total) }}</dd></div>
           </dl>
 
-          <button class="charge" :disabled="!cart.length || total < 0" @click="openPayment">
+          <div class="paybar" role="group" aria-label="Take payment">
+            <button v-for="m in payButtons" :key="m.mode" type="button" class="paybar__btn" :data-pay="m.mode" :disabled="!cart.length || total < 0" @click="openPayment(m.mode)">
+              <i :class="m.icon"></i><span>{{ m.label }}</span>
+            </button>
+          </div>
+          <button class="charge" :disabled="!cart.length || total < 0" @click="openPayment()">
             <span>Charge</span>
             <strong>{{ money(total) }}</strong>
           </button>
-          <div class="hint hide-sm"><kbd class="kbd">F9</kbd> charge · <kbd class="kbd">/</kbd> search · <kbd class="kbd">Enter</kbd> add scanned code</div>
+          <div class="hint hide-sm"><kbd class="kbd">F9</kbd> charge · <kbd class="kbd">/</kbd> search · <kbd class="kbd">Enter</kbd> add scanned code · handheld scanners work anywhere</div>
         </div>
       </aside>
     </div>
 
-    <!-- Mobile cart bar -->
-    <button v-if="!cartOpen" class="cart-bar" @click="cartOpen = true">
-      <span><i class="fa-solid fa-cart-shopping"></i> {{ itemCount }} item{{ itemCount === 1 ? '' : 's' }}</span>
-      <strong>{{ money(total) }} <i class="fa-solid fa-chevron-up"></i></strong>
-    </button>
+    <!-- what a handheld scanner just added (a quiet chip, never over the Pay button) -->
+    <transition name="pos-flash">
+      <div v-if="flash" :key="flash.key" class="pos-flash" :class="{ 'is-warn': !flash.ok }" role="status" data-testid="pos-flash">
+        <i :class="flash.ok ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'"></i> {{ flash.text }}
+      </div>
+    </transition>
 
-    <PaymentModal v-if="showPay" :total="total" :currency="currency" :busy="paying" :error="payError" @close="showPay = false" @confirm="completeSale" />
-    <ReceiptModal v-if="receipt" :transaction="receipt" :organization="organization" :currency="currency" after-sale @close="receipt = null" @new-sale="newSale" />
+    <!-- Phone / tablet dock: scan, the sale's total (opens the cart), pay -->
+    <div v-if="!cartOpen" class="cart-dock">
+      <button type="button" class="dock-scan" aria-label="Scan barcodes" data-testid="dock-scan" @click="openScanner"><i class="fa-solid fa-barcode"></i></button>
+      <button class="cart-bar" @click="cartOpen = true">
+        <span><i class="fa-solid fa-cart-shopping"></i> {{ itemCount }}<span class="cart-bar__word"> item{{ itemCount === 1 ? '' : 's' }}</span></span>
+        <strong>{{ money(total) }} <i class="fa-solid fa-chevron-up"></i></strong>
+      </button>
+      <button v-if="cart.length" type="button" class="dock-pay" data-testid="dock-pay" :disabled="total < 0" @click="openPayment()">Pay</button>
+    </div>
+
+    <PaymentModal v-if="showPay" :total="total" :currency="currency" :busy="paying" :error="payError" :initial-mode="payMode" @close="showPay = false" @confirm="completeSale" />
+    <ReceiptModal v-if="receipt" :transaction="receipt" :organization="organization" :currency="currency" after-sale @close="receipt = null" @new-sale="newSale" @photo="photoFor = receipt" />
     <CashDrawerModal v-if="showDrawer" :drawer="drawer" :currency="currency" :busy="drawerBusy" @close="showDrawer = false" @open="openDrawer" @close-drawer="closeDrawer" />
     <ParkedSalesModal v-if="showParked" :sales="parked" :currency="currency" @close="showParked = false" @resume="resumeParked" @discard="discardParked" />
+    <BarcodeScanner v-if="scanning" continuous title="Scan to sell" :feedback="onCameraCode" @close="closeScanner" />
+    <LinkBarcodeSheet v-if="linkCode" :code="linkCode" :index="index" :currency="currency" :can-manage="isManager" :bar-mode="barMode" @close="linkCode = ''" @linked="onLinked" @created="onCreated" @search="linkSearchInstead" />
+    <SalePhotoSheet v-if="photoFor" :transaction="photoFor" :currency="currency" @close="photoFor = null" @saved="onPhotoSaved" />
+
+    <div v-if="deviceEdit" class="ui-modal-backdrop" @mousedown.self="deviceEdit = false">
+      <form class="ui-modal" style="max-width: 440px" role="dialog" aria-modal="true" aria-labelledby="dev-title" data-testid="device-name" @submit.prevent="saveDevice">
+        <div class="ui-modal__head">
+          <h2 id="dev-title">Name this device</h2>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" aria-label="Close" @click="deviceEdit = false"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="ui-modal__body">
+          <p class="ui-hint" style="margin-top: 0">Every sale from this phone or computer is tagged with this name, so owners can see which device sold what.</p>
+          <div class="ui-field">
+            <label for="dev-name">Device name</label>
+            <input id="dev-name" ref="deviceInput" v-model="deviceDraft" class="ui-input" maxlength="60" required placeholder="e.g. Brian’s phone, Front till" data-testid="device-input" />
+          </div>
+          <div class="dev-suggest">
+            <button v-for="s in deviceSuggestions" :key="s" type="button" class="chip chip--sm" @click="deviceDraft = s">{{ s }}</button>
+          </div>
+        </div>
+        <div class="ui-modal__foot">
+          <button type="button" class="ui-btn" @click="deviceEdit = false">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="!deviceDraft.trim()" data-testid="device-save">Save</button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
 <script>
+import { markRaw } from 'vue'
 import { orgCurrency } from '@/utils/orgDefaults'
 import PaymentModal from '@/components/pos/PaymentModal.vue'
 import ReceiptModal from '@/components/pos/ReceiptModal.vue'
 import CashDrawerModal from '@/components/pos/CashDrawerModal.vue'
 import ParkedSalesModal from '@/components/pos/ParkedSalesModal.vue'
-import { posService, personName } from '@/services/posService'
+import LinkBarcodeSheet from '@/components/pos/LinkBarcodeSheet.vue'
+import SalePhotoSheet from '@/components/pos/SalePhotoSheet.vue'
+import BarcodeScanner from '@/components/bar/BarcodeScanner.vue'
+import { posService, personName, mobileMoneyLabel } from '@/services/posService'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { barApi } from '@/services/bar'
 import { hasModule } from '@/composables/useEntitlements'
-import { hasFeature } from '@/composables/useAccess'
+import { hasFeature, atLeast } from '@/composables/useAccess'
+import { useAuthStore } from '@/stores/auth'
 import { devicePosLocation, setDevicePosLocation } from '@/components/bar/barContext'
+import { buildIndex, lookupCode, searchIndex, WedgeDetector, mergePicks, newRef } from '@/utils/posFast'
+import { posDevice, setPosDeviceLabel, defaultDeviceLabel } from '@/utils/posDevice'
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 const LS_CURRENT = 'pos.current.v1'
 const LS_PARKED = 'pos.parked.v1'
 const LS_TAX = 'pos.tax.v1'
+const LS_CATALOG = 'pos.catalog.v1'
+const LS_PICKS = 'pos.picks.v1'
+const LS_LAST = 'pos.last.v1'
+const PAGE = 120
 
 function readLS(key, fallback) {
   try {
@@ -265,20 +376,31 @@ function writeLS(key, value) {
     /* storage unavailable */
   }
 }
+const isField = (el) => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.type !== 'checkbox' && el.type !== 'radio'
+// the on-screen keyboard: don't pop it up on touch phones / tablets by focusing the search
+const touchSmall = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 1023px) and (pointer: coarse)').matches
+// what a till keeps of a product offline (search + prices)
+const slim = (p) => ({ id: p.id, name: p.name, sku: p.sku, barcode: p.barcode, selling_price: p.selling_price, current_stock: p.current_stock, min_stock: p.min_stock, is_active: p.is_active, category: p.category ? { name: p.category.name } : null })
 
 export default {
   name: 'POS',
-  components: { PaymentModal, ReceiptModal, CashDrawerModal, ParkedSalesModal },
+  components: { PaymentModal, ReceiptModal, CashDrawerModal, ParkedSalesModal, LinkBarcodeSheet, SalePhotoSheet, BarcodeScanner },
   data() {
     const current = readLS(LS_CURRENT, {})
     const tax = readLS(LS_TAX, {})
     return {
       products: [],
+      index: null,
       loading: false,
       loadError: '',
+      offlineAt: '',
       query: '',
+      // the query the catalogue is filtered by: follows `query` after a short pause, so fast typing
+      // (and handheld scanners typing into the box) never re-renders 1000+ products per key
+      searchQ: '',
       activeCat: '',
       hideOutOfStock: false,
+      limit: PAGE,
 
       cart: Array.isArray(current.cart) ? current.cart : [],
       customer: current.customer || null,
@@ -296,6 +418,7 @@ export default {
       taxRateId: tax.id ?? null,
       taxInclusive: tax.inclusive ?? true,
       creatingTax: false,
+      adjustOpen: false,
 
       drawer: null,
       drawerLoading: false,
@@ -306,11 +429,26 @@ export default {
       showParked: false,
 
       showPay: false,
+      payMode: 'cash',
       paying: false,
       payError: '',
+      clientRef: '',
       receipt: null,
       organization: null,
       cartOpen: false,
+
+      // fast sale on any device
+      picksRaw: [],
+      picksMine: 0,
+      lastSale: null,
+      scanning: false,
+      linkCode: '',
+      photoFor: null,
+      device: null,
+      deviceEdit: false,
+      deviceDraft: '',
+      flash: null,
+      narrow: false,
 
       // Bar stock (clubs): the bar this device sells from and what it can make
       barLocs: [],
@@ -322,6 +460,19 @@ export default {
     }
   },
   computed: {
+    me() {
+      try {
+        return useAuthStore().user || {}
+      } catch {
+        return {}
+      }
+    },
+    orgKey() {
+      return this.me.organization_id || 'org'
+    },
+    isManager() {
+      return atLeast('manager')
+    },
     // Bar stock is set up: drinks sell from a bar and use its stock (pkg/barstock).
     barMode() {
       return this.barLocs.length > 0
@@ -337,6 +488,9 @@ export default {
     posProducts() {
       return this.products.filter((p) => !(this.barIngredients[p.id] && !(Number(p.selling_price) > 0)))
     },
+    byId() {
+      return markRaw(new Map(this.posProducts.map((p) => [p.id, p])))
+    },
     categories() {
       const map = new Map()
       for (const p of this.posProducts) {
@@ -346,13 +500,33 @@ export default {
       return [...map.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name))
     },
     filtered() {
-      const q = this.query.trim().toLowerCase()
-      return this.posProducts.filter((p) => {
-        if (this.activeCat && (p.category?.name || 'Uncategorised') !== this.activeCat) return false
+      const sellable = this.byId
+      const cat = this.activeCat
+      const filter = (p) => {
+        if (!sellable.has(p.id)) return false
+        if (cat && (p.category?.name || 'Uncategorised') !== cat) return false
         if (this.hideOutOfStock && this.available(p) <= 0 && !this.qtyInCart(p.id)) return false
-        if (!q) return true
-        return [p.name, p.sku, p.barcode].some((v) => v && String(v).toLowerCase().includes(q))
-      })
+        return true
+      }
+      // the index ranks name / SKU / barcode matches; without a query the catalogue keeps its order
+      return searchIndex(this.index, this.searchQ, { filter })
+    },
+    visibleProducts() {
+      return this.filtered.length > this.limit ? this.filtered.slice(0, this.limit) : this.filtered
+    },
+    picks() {
+      // in stock (or poured from bar stock); a pick stays put while its last units go into the cart
+      return mergePicks(this.picksRaw, this.byId, { limit: 12, sellable: (p) => (Number(p.current_stock) || 0) > 0 || this.isBarManaged(p) })
+    },
+    showPicks() {
+      return !this.searchQ.trim() && !this.activeCat && this.picks.length > 0
+    },
+    picksTitle() {
+      return this.picksMine > 0 ? 'Your favourites' : 'Top sellers'
+    },
+    picksSub() {
+      const where = this.barMode ? ` at ${this.barLocs.find((l) => l.id === this.barLoc)?.name || 'this bar'}` : ''
+      return this.picksMine > 0 ? `What you sell most${where}, last 30 days` : `Best sellers${where}, last 30 days`
     },
     itemCount() {
       return this.cart.reduce((n, l) => n + l.qty, 0)
@@ -394,15 +568,49 @@ export default {
     presetDiscounts() {
       return this.discounts.filter((d) => d.is_active && (d.type === 'percentage' || d.type === 'fixed_amount'))
     },
+    payButtons() {
+      return [
+        { mode: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave' },
+        { mode: 'mobile', label: mobileMoneyLabel(this.currency, true), icon: 'fa-solid fa-mobile-screen-button' },
+        { mode: 'card', label: 'Card', icon: 'fa-regular fa-credit-card' },
+        { mode: 'split', label: 'Split', icon: 'fa-solid fa-code-fork' }
+      ]
+    },
+    moreItems() {
+      return [
+        { label: `This device: ${this.device?.label || '—'}`, icon: 'fa-solid fa-mobile-screen', onClick: () => this.openDevice() },
+        { divider: true },
+        { label: `Parked sales${this.parked.length ? ` (${this.parked.length})` : ''}`, icon: 'fa-regular fa-clock', onClick: () => (this.showParked = true) },
+        { label: 'Repeat last sale', icon: 'fa-solid fa-rotate-right', disabled: !this.lastSale, onClick: () => this.repeatLast() },
+        { label: 'Transactions', icon: 'fa-solid fa-receipt', to: '/pos-transactions' },
+        { label: 'Sales by person & device', icon: 'fa-solid fa-users', to: '/pos-transactions?view=people', hidden: !this.isManager }
+      ]
+    },
+    deviceSuggestions() {
+      const first = this.me.first_name || ''
+      return [...new Set([defaultDeviceLabel(first), first ? `${first}'s phone` : 'Bar phone', 'Front till', 'Bar phone'])].filter((s) => s !== this.deviceDraft).slice(0, 4)
+    },
     anyModal() {
-      return this.showPay || !!this.receipt || this.showDrawer || this.showParked
+      return this.showPay || !!this.receipt || this.showDrawer || this.showParked || this.scanning || !!this.linkCode || !!this.photoFor || this.deviceEdit
     }
   },
   watch: {
     barLoc(id, old) {
       if (!id) return
       setDevicePosLocation(id)
-      if (old !== undefined) this.loadAvailability()
+      if (old !== undefined) {
+        this.loadAvailability()
+        if (old) this.loadPicks()
+      }
+    },
+    query(v) {
+      clearTimeout(this.searchTimer)
+      // clearing is instant; typing waits for a pause (a scanner's whole code arrives within it)
+      if (!v.trim()) this.applySearch()
+      else this.searchTimer = setTimeout(() => this.applySearch(), this.products.length > 300 ? 140 : 60)
+    },
+    activeCat() {
+      this.limit = PAGE
     },
     cart: { handler: 'persist', deep: true },
     customer: 'persist',
@@ -413,28 +621,53 @@ export default {
     },
     taxInclusive() {
       this.persistTax()
+    },
+    visibleProducts() {
+      this.$nextTick(() => this.observeMore())
     }
   },
   created() {
+    this.wedge = new WedgeDetector()
+    this.device = posDevice(this.me.first_name)
     this.loadProducts()
     this.loadDrawer()
     this.loadSettings()
-    this.loadBar()
+    this.loadBar().then(() => this.loadPicks())
+    this.loadLastSale()
     posService
       .organization()
       .then((o) => (this.organization = o))
       .catch(() => {})
   },
   mounted() {
+    // phones / tablets: the dock takes the place of the app's bottom navigation, so toasts, menus
+    // opened as bottom sheets and the page padding stay above it (they all follow --bottom-nav-h)
+    if (window.matchMedia) {
+      this.dockMq = window.matchMedia('(max-width: 1023px)')
+      this.narrowMq = window.matchMedia('(max-width: 480px)')
+      this.applyDockSpace()
+      this.dockMq.addEventListener?.('change', this.applyDockSpace)
+      this.narrowMq.addEventListener?.('change', this.applyDockSpace)
+    }
+    document.addEventListener('keydown', this.onWedgeKey, true)
     document.addEventListener('keydown', this.onKey)
     document.addEventListener('mousedown', this.onDocClick)
     this.$nextTick(() => this.focusScan())
   },
   beforeUnmount() {
+    this.dockMq?.removeEventListener?.('change', this.applyDockSpace)
+    this.narrowMq?.removeEventListener?.('change', this.applyDockSpace)
+    document.documentElement.style.removeProperty('--bottom-nav-h')
+    document.removeEventListener('keydown', this.onWedgeKey, true)
     document.removeEventListener('keydown', this.onKey)
     document.removeEventListener('mousedown', this.onDocClick)
     clearTimeout(this.customerTimer)
+    clearTimeout(this.picksTimer)
+    clearTimeout(this.searchTimer)
+    clearTimeout(this.flashTimer)
+    clearTimeout(this.refreshTimer)
     clearInterval(this.barAvailTimer)
+    this.moreObserver?.disconnect()
   },
   methods: {
     personName,
@@ -457,15 +690,35 @@ export default {
     },
 
     // ---------- data ----------
+    setProducts(list) {
+      // the catalogue is read-only here: keep 1000+ products out of Vue's deep reactivity
+      this.products = markRaw(list.filter((p) => p.is_active !== false).map((p) => markRaw(p)))
+      this.index = markRaw(buildIndex(this.products))
+    },
     async loadProducts() {
+      const key = `${LS_CATALOG}:${this.orgKey}`
+      if (!this.products.length) {
+        const cached = readLS(key, null)
+        if (cached && Array.isArray(cached.products) && cached.products.length) {
+          this.setProducts(cached.products)
+          this.cachedAt = cached.at
+        }
+      }
       this.loading = true
       this.loadError = ''
       try {
         const list = await posService.products()
-        this.products = list.filter((p) => p.is_active !== false)
+        this.lastRefresh = Date.now()
+        this.setProducts(list)
+        this.offlineAt = ''
+        writeLS(key, { at: new Date().toISOString(), products: this.products.map(slim) })
         this.syncCartWithStock()
       } catch (e) {
-        this.loadError = apiErrorMessage(e, 'Could not load products')
+        if (this.products.length && (!e?.response || e.response.status >= 500)) {
+          // offline (or the server is down): keep selling from the saved catalogue
+          const at = this.cachedAt ? new Date(this.cachedAt) : null
+          this.offlineAt = at ? at.toLocaleString([], { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' }) : 'an earlier visit'
+        } else this.loadError = apiErrorMessage(e, 'Could not load products')
       } finally {
         this.loading = false
       }
@@ -524,6 +777,66 @@ export default {
       writeLS(LS_TAX, { id: this.taxRateId, inclusive: this.taxInclusive })
     },
 
+    // ---------- quick picks & repeat ----------
+    picksKey() {
+      return `${LS_PICKS}:${this.me.id || ''}:${this.barLoc || ''}`
+    },
+    async loadPicks() {
+      try {
+        const res = await posService.quickPicks(this.barMode ? this.barLoc : '', 12)
+        this.picksRaw = res.picks || []
+        this.picksMine = res.mine || 0
+        writeLS(this.picksKey(), { picks: this.picksRaw, mine: this.picksMine })
+      } catch {
+        const c = readLS(this.picksKey(), null)
+        if (c) {
+          this.picksRaw = c.picks || []
+          this.picksMine = c.mine || 0
+        }
+      }
+    },
+    lastKey() {
+      return `${LS_LAST}:${this.me.id || ''}`
+    },
+    async loadLastSale() {
+      const local = readLS(this.lastKey(), null)
+      if (local && Array.isArray(local.lines) && local.lines.length) {
+        this.lastSale = local
+        return
+      }
+      if (!this.me.id) return
+      try {
+        const data = await posService.listTransactions({ cashier_id: this.me.id, status: 'completed', limit: 1 })
+        const t = data.transactions[0]
+        if (t) this.rememberSale(t, false)
+      } catch {
+        /* optional */
+      }
+    },
+    rememberSale(t, save = true) {
+      const lines = (t.items || []).filter((i) => i.product_id).map((i) => ({ product_id: i.product_id, name: i.item_name, qty: i.quantity }))
+      if (!lines.length) return
+      this.lastSale = { number: t.transaction_number, at: t.created_at, total: t.total_amount, lines, count: lines.reduce((n, l) => n + l.qty, 0) }
+      if (save) writeLS(this.lastKey(), this.lastSale)
+    },
+    repeatLast() {
+      const s = this.lastSale
+      if (!s) return
+      let added = 0
+      const missing = []
+      for (const l of s.lines) {
+        const p = this.byId.get(l.product_id)
+        if (!p) {
+          missing.push(l.name)
+          continue
+        }
+        if (this.addProduct(p, l.qty, { quiet: true })) added += l.qty
+        else missing.push(l.name)
+      }
+      if (added) toast.success(`Last sale added again: ${added} item${added === 1 ? '' : 's'}`)
+      if (missing.length) toast.warning(`Not available now: ${missing.join(', ')}`)
+    },
+
     // ---------- catalogue ----------
     qtyInCart(id) {
       return this.cart.find((l) => l.product_id === id)?.qty || 0
@@ -549,15 +862,37 @@ export default {
       if (s <= 0) return 'Out of stock'
       return `${s} in stock`
     },
+    showMore() {
+      this.limit += PAGE
+    },
+    applySearch() {
+      clearTimeout(this.searchTimer)
+      if (this.searchQ !== this.query) {
+        this.searchQ = this.query
+        this.limit = PAGE
+      }
+    },
+    observeMore() {
+      const el = this.$refs.more
+      if (!el || typeof IntersectionObserver === 'undefined') return
+      if (!this.moreObserver) {
+        this.moreObserver = new IntersectionObserver((entries) => {
+          if (entries.some((e) => e.isIntersecting)) this.showMore()
+        }, { rootMargin: '400px 0px' })
+      }
+      this.moreObserver.disconnect()
+      this.moreObserver.observe(el)
+    },
     resetFilters() {
       this.query = ''
       this.activeCat = ''
       this.focusScan()
     },
     focusScan() {
+      if (touchSmall()) return
       this.$refs.scan?.focus()
     },
-    addProduct(p, qty = 1) {
+    addProduct(p, qty = 1, { quiet = false } = {}) {
       const stock = Number(p.current_stock) || 0
       const line = this.cart.find((l) => l.product_id === p.id)
       const have = line?.qty || 0
@@ -573,11 +908,11 @@ export default {
         return true
       }
       if (stock <= 0) {
-        toast.warning(`${p.name} is out of stock`)
+        if (!quiet) toast.warning(`${p.name} is out of stock`)
         return false
       }
       if (have + qty > stock) {
-        toast.warning(`Only ${stock} × ${p.name} in stock`)
+        if (!quiet) toast.warning(`Only ${stock} × ${p.name} in stock`)
         if (have >= stock) return false
         qty = stock - have
       }
@@ -591,6 +926,88 @@ export default {
       }
       return true
     },
+    /** The sellable product for a scanned / typed code (any barcode spelling, or SKU). */
+    productForCode(code) {
+      const p = lookupCode(this.index, code)
+      return p && this.byId.has(p.id) ? p : null
+    },
+    /**
+     * A code from the camera, a Bluetooth / USB scanner or the search box.
+     * Known → added (result for the scanner's toast); unknown → "Link this barcode".
+     */
+    handleCode(raw, source) {
+      let code = String(raw || '').trim()
+      if (!code) return { ok: false, text: '' }
+      let qty = 1
+      const m = source !== 'camera' && code.match(/^(\d{1,3})\s*[*x×]\s*(.+)$/i)
+      if (m) {
+        qty = Math.max(1, parseInt(m[1], 10))
+        code = m[2].trim()
+      }
+      const p = this.productForCode(code)
+      if (p) {
+        if (!this.addProduct(p, qty, { quiet: source === 'wedge' })) {
+          if (source === 'wedge') this.showFlash(`${p.name} is out of stock`, false)
+          return { ok: false, text: `${p.name} is out of stock` }
+        }
+        const n = this.qtyInCart(p.id)
+        if (source === 'wedge') this.showFlash(`${p.name} · ${n} in cart`)
+        return { ok: true, text: `${p.name} · ${n} in cart` }
+      }
+      this.openLink(code)
+      return { ok: false, text: 'Unknown barcode', stop: true }
+    },
+    applyDockSpace() {
+      this.narrow = !!this.narrowMq?.matches
+      const root = document.documentElement
+      if (this.dockMq?.matches) root.style.setProperty('--bottom-nav-h', '70px')
+      else root.style.removeProperty('--bottom-nav-h')
+    },
+    showFlash(text, ok = true) {
+      clearTimeout(this.flashTimer)
+      this.flash = { text, ok, key: Date.now() }
+      this.flashTimer = setTimeout(() => (this.flash = null), 1800)
+    },
+    onCameraCode(code) {
+      return this.handleCode(code, 'camera')
+    },
+    openScanner() {
+      this.cartOpen = false
+      this.scanning = true
+    },
+    closeScanner() {
+      this.scanning = false
+      this.$nextTick(() => this.focusScan())
+    },
+    openLink(code) {
+      this.scanning = false
+      this.cartOpen = false
+      this.linkCode = code
+    },
+    onLinked(p) {
+      this.linkCode = ''
+      const prod = this.byId.get(p.id)
+      if (prod) {
+        // the catalogue knows the new barcode at once (and the cached copy after the next refresh)
+        const updated = markRaw({ ...prod, barcode: p.barcode })
+        this.setProducts(this.products.map((x) => (x.id === p.id ? updated : x)))
+        this.addProduct(updated)
+      }
+      toast.success(`Barcode saved on ${p.name}${prod ? ' — added to the sale' : ''}`)
+      this.loadProducts()
+    },
+    onCreated(p) {
+      this.linkCode = ''
+      this.setProducts([markRaw(p), ...this.products.filter((x) => x.id !== p.id)])
+      if (this.addProduct(p)) toast.success(`${p.name} created and added to the sale`)
+      else toast.success(`${p.name} created`)
+      this.loadProducts()
+    },
+    linkSearchInstead() {
+      this.linkCode = ''
+      this.query = ''
+      this.$nextTick(() => this.$refs.scan?.focus())
+    },
     onScan() {
       let raw = this.query.trim()
       if (!raw) return
@@ -600,16 +1017,50 @@ export default {
         qty = Math.max(1, parseInt(m[1], 10))
         raw = m[2].trim()
       }
-      const code = raw.toLowerCase()
-      let p = this.posProducts.find((x) => (x.barcode && String(x.barcode).toLowerCase() === code) || (x.sku && String(x.sku).toLowerCase() === code))
-      if (!p && this.filtered.length === 1) p = this.filtered[0]
+      let p = this.productForCode(raw)
       if (!p) {
+        this.applySearch()
+        if (this.filtered.length === 1) p = this.filtered[0]
+      }
+      if (!p) {
+        // a typed / scanned number nobody has: offer to link it
+        if (/^\d{8,14}$/.test(raw)) {
+          this.query = ''
+          this.openLink(raw)
+          return
+        }
         toast.error(`No product matches “${raw}”`)
         this.$refs.scan?.select()
         return
       }
       if (this.addProduct(p, qty)) this.query = ''
       else this.$refs.scan?.select()
+    },
+    /**
+     * Bluetooth / USB barcode scanners ("keyboard wedge") type fast and press
+     * Enter; they work anywhere on the till, whatever has the focus.
+     */
+    onWedgeKey(e) {
+      const blocking = this.showPay || !!this.receipt || this.showDrawer || this.showParked || !!this.linkCode || !!this.photoFor || this.deviceEdit
+      if (blocking || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) {
+        this.wedge.reset()
+        return
+      }
+      if (e.key !== 'Enter' && e.key && e.key.length === 1 && !this.wedge.pending) {
+        this.wedgeFrom = isField(e.target) ? { el: e.target, value: e.target.value } : null
+      }
+      const r = this.wedge.key(e.key, e.timeStamp || performance.now())
+      if (!r || !r.code) return
+      e.preventDefault()
+      e.stopPropagation()
+      const from = this.wedgeFrom
+      this.wedgeFrom = null
+      if (from && from.el.value !== from.value) {
+        // put back what the field held before the scanner typed into it
+        from.el.value = from.value
+        from.el.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      this.handleCode(r.code, 'wedge')
     },
     onKey(e) {
       if (this.anyModal) return
@@ -674,6 +1125,7 @@ export default {
       this.customer = null
       this.discountMode = 'none'
       this.discountValue = ''
+      this.clientRef = ''
     },
 
     // ---------- customers ----------
@@ -730,6 +1182,7 @@ export default {
       })
       this.savePark()
       this.resetSale()
+      this.cartOpen = false
       toast.success(`Sale parked as “${label}”`)
       this.focusScan()
     },
@@ -757,18 +1210,21 @@ export default {
     },
 
     // ---------- checkout ----------
-    openPayment() {
+    openPayment(mode = 'cash') {
       if (!this.cart.length) {
         toast.info('Add something to the cart first')
         return
       }
       this.payError = ''
+      this.payMode = mode
       this.cartOpen = false
       this.showPay = true
     },
     async completeSale(payments) {
       this.paying = true
       this.payError = ''
+      // one key per sale attempt: a retry after a lost response returns the sale already recorded
+      if (!this.clientRef) this.clientRef = newRef('sale')
       try {
         const payload = {
           items: this.cart.map((l) => ({ product_id: l.product_id, quantity: l.qty })),
@@ -776,7 +1232,10 @@ export default {
           customer_id: this.customer?.id || null,
           cash_drawer_id: this.drawer?.id || null,
           tax_rate: this.taxRate,
-          tax_inclusive: !!this.taxRate && this.taxInclusive
+          tax_inclusive: !!this.taxRate && this.taxInclusive,
+          device_id: this.device?.id || '',
+          device_label: this.device?.label || '',
+          client_ref: this.clientRef
         }
         if (this.barMode && this.barLoc) payload.location_id = this.barLoc
         if (this.discountMode === 'percent' && this.discountAmount > 0) payload.discount_percent = Number(this.discountValue)
@@ -784,20 +1243,60 @@ export default {
         const txn = await posService.createTransaction(payload)
         this.showPay = false
         this.receipt = txn
+        if (txn.duplicate) toast.info('This sale was already recorded — showing it')
+        this.rememberSale(txn)
+        this.applySold(this.cart)
         this.resetSale()
-        this.loadProducts()
+        this.scheduleRefresh()
         this.loadDrawer()
         if (this.barMode) this.loadAvailability()
+        clearTimeout(this.picksTimer)
+        this.picksTimer = setTimeout(() => this.loadPicks(), 1500)
       } catch (e) {
         this.payError = apiErrorMessage(e, 'The sale could not be completed')
+        // the server answered "no": nothing was recorded, so the next attempt is a new sale
+        if (e?.response && e.response.status < 500) this.clientRef = ''
         if (e?.response?.status === 409) this.loadProducts()
       } finally {
         this.paying = false
       }
     },
+    /** Take what was just sold off the local stock figures at once (the server has the real numbers). */
+    applySold(lines) {
+      const sold = new Map(lines.filter((l) => !l.bar).map((l) => [l.product_id, l.qty]))
+      if (!sold.size) return
+      this.setProducts(this.products.map((p) => (sold.has(p.id) ? { ...p, current_stock: (Number(p.current_stock) || 0) - sold.get(p.id) } : p)))
+    },
+    /** Refresh the catalogue in the background, at most every 20 s while selling (1000+ products is a big download on a phone). */
+    scheduleRefresh() {
+      if (this.refreshTimer) return
+      const wait = Math.max(0, 20000 - (Date.now() - (this.lastRefresh || 0)))
+      this.refreshTimer = setTimeout(() => {
+        this.refreshTimer = null
+        this.lastRefresh = Date.now()
+        this.loadProducts()
+      }, wait)
+    },
     newSale() {
       this.receipt = null
       this.$nextTick(() => this.focusScan())
+    },
+    onPhotoSaved() {
+      if (this.receipt && this.photoFor && this.receipt.id === this.photoFor.id) this.receipt = { ...this.receipt, photo_count: (this.receipt.photo_count || 0) + 1 }
+      this.photoFor = null
+    },
+
+    // ---------- this device ----------
+    openDevice() {
+      this.deviceDraft = this.device?.label || ''
+      this.deviceEdit = true
+      this.$nextTick(() => this.$refs.deviceInput?.select())
+    },
+    saveDevice() {
+      if (!this.deviceDraft.trim()) return
+      this.device = setPosDeviceLabel(this.deviceDraft)
+      this.deviceEdit = false
+      toast.success(`Sales from this device now show “${this.device.label}”`)
     },
 
     // ---------- bar stock ----------
@@ -1281,6 +1780,9 @@ export default {
   cursor: pointer;
   text-align: left;
 }
+.customer__add {
+  min-height: 44px;
+}
 .customer__add:hover {
   background: var(--surface-hover);
 }
@@ -1737,6 +2239,530 @@ export default {
 @media (max-width: 640px) {
   .drawer-pill {
     min-height: 40px;
+  }
+}
+
+/* ==========================================================================
+   Fast sale on any device: scan button, quick picks, payment buttons, the
+   phone / tablet dock and the phone-first layout (≤ 480 px).
+   ========================================================================== */
+.scan-cam {
+  height: 44px;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.scan-cam i {
+  font-size: 16px;
+}
+.pos-offline {
+  margin-bottom: 12px;
+}
+.picks {
+  margin-bottom: 16px;
+}
+.picks--bare {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.picks__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.picks__head h3,
+.all-head {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.picks__head .muted {
+  font-size: 12.5px;
+}
+.picks__repeat {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.all-head {
+  margin-bottom: 10px;
+}
+.all-head .muted {
+  font-weight: 500;
+}
+.picks__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.pick {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.08s;
+}
+.pick:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.pick:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.pick:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.pick.in-cart {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.pick.is-out {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.pick__name {
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding-right: 18px;
+}
+.pick__price {
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.pick__qty {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.grid-more {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 4px;
+}
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.cart-empty .ui-btn {
+  margin-top: 4px;
+}
+.cart-empty .ui-btn i {
+  font-size: inherit;
+  opacity: 1;
+}
+.adjust-toggle {
+  display: none;
+}
+.paybar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.paybar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.paybar__btn i {
+  color: var(--text-3);
+}
+.paybar__btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.paybar__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.paybar__btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cart-dock {
+  display: none;
+}
+.pos-flash {
+  position: fixed;
+  z-index: 1850;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.pos-flash i {
+  color: var(--success);
+}
+.pos-flash.is-warn i {
+  color: var(--warning);
+}
+.pos-flash-enter-active,
+.pos-flash-leave-active {
+  transition: opacity 0.18s, transform 0.18s;
+}
+.pos-flash-enter-from,
+.pos-flash-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 6px);
+}
+.dev-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+:deep(.pos-more) {
+  height: 40px;
+  width: 40px;
+}
+@media (max-width: 1023px) {
+  :deep(.pos-more) {
+    height: 44px;
+    width: 44px;
+  }
+}
+/* the ⋯ menu (a bottom sheet on phones) above the dock and the floating "Getting started" pill */
+.pos-head :deep(.ui-overflow__menu) {
+  z-index: 1950;
+}
+
+@media (max-width: 1023px) {
+  /* the dock replaces the old floating cart bar: Scan · items & total · Pay */
+  .cart-dock {
+    position: fixed;
+    z-index: 1800;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    display: flex;
+    gap: 8px;
+  }
+  .cart-dock .cart-bar {
+    position: static;
+    flex: 1;
+    min-width: 0;
+  }
+  .dock-scan,
+  .dock-pay {
+    flex-shrink: 0;
+    height: 54px;
+    border: 0;
+    border-radius: var(--radius);
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+  }
+  .dock-scan {
+    width: 58px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    font-size: 20px;
+  }
+  .dock-pay {
+    min-width: 76px;
+    padding: 0 18px;
+    background: var(--success);
+    color: var(--surface);
+    font-size: 16px;
+  }
+  .dock-pay:disabled {
+    opacity: 0.5;
+  }
+  .cart-dock .cart-bar span,
+  .cart-dock .cart-bar strong {
+    white-space: nowrap;
+  }
+
+  .cart {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pos-flash {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+  .catalog {
+    margin-bottom: 0; /* the page keeps room for the dock (--bottom-nav-h) */
+  }
+  /* search + Scan stay on screen while scrolling the catalogue */
+  .catalog__bar {
+    position: sticky;
+    top: var(--topbar-h, 0px);
+    z-index: 5;
+    background: var(--surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* ---------- phone-first (≤ 480 px): big targets, rows, one-handed ---------- */
+@media (max-width: 480px) {
+  .hide-phone {
+    display: none !important;
+  }
+  .pos {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .pos-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  /* the top bar already says "Point of sale": the row is for the bar, the drawer and ⋯ */
+  .pos-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .pos-head .ui-actions {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .sell-from {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding-left: 10px;
+  }
+  .sell-from .ui-select {
+    min-width: 0;
+    width: 100%;
+  }
+  .drawer-pill {
+    padding: 0 10px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  .catalog {
+    border-radius: var(--radius-lg);
+  }
+  .catalog__bar {
+    gap: 8px;
+    padding: 10px;
+  }
+  .scan .ui-input {
+    height: 48px;
+    font-size: 16px; /* no iOS zoom on focus */
+  }
+  .scan-cam {
+    height: 48px;
+    width: 52px;
+    padding: 0;
+    justify-content: center;
+  }
+  .scan-cam i {
+    font-size: 19px;
+  }
+  .chips {
+    padding: 8px 10px 0;
+  }
+  .chip {
+    height: 36px;
+    font-size: 13.5px;
+  }
+  .catalog__body {
+    padding: 10px;
+  }
+  .picks__row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .pick {
+    min-height: 74px;
+    padding: 9px 10px;
+  }
+  .pick__name {
+    font-size: 13px;
+  }
+  /* the catalogue as rows: name, stock, price — quicker to read and to hit than tiles */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .tile {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-areas: 'av name foot' 'av sku foot';
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 0;
+    min-height: 60px;
+    padding: 8px 12px;
+  }
+  .tile__avatar {
+    grid-area: av;
+    width: 38px;
+    height: 38px;
+    margin: 0;
+    font-size: 12px;
+  }
+  .tile__name {
+    grid-area: name;
+    font-size: 14.5px;
+    -webkit-line-clamp: 1;
+  }
+  .tile__sku {
+    grid-area: sku;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tile__foot {
+    grid-area: foot;
+    margin: 0;
+    padding: 0;
+    width: auto;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+  }
+  .tile__qty {
+    top: 50%;
+    right: auto;
+    left: 34px;
+    transform: translateY(-120%);
+    min-width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+  .tile-sk {
+    height: 60px;
+  }
+  /* cart sheet: the total and the payment buttons always in reach */
+  .cart {
+    height: min(92dvh, 760px);
+  }
+  .line {
+    grid-template-columns: minmax(0, 1fr) auto 70px 32px;
+    gap: 6px;
+    padding: 10px 4px;
+  }
+  .stepper button {
+    width: 40px;
+    height: 40px;
+    font-size: 13px;
+  }
+  .stepper input {
+    width: 38px;
+    height: 40px;
+    font-size: 15px;
+  }
+  .adjust-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+  .adjust-toggle .muted {
+    margin-left: auto;
+  }
+  .adjust {
+    display: none;
+  }
+  .adjust.is-open {
+    display: flex;
+    margin-bottom: 4px;
+  }
+  .totals {
+    margin: 6px 0 10px;
+  }
+  .totals__grand dt,
+  .totals__grand dd {
+    font-size: 22px;
+  }
+  .paybar__btn {
+    min-height: 50px;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12.5px;
+  }
+  .paybar__btn i {
+    font-size: 16px;
+  }
+  .charge {
+    height: 56px;
+  }
+  .cart-dock .cart-bar {
+    padding: 0 14px;
+    gap: 8px;
+  }
+  .cart-bar__word {
+    display: none;
   }
 }
 </style>

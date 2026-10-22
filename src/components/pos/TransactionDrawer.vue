@@ -43,6 +43,13 @@
               <dt>Cashier</dt>
               <dd>{{ name(txn.cashier) || '—' }}</dd>
             </div>
+            <div>
+              <dt>Device</dt>
+              <dd data-testid="txn-device">
+                <template v-if="txn.device_label"><i class="fa-solid fa-mobile-screen muted"></i> {{ txn.device_label }}</template>
+                <span v-else class="muted">Not recorded</span>
+              </dd>
+            </div>
           </dl>
 
           <h3 class="sec">Items</h3>
@@ -96,12 +103,33 @@
             <h3 class="sec">Notes</h3>
             <p class="notes">{{ txn.notes }}</p>
           </template>
+
+          <template v-if="photosShown">
+            <h3 class="sec">Photos <span v-if="txn.photo_count" class="muted">{{ txn.photo_count }}</span></h3>
+            <p v-if="photoError" class="muted">{{ photoError }}</p>
+            <p v-else-if="!photos.length && txn.photo_count && !isManager" class="muted">Only managers can see the photos of this sale.</p>
+            <div v-if="photos.length" class="photos" data-testid="txn-photos">
+              <figure v-for="ph in photos" :key="ph.id" class="photo">
+                <button type="button" class="photo__btn" :aria-label="`Open photo: ${kindLabel(ph.kind)}`" @click="openPhoto(ph)">
+                  <img v-if="urls[ph.id]" :src="urls[ph.id]" :alt="kindLabel(ph.kind)" />
+                  <span v-else class="ui-skeleton photo__sk"></span>
+                </button>
+                <figcaption>
+                  <strong>{{ kindLabel(ph.kind) }}</strong>
+                  <span v-if="ph.note">{{ ph.note }}</span>
+                  <small class="muted">{{ ph.uploader_name }} · {{ dateTime(ph.created_at) }}</small>
+                </figcaption>
+                <button v-if="isManager" type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm photo__del" :aria-label="'Remove photo'" @click="removePhoto(ph)"><i class="fa-regular fa-trash-can"></i></button>
+              </figure>
+            </div>
+          </template>
         </template>
       </div>
 
       <footer v-if="txn" class="sheet__foot">
         <button v-if="txn.status !== 'voided'" class="ui-btn ui-btn--danger" @click="voidOpen = true"><i class="fa-solid fa-ban"></i> Void sale</button>
         <span class="spacer"></span>
+        <button v-if="canAddPhoto" class="ui-btn" data-testid="txn-add-photo" @click="addingPhoto = true"><i class="fa-solid fa-camera"></i> <span class="hide-xs">Add photo</span></button>
         <button class="ui-btn ui-btn--primary" @click="showReceipt = true"><i class="fa-solid fa-print"></i> Receipt</button>
       </footer>
     </aside>
@@ -130,30 +158,58 @@
     </div>
 
     <ReceiptModal v-if="showReceipt && txn" :transaction="txn" :organization="organization" :currency="txn.currency || currency" @close="showReceipt = false" />
+    <SalePhotoSheet v-if="addingPhoto && txn" :transaction="txn" :currency="txn.currency || currency" @close="addingPhoto = false" @saved="onPhotoSaved" />
+    <div v-if="viewing" class="lightbox" role="dialog" aria-modal="true" aria-label="Photo" @click="viewing = null">
+      <img :src="urls[viewing.id]" :alt="kindLabel(viewing.kind)" />
+      <button type="button" class="ui-btn ui-btn--icon lightbox__close" aria-label="Close photo"><i class="fa-solid fa-xmark"></i></button>
+    </div>
   </div>
 </template>
 
 <script>
 import { orgCurrency } from '@/utils/orgDefaults'
 import ReceiptModal from './ReceiptModal.vue'
-import { posService, PAYMENT_LABELS, personName } from '@/services/posService'
+import SalePhotoSheet from './SalePhotoSheet.vue'
+import { posService, PAYMENT_LABELS, personName, mobileMoneyLabel } from '@/services/posService'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDateTime } from '@/utils/format'
 import { toast } from '@/composables/useToast'
+import { confirmDialog } from '@/composables/useConfirm'
+import { atLeast } from '@/composables/useAccess'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
   name: 'TransactionDrawer',
-  components: { ReceiptModal },
+  components: { ReceiptModal, SalePhotoSheet },
   props: {
     transactionId: { type: String, required: true },
     organization: { type: Object, default: null },
     currency: { type: String, default: () => orgCurrency() }
   },
-  emits: ['close', 'voided'],
+  emits: ['close', 'voided', 'photos'],
   data() {
-    return { txn: null, error: '', voidOpen: false, reason: '', voiding: false, showReceipt: false }
+    return { txn: null, error: '', voidOpen: false, reason: '', voiding: false, showReceipt: false, photos: [], urls: {}, photoError: '', addingPhoto: false, viewing: null }
   },
   computed: {
+    isManager() {
+      return atLeast('manager')
+    },
+    myId() {
+      try {
+        return useAuthStore().user?.id || ''
+      } catch {
+        return ''
+      }
+    },
+    // managers; the cashier on the day of their own sale (the API checks the same)
+    canAddPhoto() {
+      if (!this.txn || (this.txn.photo_count || 0) >= 5) return false
+      if (this.isManager) return true
+      return this.txn.cashier_id === this.myId && Date.now() - new Date(this.txn.created_at).getTime() < 24 * 3600 * 1000
+    },
+    photosShown() {
+      return !!this.txn && ((this.txn.photo_count || 0) > 0 || this.photos.length > 0)
+    },
     itemQty() {
       return (this.txn?.items || []).reduce((n, i) => n + (i.product_id ? i.quantity : 0), 0)
     }
@@ -172,6 +228,7 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKey)
+    this.freeUrls()
   },
   methods: {
     money(v) {
@@ -183,10 +240,14 @@ export default {
       return PAYMENT_LABELS[m] || m
     },
     payIcon(m) {
-      return m === 'cash' ? 'fa-solid fa-money-bill-wave' : m === 'card' || m === 'eftpos' ? 'fa-regular fa-credit-card' : m === 'voucher' ? 'fa-solid fa-gift' : 'fa-solid fa-building-columns'
+      return m === 'cash' ? 'fa-solid fa-money-bill-wave' : m === 'card' || m === 'eftpos' ? 'fa-regular fa-credit-card' : m === 'voucher' ? 'fa-solid fa-gift' : m === 'mobile_money' ? 'fa-solid fa-mobile-screen-button' : 'fa-solid fa-building-columns'
     },
     onKey(e) {
-      if (e.key !== 'Escape' || this.showReceipt) return
+      if (e.key !== 'Escape' || this.showReceipt || this.addingPhoto) return
+      if (this.viewing) {
+        this.viewing = null
+        return
+      }
       if (this.voidOpen) {
         if (!this.voiding) this.voidOpen = false
       } else this.$emit('close')
@@ -194,10 +255,59 @@ export default {
     async load() {
       this.txn = null
       this.error = ''
+      this.photos = []
+      this.freeUrls()
       try {
         this.txn = await posService.getTransaction(this.transactionId)
+        if (this.txn.photo_count > 0) this.loadPhotos()
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not load this sale')
+      }
+    },
+    kindLabel(k) {
+      return k === 'payment' ? `${mobileMoneyLabel(this.txn?.currency || this.currency)} / payment` : k === 'damage' ? 'Damaged item' : 'Photo'
+    },
+    freeUrls() {
+      for (const u of Object.values(this.urls)) URL.revokeObjectURL(u)
+      this.urls = {}
+    },
+    async loadPhotos() {
+      this.photoError = ''
+      try {
+        const res = await posService.salePhotos(this.txn.id)
+        this.photos = res.photos || []
+        for (const ph of this.photos) {
+          if (this.urls[ph.id]) continue
+          posService
+            .salePhotoBlob(ph.id)
+            .then((b) => (this.urls = { ...this.urls, [ph.id]: URL.createObjectURL(b) }))
+            .catch(() => {})
+        }
+      } catch (e) {
+        this.photoError = apiErrorMessage(e, 'Could not load the photos')
+      }
+    },
+    openPhoto(ph) {
+      if (this.urls[ph.id]) this.viewing = ph
+    },
+    onPhotoSaved() {
+      this.addingPhoto = false
+      this.txn = { ...this.txn, photo_count: (this.txn.photo_count || 0) + 1 }
+      this.$emit('photos', this.txn.photo_count)
+      this.loadPhotos()
+    },
+    async removePhoto(ph) {
+      const ok = await confirmDialog({ title: 'Remove this photo?', message: 'It is deleted from the sale for everyone.', confirmText: 'Remove', danger: true })
+      if (!ok) return
+      try {
+        await posService.deleteSalePhoto(ph.id)
+        this.photos = this.photos.filter((x) => x.id !== ph.id)
+        if (this.urls[ph.id]) URL.revokeObjectURL(this.urls[ph.id])
+        this.txn = { ...this.txn, photo_count: Math.max(0, (this.txn.photo_count || 1) - 1) }
+        this.$emit('photos', this.txn.photo_count)
+        toast.success('Photo removed')
+      } catch (e) {
+        toast.error(apiErrorMessage(e, 'Could not remove the photo'))
       }
     },
     async doVoid() {
@@ -430,6 +540,78 @@ export default {
   margin: 0;
   white-space: pre-wrap;
   color: var(--text-2);
+}
+.photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.photo {
+  position: relative;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.photo__btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--bg-subtle);
+  cursor: zoom-in;
+  aspect-ratio: 4 / 3;
+}
+.photo__btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo__sk {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.photo figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+.photo__del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--surface);
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  background: rgba(0, 0, 0, 0.85);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  cursor: zoom-out;
+}
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius);
+}
+.lightbox__close {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  background: var(--surface);
+}
+@media (max-width: 420px) {
+  .hide-xs {
+    display: none;
+  }
 }
 .void-copy {
   margin: 0 0 14px;

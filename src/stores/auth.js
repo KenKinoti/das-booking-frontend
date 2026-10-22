@@ -5,6 +5,7 @@ import { ssoApi } from '../services/sso'
 import { seedBranding, loadBranding, clearBranding } from '../composables/useBranding'
 import { loadOrgPrefs, clearOrgPrefs } from '../composables/useOrgPrefs'
 import { isViewingAsOrg, isOwnerView } from '../utils/session'
+import { stopAllMedia } from '../services/mediaGuard'
 
 function readJSON(key) {
   try {
@@ -129,6 +130,8 @@ export const useAuthStore = defineStore('auth', {
         this.refreshToken = null
         this.user = null
         this.error = null
+        // Signing out turns off any camera / microphone a page still holds.
+        stopAllMedia()
         clearBranding()
         clearOrgPrefs()
         ;['auth_token', 'refresh_token', 'current_user', 'user_data', 'lastRoute', 'lastRouteName'].forEach((k) =>

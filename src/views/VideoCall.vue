@@ -4,7 +4,7 @@
       <div>
         <div class="ui-eyebrow">Communication</div>
         <h1>{{ phase === 'call' ? 'Video call' : phase === 'ended' ? 'Call ended' : 'Start a video call' }}</h1>
-        <p v-if="phase === 'lobby'">Check your camera and microphone, then start a call and share the link.</p>
+        <p v-if="phase === 'lobby'">Your camera and microphone stay off until you turn them on or join. Start a call and share the link.</p>
         <p v-else-if="phase === 'call'" class="call-meta">
           <span class="ui-badge" :class="statusBadge.cls">{{ statusBadge.label }}</span>
           <span class="tnum">{{ duration }}</span>
@@ -20,31 +20,42 @@
     <!-- ================= LOBBY ================= -->
     <div v-if="phase === 'lobby'" class="lobby">
       <section class="ui-card preview-card">
-        <div class="tile preview">
+        <div class="tile preview" :class="{ 'is-off': !hasVideo || !camOn }" data-testid="vc-preview" :data-media="media.state">
           <video v-show="hasVideo && camOn" ref="preview" autoplay playsinline muted></video>
           <div v-if="!hasVideo || !camOn" class="tile__empty">
             <span class="big-avatar">{{ myInitials }}</span>
             <p v-if="media.state === 'loading'" class="muted"><i class="fa-solid fa-circle-notch spin"></i> Starting camera…</p>
-            <p v-else-if="!camOn && hasVideo" class="muted">Camera is off</p>
             <template v-else-if="media.problem">
               <p class="problem"><i class="fa-solid fa-video-slash"></i> {{ media.problem.title }}</p>
               <p class="muted small">{{ media.problem.hint }}</p>
-              <button class="ui-btn ui-btn--sm" @click="startPreview"><i class="fa-solid fa-rotate"></i> Try again</button>
+              <button class="ui-btn ui-btn--sm" data-testid="media-retry" @click="turnOn"><i class="fa-solid fa-rotate"></i> Try again</button>
             </template>
+            <template v-else-if="media.state === 'off'">
+              <p class="off-title"><i class="fa-solid fa-video-slash"></i> Camera and microphone are off</p>
+              <p class="muted small">Nothing turns on until you tap. Check them here first, or they turn on when you {{ roomInput ? 'join' : 'start the call' }}.</p>
+              <button class="ui-btn ui-btn--primary ui-btn--sm" data-testid="media-on" @click="turnOn"><i class="fa-solid fa-video"></i> Turn on camera &amp; mic</button>
+            </template>
+            <p v-else-if="!camOn" class="muted">Camera is off</p>
           </div>
           <div class="tile__bar">
-            <button class="round" :class="{ off: !micOn }" :disabled="!hasAudio" :aria-label="micOn ? 'Mute microphone' : 'Unmute microphone'" :title="!hasAudio ? 'No microphone' : ''" @click="toggleMic">
-              <i :class="micOn && hasAudio ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone-slash'"></i>
+            <button class="round" :class="{ off: !micOn }" :disabled="!supported" data-testid="vc-mic" :aria-label="micOn ? 'Turn microphone off' : 'Turn microphone on'" :aria-pressed="!micOn" :title="media.state === 'off' ? (micOn ? 'You’ll join with your microphone on' : 'You’ll join muted') : ''" @click="toggleMic">
+              <i :class="micOn ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone-slash'"></i>
             </button>
-            <button class="round" :class="{ off: !camOn }" :disabled="!hasVideo" :aria-label="camOn ? 'Turn camera off' : 'Turn camera on'" :title="!hasVideo ? 'No camera' : ''" @click="toggleCam">
-              <i :class="camOn && hasVideo ? 'fa-solid fa-video' : 'fa-solid fa-video-slash'"></i>
+            <button class="round" :class="{ off: !camOn }" :disabled="!supported" data-testid="vc-cam" :aria-label="camOn ? 'Turn camera off' : 'Turn camera on'" :aria-pressed="!camOn" :title="media.state === 'off' ? (camOn ? 'You’ll join with your camera on' : 'You’ll join with your camera off') : ''" @click="toggleCam">
+              <i :class="camOn ? 'fa-solid fa-video' : 'fa-solid fa-video-slash'"></i>
             </button>
           </div>
         </div>
         <div class="meter-row">
-          <i class="fa-solid fa-microphone-lines muted"></i>
-          <div class="level" :aria-label="`Microphone level ${Math.round(level * 100)}%`"><span :style="{ width: Math.round(level * 100) + '%' }"></span></div>
-          <span class="muted small">{{ hasAudio ? (micOn ? 'Speak to test your microphone' : 'Microphone muted') : 'No microphone' }}</span>
+          <template v-if="media.state === 'off'">
+            <i class="fa-solid fa-circle-info muted"></i>
+            <span class="muted small" data-testid="join-with">{{ joinWith }}</span>
+          </template>
+          <template v-else>
+            <i class="fa-solid fa-microphone-lines muted"></i>
+            <div class="level" :aria-label="`Microphone level ${Math.round(level * 100)}%`"><span :style="{ width: Math.round(level * 100) + '%' }"></span></div>
+            <span class="muted small">{{ hasAudio ? (micOn ? 'Speak to test your microphone' : 'Microphone muted') : micOn ? 'No microphone' : 'Microphone off' }}</span>
+          </template>
         </div>
       </section>
 
@@ -57,14 +68,14 @@
             <label class="ui-field">
               <span class="ui-label">Camera</span>
               <select v-model="cameraId" class="ui-select" :disabled="!cameras.length" @change="startPreview">
-                <option v-if="!cameras.length" value="">No camera found</option>
+                <option v-if="!cameras.length" value="">{{ media.state === 'off' ? 'Turn the camera on to choose' : 'No camera found' }}</option>
                 <option v-for="d in cameras" :key="d.deviceId" :value="d.deviceId">{{ d.label || 'Camera' }}</option>
               </select>
             </label>
             <label class="ui-field">
               <span class="ui-label">Microphone</span>
               <select v-model="micId" class="ui-select" :disabled="!mics.length" @change="startPreview">
-                <option v-if="!mics.length" value="">No microphone found</option>
+                <option v-if="!mics.length" value="">{{ media.state === 'off' ? 'Turn the microphone on to choose' : 'No microphone found' }}</option>
                 <option v-for="d in mics" :key="d.deviceId" :value="d.deviceId">{{ d.label || 'Microphone' }}</option>
               </select>
             </label>
@@ -78,7 +89,7 @@
             </label>
           </div>
 
-          <button class="ui-btn ui-btn--primary join-btn" :disabled="joining || media.state === 'loading'" @click="join">
+          <button class="ui-btn ui-btn--primary join-btn" data-testid="vc-join" :disabled="joining || media.state === 'loading'" @click="join">
             <i :class="joining ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-phone'"></i> {{ roomInput ? 'Join call' : 'Start call' }}
           </button>
           <p v-if="!hasVideo && !hasAudio && media.state === 'ready'" class="muted small center">You’ll join without camera or microphone — you can still see and hear others.</p>
@@ -117,10 +128,10 @@
       </div>
 
       <div class="controls" role="toolbar" aria-label="Call controls">
-        <button class="round lg" :class="{ off: !micOn || !hasAudio }" :disabled="!hasAudio" :title="hasAudio ? (micOn ? 'Mute' : 'Unmute') : 'No microphone'" :aria-label="micOn ? 'Mute microphone' : 'Unmute microphone'" @click="toggleMic">
+        <button class="round lg" :class="{ off: !micOn || !hasAudio }" :disabled="!supported" data-testid="vc-call-mic" :title="micOn && hasAudio ? 'Mute' : 'Unmute'" :aria-label="micOn && hasAudio ? 'Mute microphone' : 'Unmute microphone'" @click="toggleMic">
           <i :class="micOn && hasAudio ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone-slash'"></i>
         </button>
-        <button class="round lg" :class="{ off: !camOn || !hasVideo }" :disabled="!hasVideo" :title="hasVideo ? (camOn ? 'Camera off' : 'Camera on') : 'No camera'" :aria-label="camOn ? 'Turn camera off' : 'Turn camera on'" @click="toggleCam">
+        <button class="round lg" :class="{ off: !camOn || !hasVideo }" :disabled="!supported" data-testid="vc-call-cam" :title="camOn && hasVideo ? 'Camera off' : 'Camera on'" :aria-label="camOn && hasVideo ? 'Turn camera off' : 'Turn camera on'" @click="toggleCam">
           <i :class="camOn && hasVideo ? 'fa-solid fa-video' : 'fa-solid fa-video-slash'"></i>
         </button>
         <button v-if="canShare" class="round lg" :class="{ on: sharing }" :title="sharing ? 'Stop sharing' : 'Share your screen'" :aria-label="sharing ? 'Stop sharing screen' : 'Share screen'" @click="toggleShare">
@@ -160,6 +171,7 @@ import { useAuthStore } from '@/stores/auth'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { downloadBlob } from '@/utils/format'
+import { openMedia, stopStream, stopTrack, mediaSupported, whenHiddenFor, HIDDEN_STOP_MS } from '@/services/mediaGuard'
 
 const PROBLEMS = {
   NotAllowedError: { title: 'Camera and microphone are blocked', hint: 'Allow access using the camera icon in your browser’s address bar, then try again.' },
@@ -193,10 +205,13 @@ export default {
   data() {
     return {
       phase: 'lobby',
-      media: { state: 'loading', problem: null },
+      // Camera and microphone stay off until a tap: 'off' → 'loading' → 'ready'.
+      media: { state: 'off', problem: null },
+      supported: mediaSupported(),
       stream: null,
       hasVideo: false,
       hasAudio: false,
+      // What the person chose: the devices Join turns on (and, once on, whether they are live).
       camOn: true,
       micOn: true,
       cameras: [],
@@ -238,7 +253,14 @@ export default {
       const n = `${this.me.first_name || ''} ${this.me.last_name || ''}`.trim() || this.me.email || 'You'
       return n.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
     },
+    joinWith() {
+      if (this.camOn && this.micOn) return 'You’ll join with your camera and microphone on — tap them to switch either off first.'
+      if (this.micOn) return 'You’ll join with your microphone on and your camera off.'
+      if (this.camOn) return 'You’ll join with your camera on and your microphone off.'
+      return 'You’ll join with your camera and microphone off — you can still see and hear others.'
+    },
     joinHint() {
+      if (this.media.state === 'off') return this.camOn || this.micOn ? 'Nothing is on yet — your devices turn on when you tap Start or Join.' : 'You’ll join without camera or microphone.'
       if (this.media.state === 'loading') return 'Checking your devices…'
       if (this.hasVideo && this.hasAudio) return 'Your camera and microphone are working.'
       if (this.hasAudio) return 'No camera — you’ll join with audio only.'
@@ -273,9 +295,12 @@ export default {
   mounted() {
     document.addEventListener('fullscreenchange', this.onFullChange)
     navigator.mediaDevices?.addEventListener?.('devicechange', this.listDevices)
-    this.startPreview()
+    // No camera or microphone on load: only a tap (Turn on, a toggle, Start / Join) opens them.
+    this.unwatchHidden = whenHiddenFor(HIDDEN_STOP_MS, this.onLongHidden)
   },
   beforeUnmount() {
+    this.gone = true
+    this.unwatchHidden?.()
     document.removeEventListener('fullscreenchange', this.onFullChange)
     navigator.mediaDevices?.removeEventListener?.('devicechange', this.listDevices)
     this.teardown()
@@ -305,48 +330,76 @@ export default {
         this.mics = []
       }
     },
-    stopStream() {
+    stopMeter() {
       cancelAnimationFrame(this.raf)
       if (this.audioCtx) {
         this.audioCtx.close().catch(() => {})
         this.audioCtx = null
       }
-      if (this.stream) this.stream.getTracks().forEach((t) => t.stop())
-      this.stream = null
       this.level = 0
     },
-    async getMedia() {
-      const video = this.cameraId ? { deviceId: { exact: this.cameraId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { width: { ideal: 1280 }, height: { ideal: 720 } }
-      const audio = this.micId ? { deviceId: { exact: this.micId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true }
+    stopStream() {
+      this.stopMeter()
+      stopStream(this.stream)
+      this.stream = null
+      this.hasVideo = this.hasAudio = false
+    },
+    syncTracks() {
+      this.hasVideo = !!(this.stream && this.stream.getVideoTracks().length)
+      this.hasAudio = !!(this.stream && this.stream.getAudioTracks().length)
+    },
+    videoConstraints() {
+      return this.cameraId ? { deviceId: { exact: this.cameraId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { width: { ideal: 1280 }, height: { ideal: 720 } }
+    },
+    audioConstraints() {
+      return this.micId ? { deviceId: { exact: this.micId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true }
+    },
+    async getMedia(want) {
+      const video = want.video ? this.videoConstraints() : false
+      const audio = want.audio ? this.audioConstraints() : false
       let firstErr = null
-      // Try camera + mic, then each alone, so a missing or blocked device never stops the call.
-      for (const c of [{ video, audio }, { audio }, { video }]) {
+      // Try what was chosen together, then each alone, so a missing or blocked device never stops the call.
+      const tries = video && audio ? [{ video, audio }, { audio }, { video }] : [video ? { video } : { audio }]
+      for (const c of tries) {
         try {
-          return { stream: await navigator.mediaDevices.getUserMedia(c), err: firstErr }
+          return { stream: await openMedia(c, { alive: () => !this.gone }), err: firstErr }
         } catch (e) {
+          if (e && e.closed) return { stream: null, err: null, closed: true }
           firstErr = firstErr || e
           if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) break
         }
       }
       return { stream: null, err: firstErr }
     },
+    /** "Turn on camera & mic" (and "Try again"): both devices on, preview starts. */
+    turnOn() {
+      this.camOn = true
+      this.micOn = true
+      return this.startPreview()
+    },
+    /** Open the chosen devices (a tap: Turn on, Try again, a device picker, Start / Join). */
     async startPreview() {
       this.stopStream()
-      this.media = { state: 'loading', problem: null }
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (!this.supported) {
         this.media = { state: 'ready', problem: PROBLEMS.Unsupported }
-        this.hasVideo = this.hasAudio = false
+        this.camOn = this.micOn = false
         return
       }
-      const { stream, err } = await this.getMedia()
+      if (!this.camOn && !this.micOn) {
+        this.media = { state: 'off', problem: null }
+        return
+      }
+      this.media = { state: 'loading', problem: null }
+      const { stream, err, closed } = await this.getMedia({ video: this.camOn, audio: this.micOn })
+      if (closed || this.gone) return
       this.stream = stream
-      this.hasVideo = !!(stream && stream.getVideoTracks().length)
-      this.hasAudio = !!(stream && stream.getAudioTracks().length)
-      const problem = !this.hasVideo && err ? PROBLEMS[err.name] || { title: 'Camera unavailable', hint: 'Check your device and try again.' } : null
-      this.media = { state: 'ready', problem }
+      this.syncTracks()
+      const problem = err && ((this.camOn && !this.hasVideo) || !stream) ? PROBLEMS[err.name] || { title: 'Camera unavailable', hint: 'Check your device and try again.' } : null
+      // The toggles now show what is really on.
+      this.camOn = this.hasVideo
+      this.micOn = this.hasAudio
+      this.media = { state: stream ? 'ready' : 'off', problem }
       if (stream) {
-        stream.getVideoTracks().forEach((t) => (t.enabled = this.camOn))
-        stream.getAudioTracks().forEach((t) => (t.enabled = this.micOn))
         this.attach()
         this.watchLevel()
       }
@@ -354,12 +407,77 @@ export default {
       if (!this.cameraId && this.hasVideo) this.cameraId = stream.getVideoTracks()[0].getSettings().deviceId || ''
       if (!this.micId && this.hasAudio) this.micId = stream.getAudioTracks()[0].getSettings().deviceId || ''
     },
-    attach() {
+    /** Turn one device on after a tap (lobby with the preview on, or in the call). */
+    async addDevice(kind) {
+      try {
+        const s = await openMedia(kind === 'video' ? { video: this.videoConstraints() } : { audio: this.audioConstraints() }, { alive: () => !this.gone })
+        const track = s.getTracks()[0]
+        if (!this.stream) this.stream = new MediaStream()
+        this.stream.addTrack(track)
+        this.syncTracks()
+        if (this.media.state === 'off') this.media = { state: 'ready', problem: null }
+        if (kind === 'audio') {
+          this.stopMeter()
+          this.watchLevel()
+        }
+        if (this.phase === 'call') this.sendNewTrack(track)
+        this.attach(true)
+        this.listDevices()
+        return true
+      } catch (e) {
+        if (!(e && e.closed)) {
+          const p = PROBLEMS[e && e.name]
+          toast.error(p ? `${p.title}. ${p.hint}` : kind === 'video' ? 'The camera couldn’t be started.' : 'The microphone couldn’t be started.')
+        }
+        return false
+      }
+    },
+    /** Lobby: turn one device off for real (its light goes off), not just mute it. */
+    dropDevice(kind) {
+      if (!this.stream) return
+      const tracks = kind === 'video' ? this.stream.getVideoTracks() : this.stream.getAudioTracks()
+      for (const t of tracks) {
+        stopTrack(t)
+        this.stream.removeTrack(t)
+      }
+      if (kind === 'audio') this.stopMeter()
+      this.syncTracks()
+      if (!this.stream.getTracks().length) {
+        this.stream = null
+        this.media = { state: 'off', problem: null }
+      }
+      this.attach()
+    },
+    /** In the call: a device that was off at join is sent to the other person (renegotiates). */
+    sendNewTrack(track) {
+      const pc = webRTCService.peerConnection
+      if (!pc || pc.signalingState === 'closed') return
+      try {
+        pc.addTrack(track, this.stream)
+      } catch {
+        return
+      }
+      webRTCService.localStream = this.stream
+      if (pc.remoteDescription && pc.signalingState === 'stable') webRTCService.createOffer().catch(() => {})
+    },
+    /** The pre-join screen sat in a hidden tab for a long time: devices off (camera light off). */
+    onLongHidden() {
+      if (this.phase !== 'lobby' || this.media.state === 'off') return
+      this.stopStream()
+      this.media = { state: 'off', problem: null }
+      toast.info('Your camera and microphone were turned off while this page was in the background.')
+    },
+    attach(force = false) {
       this.$nextTick(() => {
         const v = this.$refs.preview || this.$refs.local
         const src = this.sharing && this.screenStream ? this.screenStream : this.stream
+        if (v && force && v.srcObject === src) v.srcObject = null // a track was added: show it
         if (v && v.srcObject !== src) v.srcObject = src
-        if (this.$refs.remote && this.remoteStream && this.$refs.remote.srcObject !== this.remoteStream) this.$refs.remote.srcObject = this.remoteStream
+        const r = this.$refs.remote
+        if (r && this.remoteStream) {
+          if (force && r.srcObject === this.remoteStream) r.srcObject = null // the other person turned a device on: show it
+          if (r.srcObject !== this.remoteStream) r.srcObject = this.remoteStream
+        }
       })
     },
     watchLevel() {
@@ -384,15 +502,42 @@ export default {
         /* level meter is optional */
       }
     },
-    toggleMic() {
+    async toggleMic() {
+      if (this.phase === 'call') {
+        if (!this.hasAudio) {
+          // joined with the microphone off: turn it on now
+          if (!(await this.addDevice('audio'))) return
+          this.micOn = true
+        } else {
+          this.micOn = !this.micOn
+          this.stream.getAudioTracks().forEach((t) => (t.enabled = this.micOn))
+        }
+        webRTCService.sendSignalingMessage({ type: 'mute-audio', data: { muted: !this.micOn } })
+        return
+      }
+      // lobby: before the preview it is only the choice for Join
       this.micOn = !this.micOn
-      if (this.stream) this.stream.getAudioTracks().forEach((t) => (t.enabled = this.micOn))
-      if (this.phase === 'call') webRTCService.sendSignalingMessage({ type: 'mute-audio', data: { muted: !this.micOn } })
+      if (this.media.state !== 'ready') return
+      if (!this.micOn) this.dropDevice('audio')
+      else if (!this.hasAudio && !(await this.addDevice('audio'))) this.micOn = false
     },
-    toggleCam() {
+    async toggleCam() {
+      if (this.phase === 'call') {
+        if (!this.hasVideo) {
+          if (!(await this.addDevice('video'))) return
+          this.camOn = true
+        } else {
+          this.camOn = !this.camOn
+          this.stream.getVideoTracks().forEach((t) => (t.enabled = this.camOn))
+        }
+        webRTCService.sendSignalingMessage({ type: 'mute-video', data: { muted: !this.camOn } })
+        this.attach()
+        return
+      }
       this.camOn = !this.camOn
-      if (this.stream) this.stream.getVideoTracks().forEach((t) => (t.enabled = this.camOn))
-      if (this.phase === 'call') webRTCService.sendSignalingMessage({ type: 'mute-video', data: { muted: !this.camOn } })
+      if (this.media.state !== 'ready') return
+      if (!this.camOn) this.dropDevice('video')
+      else if (!this.hasVideo && !(await this.addDevice('video'))) this.camOn = false
       this.attach()
     },
     // ---------------- call ----------------
@@ -403,6 +548,12 @@ export default {
     async join() {
       this.joining = true
       this.banner = null
+      // Part of the Join tap: turn on what the toggles say (nothing was opened before).
+      if (this.media.state === 'off' && (this.camOn || this.micOn)) {
+        await this.startPreview()
+        if (this.gone) return
+      }
+      if (this.media.state === 'off') this.camOn = this.micOn = false
       this.room = parseRoom(this.roomInput) || randomRoom()
       this.roomInput = this.room
       this.$router.replace({ query: { room: this.room } })
@@ -412,14 +563,19 @@ export default {
       this.signal = 'connecting'
 
       this.listen('remote-stream', (s) => {
+        const first = this.remoteStream !== s
         this.remoteStream = s
-        this.attach()
+        this.attach(true)
+        if (first) this.sendState()
       })
       this.listen('connection-state-change', (st) => {
         this.peerState = st
         if (st === 'failed') this.banner = { kind: 'warn', text: 'The connection to the other person dropped. They may be behind a strict network; try rejoining.' }
       })
-      this.listen('user-joined', () => toast.info('Someone joined the call'))
+      this.listen('user-joined', () => {
+        toast.info('Someone joined the call')
+        this.sendState()
+      })
       this.listen('user-left', () => {
         toast.info('The other person left')
         this.remoteStream = null
@@ -449,6 +605,11 @@ export default {
       this.tick = setInterval(() => (this.now = Date.now()), 1000)
       this.joining = false
       this.attach()
+    },
+    /** Tell the other person whether our camera / microphone are on (they may be off since joining). */
+    sendState() {
+      webRTCService.sendSignalingMessage({ type: 'mute-audio', data: { muted: !(this.micOn && this.hasAudio) } })
+      webRTCService.sendSignalingMessage({ type: 'mute-video', data: { muted: !(this.camOn && this.hasVideo) } })
     },
     addTracks() {
       const pc = webRTCService.peerConnection
@@ -578,18 +739,22 @@ export default {
       this.endReason = ''
       this.teardown()
       this.stopStream()
+      this.media = { state: 'off', problem: null }
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
       this.phase = 'ended'
     },
     rejoin() {
+      // a tap: Join turns the chosen devices back on
       this.phase = 'lobby'
-      this.startPreview().then(() => this.join())
+      this.media = { state: 'off', problem: null }
+      this.join()
     },
     newCall() {
+      // back to the lobby with everything off — nothing turns on until a tap
       this.roomInput = ''
       this.$router.replace({ query: {} })
       this.phase = 'lobby'
-      this.startPreview()
+      this.media = { state: 'off', problem: null }
     }
   }
 }
@@ -655,6 +820,16 @@ export default {
 
 .tile__empty p {
   margin: 0;
+}
+
+.off-title {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.off-title i {
+  color: var(--text-3);
+  margin-right: 4px;
 }
 
 .problem {
@@ -961,6 +1136,22 @@ export default {
   }
   .level {
     flex-basis: 100px;
+  }
+  /* phones: the "off" message needs more room than a 16:9 tile */
+  .preview.is-off {
+    aspect-ratio: auto;
+  }
+  .preview.is-off .tile__empty {
+    position: relative;
+    inset: auto;
+    min-height: 240px;
+    padding: 20px 14px 76px;
+  }
+  .preview.is-off .big-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 20px;
+    margin-bottom: 2px;
   }
 }
 </style>

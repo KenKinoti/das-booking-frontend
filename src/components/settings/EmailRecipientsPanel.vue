@@ -123,7 +123,7 @@ import { term } from '@/composables/useAccess'
 import { useAuthStore } from '@/stores/auth'
 
 // Column headings (the full name is the cell's label on phones too short to matter).
-const SHORT = { agenda: 'Daily agenda', bill_reminders: 'Bill reminders', bar_night_report: 'Night report', strategy_brief: 'Strategy brief' }
+const SHORT = { agenda: 'Daily agenda', bill_reminders: 'Bill reminders', bar_night_report: 'Night report', strategy_brief: 'Strategy brief', platform_updates: 'DASYIN updates' }
 
 export default {
   name: 'EmailRecipientsPanel',

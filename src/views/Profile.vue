@@ -106,6 +106,8 @@
         <MyEmailNotificationsCard :org-name="me ? me.organization_name : ''" />
 
         <MyBookingsCalendarCard />
+
+        <SeasonProfileCard />
       </div>
     </div>
   </div>
@@ -121,6 +123,7 @@ import { confirmDialog } from '@/composables/useConfirm'
 import LinkedAccounts from '@/components/auth/LinkedAccounts.vue'
 import MyEmailNotificationsCard from '@/components/settings/MyEmailNotificationsCard.vue'
 import MyBookingsCalendarCard from '@/components/bookings/MyBookingsCalendarCard.vue'
+import SeasonProfileCard from '@/components/seasons/SeasonProfileCard.vue'
 import { reopenOnboarding } from '@/components/onboarding/onboarding'
 import { isPlatformAdminSession } from '@/utils/session'
 
@@ -128,7 +131,7 @@ const ROLES = { super_admin: 'Super admin', admin: 'Admin', manager: 'Manager', 
 
 export default {
   name: 'Profile',
-  components: { LinkedAccounts, MyEmailNotificationsCard, MyBookingsCalendarCard },
+  components: { LinkedAccounts, MyEmailNotificationsCard, MyBookingsCalendarCard, SeasonProfileCard },
   data() {
     return {
       me: null,

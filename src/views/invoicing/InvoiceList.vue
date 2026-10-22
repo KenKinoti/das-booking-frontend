@@ -140,6 +140,9 @@
                   <span v-if="inv.email_status && inv.email_status.state !== 'none'" class="em-ic" :class="'em-' + inv.email_status.state" :title="emailTip(inv.email_status)" :aria-label="emailTip(inv.email_status)" data-testid="list-email-icon">
                     <i :class="inv.email_status.state === 'failed' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-envelope-circle-check'"></i><small v-if="inv.email_status.sent > 1">{{ inv.email_status.sent }}</small>
                   </span>
+                  <span v-if="openedBadge(inv.email_status)" class="em-open" :class="{ 'is-none': !inv.email_status.opened }" :title="openedBadge(inv.email_status)" :aria-label="openedBadge(inv.email_status)" data-testid="list-opened">
+                    <i class="fa-regular fa-envelope-open"></i>{{ inv.email_status.opened }}/{{ inv.email_status.people }}
+                  </span>
                 </span>
               </td>
               <td class="num"><strong>{{ money(inv.total, inv.currency) }}</strong></td>
@@ -259,7 +262,15 @@ export default {
       const d = (v) => (v ? new Date(v).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '')
       const viewed = es.viewed_after_last_send ? ' · viewed by the client' : ''
       if (es.state === 'failed') return `Last email failed ${d(es.last_at)}${es.last_error ? ': ' + es.last_error : ''}${es.sent ? ` · ${es.sent} sent before` : ''}`
-      return `Emailed ${es.sent}× · last ${d(es.last_sent_at)} to ${es.last_to}${viewed}`
+      const opened = this.openedBadge(es) ? ' · ' + this.openedBadge(es) : ''
+      return `Emailed ${es.sent}× · last ${d(es.last_sent_at)} to ${es.last_to}${opened || viewed}`
+    },
+    /** "Opened by 2 of 3 · viewed by 1" for the last email when each person got their own copy. */
+    openedBadge(es) {
+      if (!es || es.state !== 'sent' || es.tracking !== 'per_recipient' || !es.people) return ''
+      const text = es.summary || `Opened by ${es.opened} of ${es.people}`
+      const kind = { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt' }[es.summary_kind]
+      return kind && es.summary_kind !== es.last_kind ? `${kind}: ${text.charAt(0).toLowerCase()}${text.slice(1)}` : text
     },
     money: formatCurrency,
     date: formatDate,
@@ -401,6 +412,18 @@ export default {
 }
 .em-ic.em-failed {
   color: var(--danger);
+}
+.em-open {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--info);
+  font-variant-numeric: tabular-nums;
+}
+.em-open.is-none {
+  color: var(--text-3);
 }
 .filter-chips {
   padding: 10px 16px 0;

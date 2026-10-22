@@ -5,6 +5,7 @@ import { ensureEntitlements, inPlan } from '../composables/useEntitlements'
 import { access, ensureAccess, typeShows, can, homePath } from '../composables/useAccess'
 import { moduleForPath, findNav, itemVisible, navLabel } from '../navigation'
 import { viewAs } from '../utils/session'
+import { isMediaRoute, safeReturnPath, stopAllMedia } from '../services/mediaGuard'
 // import { usePermissionsStore } from '../stores/permissions' // unused import
 
 // Lazy load components for better performance
@@ -94,9 +95,8 @@ const routes = [
   {
     path: '/',
     redirect: () => {
-      // If user has a stored last route, redirect there
-      const lastRoute = localStorage.getItem('lastRoute')
-      return lastRoute || '/dashboard'
+      // If user has a stored last route, redirect there (never a camera / microphone page)
+      return safeReturnPath(localStorage.getItem('lastRoute'), router) || '/dashboard'
     }
   },
   {
@@ -375,7 +375,8 @@ const routes = [
     name: 'MeetingRoom',
     component: MeetingRoom,
     props: true,
-    meta: { requiresAuth: true, title: 'Meeting' }
+    // media: opens the camera / microphone (on a tap) — never a page to return to after signing in
+    meta: { requiresAuth: true, title: 'Meeting', media: true }
   },
   {
     path: '/documents',
@@ -480,7 +481,7 @@ const routes = [
     path: '/video-call',
     name: 'VideoCall',
     component: VideoCall,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, media: true }
   },
   {
     path: '/module-management',
@@ -561,6 +562,13 @@ routes.push(
   { path: '/bar-stock/count/:id', name: 'BarCount', component: () => import('../views/bar/BarCount.vue'), props: true, meta: { requiresAuth: true, title: 'Stock count' } }
 )
 
+// Secure calls: the host's list (manager level and above) and the public call
+// page — no app shell, no sign-in; the key is in the link's #fragment.
+routes.push(
+  { path: '/secure-calls', name: 'SecureCalls', component: () => import('../views/calls/SecureCalls.vue'), meta: { requiresAuth: true, title: 'Secure calls' } },
+  { path: '/c/:roomId', name: 'SecureCallRoom', component: () => import('../views/calls/SecureCallRoom.vue'), props: true, meta: { requiresAuth: false, public: true, title: 'Secure call', media: true } }
+)
+
 routes.push({ path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound, meta: { requiresAuth: false, title: 'Page not found' } })
 
 const router = createRouter({
@@ -615,7 +623,8 @@ router.beforeEach(async (to) => {
       if (res !== true) return res
     }
 
-    if (to.name && to.name !== 'Login') {
+    // Media pages (camera / microphone) are never remembered as the page to come back to.
+    if (to.name && to.name !== 'Login' && !isMediaRoute(to)) {
       localStorage.setItem('lastRoute', to.fullPath)
     }
     return true
@@ -624,7 +633,7 @@ router.beforeEach(async (to) => {
   if (to.name === 'Login') {
     if (!authStore.isAuthenticated) await authStore.initializeAuth()
     if (authStore.isAuthenticated) {
-      return to.query.redirect || localStorage.getItem('lastRoute') || '/dashboard'
+      return safeReturnPath(to.query.redirect, router) || safeReturnPath(localStorage.getItem('lastRoute'), router) || '/dashboard'
     }
   }
   return true
@@ -688,7 +697,9 @@ export async function recheckRoute() {
   if (res !== true) await router.replace(res)
 }
 
-router.afterEach((to) => {
+router.afterEach((to, from, failure) => {
+  // Leaving a camera / microphone page: whatever it still holds is stopped (camera light off).
+  if (!failure && isMediaRoute(from) && to.matched[to.matched.length - 1] !== from.matched[from.matched.length - 1]) stopAllMedia()
   // The owner-view "kept out" note belongs to the page it redirected to.
   if (viewAs.blocked && to.path !== viewAs.blocked.at) viewAs.blocked = null
   const base = import.meta.env.VITE_APP_TITLE || 'DASYIN ERP'

@@ -138,6 +138,7 @@
               <option value="below_cost">Below cost</option>
             </select>
             <span class="muted">{{ sitesShown.length }} of {{ r.sites.length }}</span>
+            <router-link to="/subscriptions?tab=sites" class="ui-btn ui-btn--sm" data-testid="bill-sites"><i class="fa-solid fa-arrows-rotate"></i> Bill as subscriptions</router-link>
           </div>
           <div v-if="!sitesShown.length" class="ui-empty small"><div class="ui-empty__icon"><i class="fa-solid fa-filter"></i></div><h3>No sites match</h3><p>Change the search or filters.</p></div>
           <div v-else class="ui-table-wrap">

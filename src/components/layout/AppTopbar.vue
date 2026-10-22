@@ -119,7 +119,8 @@ export default {
         { label: 'Invoice', hint: 'Bill a customer', to: '/invoices/new', icon: 'fa-solid fa-file-invoice-dollar', module: 'invoicing' },
         { label: 'Quote', hint: 'Send an estimate', to: '/quotes/new', icon: 'fa-solid fa-file-signature', module: 'invoicing' },
         { label: 'Booking', term: 'booking', hint: 'Schedule an appointment', to: '/bookings', icon: 'fa-solid fa-calendar-plus', module: 'bookings' },
-        { label: 'Customer', term: 'customer', hint: 'Add a contact', to: '/customers', icon: 'fa-solid fa-user-plus', module: 'crm' }
+        { label: 'Customer', term: 'customer', hint: 'Add a contact', to: '/customers', icon: 'fa-solid fa-user-plus', module: 'crm' },
+        { label: 'Secure call', hint: 'Encrypted call link to share', to: '/secure-calls?new=1', icon: 'fa-solid fa-user-shield', module: 'core', minBase: 'manager' }
       ]
     }
   },
@@ -146,7 +147,7 @@ export default {
       void access.permissions
       void this.auth.isSuperAdmin
       return this.createActions
-        .filter((a) => hasModule(a.module) && can(a.module, 'create'))
+        .filter((a) => (a.minBase ? this.auth.isSuperAdmin || atLeast(a.minBase) : hasModule(a.module) && can(a.module, 'create')))
         .map((a) => (a.term ? { ...a, label: term(a.term), hint: a.term === 'booking' ? `Schedule a new ${termLower('booking')}` : `Add a ${termLower('customer')}` } : a))
     },
     planChip() {
@@ -625,6 +626,32 @@ export default {
   }
   .tb__who strong {
     max-width: 110px;
+  }
+}
+
+/* Tablets: "Ask DASYIN" becomes an icon, then the name next to the avatar goes
+   (it is in the account menu), so a trial chip and a long name never push the
+   bar past the window */
+@media (max-width: 1100px) {
+  .tb__ask .tb__hide-sm {
+    display: none;
+  }
+  .tb__ask {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+@media (max-width: 1023px) {
+  .tb__who,
+  .tb__caret {
+    display: none;
+  }
+  .tb__plan span {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 

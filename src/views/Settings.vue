@@ -149,6 +149,18 @@
           </section>
         </fieldset>
 
+        <section id="appearance" class="ui-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Appearance</h2>
+              <p class="sub">How DASYIN looks for your team.</p>
+            </div>
+          </div>
+          <div class="ui-card__body">
+            <SeasonOrgSettings :org-name="org.name" />
+          </div>
+        </section>
+
         <section v-if="showBusinessType" id="business-type" class="ui-card">
           <div class="ui-card__head">
             <div>
@@ -286,6 +298,7 @@ import { suggestCountryDefaults } from '@/utils/countryDefaults'
 import { orgDefaults } from '@/utils/orgDefaults'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
+import SeasonOrgSettings from '@/components/seasons/SeasonOrgSettings.vue'
 
 const FALLBACK_TZ = ['Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Adelaide', 'Australia/Perth', 'Pacific/Auckland', 'Asia/Singapore', 'Asia/Dubai', 'Africa/Nairobi', 'Africa/Lagos', 'Africa/Johannesburg', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'UTC']
 
@@ -295,7 +308,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
-  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel, BusinessTypeSettings, EmailRecipientsPanel },
+  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel, BusinessTypeSettings, EmailRecipientsPanel, SeasonOrgSettings },
   data() {
     return {
       org: blankOrg(),
@@ -314,6 +327,7 @@ export default {
         { id: 'business-type', label: 'Business type', icon: 'fa-solid fa-shapes' },
         { id: 'regional', label: 'Regional & formats', icon: 'fa-solid fa-globe' },
         { id: 'notifications', label: 'Notifications', icon: 'fa-regular fa-bell' },
+        { id: 'appearance', label: 'Appearance', icon: 'fa-solid fa-palette' },
         { id: 'bill-reminders', label: 'Bill reminders', icon: 'fa-solid fa-file-invoice-dollar' },
         { id: 'booking-emails', label: 'Booking emails', icon: 'fa-regular fa-calendar-check' },
         { id: 'email', label: 'Outgoing email', icon: 'fa-regular fa-paper-plane' },

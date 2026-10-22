@@ -26,6 +26,9 @@
               <i :class="emailState.icon"></i> <span>{{ emailState.text }}</span>
             </button>
             <button v-if="emailState.state === 'failed'" type="button" class="ui-btn ui-btn--sm" data-testid="email-retry" @click="openSend(es.last_kind === 'receipt' ? 'invoice' : es.last_kind || 'invoice')"><i class="fa-solid fa-rotate-right"></i> Retry</button>
+            <button v-if="openSummary" type="button" class="open-chip" :class="openSummary.cls" data-testid="email-open-chip" :title="openSummary.title" @click="showEmails">
+              <i class="fa-regular fa-envelope-open"></i> <span>{{ openSummary.text }}</span>
+            </button>
             <span v-if="es && es.viewed_at" class="viewed-chip" data-testid="viewed-chip"><i class="fa-regular fa-eye"></i> Viewed {{ dtz(es.viewed_at) }}</span>
           </div>
         </div>
@@ -191,8 +194,15 @@
               <li v-if="emailLog.length" class="elog-sum muted small" data-testid="email-log-summary">
                 {{ emailSummaryText }} · times in {{ orgTz.replace(/_/g, ' ') }}
               </li>
-              <li v-for="e in emailLog" :key="e.id" :class="`el-${e.status}`" :data-kind="e.kind" :data-status="e.status">
-                <div v-if="viewedAfter === e.id" class="elog-viewed" data-testid="email-viewed-marker"><i class="fa-regular fa-eye"></i> Client opened the link {{ dtz(doc.viewed_at) }}</div>
+              <li v-if="hasTrackedEmail" class="elog-note" data-testid="email-tracking-note">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>
+                  Each person gets their own copy. <strong>Opened</strong> is recorded when the email’s images load, so it isn’t certain — Outlook and some other apps hide images until the reader allows them (opens are missed), and Apple Mail can load them by itself (shown as “automatic”).
+                  <strong>Viewed</strong> means the person used their own View or Pay link — that’s reliable.<template v-if="trackingPrefs && !trackingPrefs.track_opens"> Open tracking is off for your organisation.</template>
+                </span>
+              </li>
+              <li v-for="e in emailLog" :key="e.id" :class="`el-${e.status}`" :data-kind="e.kind" :data-status="e.status" :data-log="e.id">
+                <div v-if="viewedAfter === e.id && !viewExplained(e)" class="elog-viewed" data-testid="email-viewed-marker"><i class="fa-regular fa-eye"></i> Client opened the link {{ dtz(doc.viewed_at) }}</div>
                 <div class="elog-line">
                   <button class="elog-row" :aria-expanded="openLog === e.id" @click="openLog = openLog === e.id ? null : e.id">
                     <span class="ui-badge" :class="logBadge(e).cls">{{ logBadge(e).label }}</span>
@@ -204,6 +214,23 @@
                   </button>
                   <button v-if="canResend(e)" type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon resend" :data-testid="'resend-' + e.kind" :title="(e.status === 'failed' ? 'Retry ' : 'Resend ') + logKind(e).toLowerCase()" :aria-label="(e.status === 'failed' ? 'Retry ' : 'Resend ') + logKind(e).toLowerCase()" @click="resend(e)"><i :class="e.status === 'failed' ? 'fa-solid fa-rotate-right' : 'fa-solid fa-paper-plane'"></i></button>
                 </div>
+                <ul v-if="e.tracking === 'per_recipient' && e.recipients && e.recipients.length" class="erc" data-testid="email-recipients">
+                  <li v-for="r in e.recipients" :key="r.role + r.email" class="erc-item" :data-email="r.email" :data-state="r.state" data-testid="email-recipient">
+                    <div class="erc-who">
+                      <span class="erc-role">{{ roleLabel(r.role) }}</span>
+                      <span class="erc-email">{{ r.email }}</span>
+                    </div>
+                    <ol class="erc-steps">
+                      <li v-for="(st, i) in recipientSteps(r, e)" :key="i" :class="'st-' + st.tone" :title="st.title || null" :data-step="st.key">
+                        <i :class="st.icon"></i><span>{{ st.text }}</span>
+                      </li>
+                    </ol>
+                    <p v-if="r.opened_automatic" class="erc-hint" data-testid="auto-open-hint">
+                      <i class="fa-solid fa-robot"></i> Opened automatically — probably {{ autoWhy(r) }} loading the images, so it may not be a person. It counts once they open it themselves or use their link.
+                    </p>
+                  </li>
+                </ul>
+                <p v-else-if="e.tracking === 'single' && e.status === 'sent'" class="erc-single muted small"><i class="fa-regular fa-envelope"></i> Sent as one message to everyone — not tracked per person.</p>
                 <div v-if="openLog === e.id" class="elog-detail" data-testid="email-log-detail">
                   <div v-if="e.error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span><strong>{{ e.error_code || 'Error' }}</strong> {{ e.error }}</span></div>
                   <dl>
@@ -414,6 +441,7 @@ export default {
       emailLog: [],
       emailLogLoading: false,
       emailLogSummary: null,
+      trackingPrefs: null,
       logTz: '',
       openLog: null,
       methods: PAYMENT_METHODS,
@@ -444,6 +472,23 @@ export default {
       }
       const times = s.sent > 1 ? ` · ${s.sent} emails` : ''
       return { state: 'sent', icon: 'fa-solid fa-circle-check', text: `${kind(s.last_kind)} emailed ${this.dtz(s.last_sent_at)} to ${s.last_to}${cc}${times}`, title: 'Last email accepted by the mail server' }
+    },
+    /** "Opened by 2 of 3 · 1 viewed" for the last email, when it was tracked per person. */
+    openSummary() {
+      const s = this.es
+      if (!s || s.state === 'none' || s.tracking !== 'per_recipient' || !s.people) return null
+      // The summary follows the last invoice / quote / reminder (not a receipt sent after a payment).
+      const kind = s.summary_kind && s.summary_kind !== s.last_kind ? this.logKind({ kind: s.summary_kind }) : ''
+      const parts = [kind ? `${kind}: opened by ${s.opened} of ${s.people}` : `Opened by ${s.opened} of ${s.people}`]
+      if (s.viewed) parts.push(`${s.viewed} viewed`)
+      if (s.paid_via) parts.push('paid via link')
+      const people = (s.recipients || []).filter((r) => r.role !== 'bcc').map((r) => `${r.email}: ${this.stateLabel(r)}`)
+      if (s.auto_opened) people.push(`${s.auto_opened} automatic open${s.auto_opened === 1 ? '' : 's'} not counted (may not be a person)`)
+      if (!s.open_tracking) people.push('Open tracking was off for this email — only link use is recorded.')
+      return { text: parts.join(' · '), title: people.join('\n'), cls: s.opened ? 'oc-yes' : 'oc-no' }
+    },
+    hasTrackedEmail() {
+      return this.emailLog.some((e) => e.tracking === 'per_recipient')
     },
     emailSummaryText() {
       const s = this.es
@@ -811,6 +856,7 @@ export default {
         const r = await invoicingApi.emailLog(this.doc.id)
         this.emailLog = r?.log || []
         this.emailLogSummary = r?.summary || null
+        this.trackingPrefs = r?.tracking || null
         if (r?.timezone) this.logTz = r.timezone
       } catch {
         this.emailLog = []
@@ -855,6 +901,68 @@ export default {
     },
     logKind(e) {
       return { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt' }[e.kind] || 'Email'
+    },
+    /** Short date + time in the organisation's time zone ("21 Oct, 10:42"). */
+    tShort(v) {
+      if (!v) return ''
+      try {
+        return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: this.orgTz }).format(new Date(v))
+      } catch {
+        return formatDateTime(v)
+      }
+    },
+    /** The document's first view came through one of this email's personal links (shown on that person instead). */
+    viewExplained(e) {
+      const v = this.doc?.viewed_at && new Date(this.doc.viewed_at).getTime()
+      return !!v && e.tracking === 'per_recipient' && (e.recipients || []).some((r) => r.viewed_at && Math.abs(new Date(r.viewed_at).getTime() - v) < 2000)
+    },
+    roleLabel(role) {
+      return { to: 'To', cc: 'CC', bcc: 'BCC' }[role] || role
+    },
+    stateLabel(r) {
+      return (
+        {
+          failed: 'not delivered',
+          sending: 'sending',
+          sent: 'sent, not opened yet',
+          opened_auto: 'opened automatically (may not be a person)',
+          opened: 'opened',
+          viewed: 'viewed',
+          paid: 'paid via their link',
+          untracked: 'not tracked'
+        }[r.state] || r.state
+      )
+    },
+    autoWhy(r) {
+      return { apple_proxy: 'Apple Mail Privacy Protection', scanner: 'a security scanner', prefetch: 'their mail app or a scanner' }[r.open_via] || 'their mail app or a scanner'
+    },
+    /** Sent → Opened 10:42 (3×) → Viewed invoice 10:44 → Paid via link. */
+    recipientSteps(r, e) {
+      const t = this.tShort
+      if (r.state === 'failed') return [{ key: 'failed', tone: 'danger', icon: 'fa-solid fa-circle-xmark', text: 'Not delivered', title: r.error }]
+      if (r.state === 'sending') return [{ key: 'sending', tone: 'muted', icon: 'fa-solid fa-circle-notch', text: 'Sending…' }]
+      const out = [{ key: 'sent', tone: 'ok', icon: 'fa-solid fa-check', text: `Sent ${t(r.sent_at)}` }]
+      if (!r.tracked) {
+        out.push({ key: 'untracked', tone: 'muted', icon: 'fa-regular fa-eye-slash', text: 'BCC copy · not tracked' })
+        return out
+      }
+      if (r.opens > 0) {
+        const via = { gmail: 'via Gmail', yahoo: 'via Yahoo Mail', apple_mail: 'in Apple Mail' }[r.open_via] || ''
+        const extra = r.auto_opens ? ` + ${r.auto_opens} automatic` : ''
+        out.push({ key: 'opened', tone: 'info', icon: 'fa-regular fa-envelope-open', text: `Opened ${t(r.opened_at)}${r.opens > 1 ? ` (${r.opens}×)` : ''}${extra}`, title: [via, r.last_open_at ? `last ${t(r.last_open_at)}` : ''].filter(Boolean).join(' · ') })
+      } else if (r.auto_opens > 0) {
+        out.push({ key: 'opened_auto', tone: 'warn', icon: 'fa-solid fa-robot', text: `Opened ${t(r.opened_at)} (automatic, may not be a person)` })
+      } else if (!r.open_tracking) {
+        out.push({ key: 'no_opens', tone: 'muted', icon: 'fa-regular fa-eye-slash', text: 'Opens not tracked' })
+      }
+      if (r.viewed_at) {
+        const pay = r.pay_page_at && new Date(r.pay_page_at).getTime() <= new Date(r.viewed_at).getTime()
+        const what = pay ? 'Opened the pay page' : e.kind === 'quote' ? 'Viewed quote' : 'Viewed invoice'
+        out.push({ key: 'viewed', tone: 'strong', icon: pay ? 'fa-solid fa-credit-card' : 'fa-regular fa-eye', text: `${what} ${t(r.viewed_at)}${r.views > 1 ? ` (${r.views}×)` : ''}` })
+      }
+      if (r.accepted_at) out.push({ key: 'accepted', tone: 'ok', icon: 'fa-solid fa-thumbs-up', text: `Accepted ${t(r.accepted_at)}` })
+      if (r.paid_at) out.push({ key: 'paid', tone: 'ok', icon: 'fa-solid fa-money-bill-wave', text: `Paid via link ${t(r.paid_at)}${r.paid_amount ? ' · ' + formatCurrency(r.paid_amount, r.paid_currency || this.doc.currency) : ''}` })
+      return out
     },
     checkIcon(sev) {
       return { error: 'fa-solid fa-circle-xmark', warning: 'fa-solid fa-triangle-exclamation', info: 'fa-solid fa-circle-info', ok: 'fa-solid fa-circle-check' }[sev]
@@ -999,6 +1107,140 @@ export default {
 }
 .elog-line .resend {
   flex-shrink: 0;
+}
+.open-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.open-chip.oc-yes {
+  border-color: var(--info);
+  background: var(--info-soft);
+  color: var(--text);
+}
+.open-chip.oc-yes i {
+  color: var(--info);
+}
+.elog-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 4px 0 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--info-soft);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.elog-note > i {
+  color: var(--info);
+  margin-top: 3px;
+}
+.elog-note strong {
+  color: var(--text);
+}
+.erc {
+  list-style: none;
+  margin: 0 6px 6px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.erc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.erc-who {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.erc-role {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  min-width: 26px;
+}
+.erc-email {
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.erc-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.erc-steps li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.erc-steps li + li::before {
+  content: '→';
+  color: var(--text-3);
+  margin: 0 6px;
+}
+.erc-steps i {
+  font-size: 11px;
+}
+.st-ok i {
+  color: var(--success);
+}
+.st-info i {
+  color: var(--info);
+}
+.st-strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.st-strong i {
+  color: var(--accent);
+}
+.st-warn {
+  color: var(--warning);
+}
+.st-danger {
+  color: var(--danger);
+  font-weight: 600;
+}
+.st-muted {
+  color: var(--text-3);
+}
+.erc-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+.erc-hint i {
+  color: var(--warning);
+}
+.erc-single {
+  margin: 0 6px 6px;
+  font-size: 12px;
 }
 .elog-viewed {
   font-size: 12px;

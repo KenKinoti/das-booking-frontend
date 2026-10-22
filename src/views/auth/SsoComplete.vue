@@ -24,6 +24,16 @@
           <router-link v-else to="/login" class="ui-btn ui-btn--primary" data-testid="back-to-login">Back to sign in</router-link>
         </div>
         <p v-if="code === 'no_account'" class="sso__hint">Already have a DASYIN account under a different email? Sign in with your password, then link {{ providerName }} from your profile.</p>
+
+        <details v-if="message.admin" class="sso__admin" data-testid="sso-admin-hint" :open="adminOpen">
+          <summary><i class="fa-solid fa-screwdriver-wrench"></i> For your administrator</summary>
+          <p>{{ message.admin }}</p>
+          <div v-if="message.value" class="sso__copy">
+            <code data-testid="sso-redirect-uri">{{ message.value }}</code>
+            <button type="button" class="ui-btn ui-btn--sm" data-testid="sso-copy-uri" @click="copy(message.value)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <router-link v-if="isSuperAdmin" to="/system-settings?tab=signin" class="sso__admin-link" data-testid="sso-open-settings">Open Sign-in providers <i class="fa-solid fa-arrow-right"></i></router-link>
+        </details>
       </div>
     </div>
   </div>
@@ -35,6 +45,7 @@ import { APP_NAME } from '@/config'
 import { useAuthStore } from '@/stores/auth'
 import { toast } from '@/composables/useToast'
 import { ssoErrorText, PROVIDER_NAMES } from '@/services/sso'
+import { safeReturnPath } from '@/services/mediaGuard'
 
 /** Values the backend put in the URL fragment (#code=… / #error=… / #linked=…). */
 function readFragment() {
@@ -45,19 +56,20 @@ function readFragment() {
   return v
 }
 
-function safePath(p) {
-  return typeof p === 'string' && p.startsWith('/') && !p.startsWith('//') && !p.startsWith('/login') && !p.startsWith('/auth/') ? p : ''
-}
 
 export default {
   name: 'SsoComplete',
   components: { BrandMark },
   data() {
-    return { state: 'working', code: '', email: '', provider: '', linking: false, appName: APP_NAME, signedIn: false }
+    return { state: 'working', code: '', email: '', provider: '', redirectUri: '', detail: '', linking: false, appName: APP_NAME, signedIn: false, isSuperAdmin: false }
   },
   computed: {
     message() {
-      return ssoErrorText(this.code, { provider: this.provider, email: this.email })
+      return ssoErrorText(this.code, { provider: this.provider, email: this.email, redirectUri: this.redirectUri, detail: this.detail })
+    },
+    // Set-up problems only an administrator can fix: show the hint straight away.
+    adminOpen() {
+      return this.isSuperAdmin || ['redirect_uri_mismatch', 'invalid_client', 'access_blocked'].includes(this.code)
     },
     providerName() {
       return PROVIDER_NAMES[this.provider] || 'your account'
@@ -68,15 +80,18 @@ export default {
     const auth = useAuthStore()
     this.provider = v.get('provider') || v.get('linked') || ''
     this.email = v.get('email') || ''
+    this.redirectUri = v.get('redirect_uri') || ''
+    this.detail = (v.get('detail') || '').replace(/[^\w.-]/g, '').slice(0, 60)
     if (v.get('error')) {
       this.signedIn = await auth.initializeAuth().catch(() => false)
+      this.isSuperAdmin = !!(this.signedIn && auth.isSuperAdmin)
       this.fail(v.get('error'))
       return
     }
     if (v.get('linked')) {
       this.linking = true
       toast.success(`${PROVIDER_NAMES[v.get('linked')] || 'Account'} linked${this.email ? ` (${this.email})` : ''} — you can now sign in with it.`)
-      this.$router.replace(safePath(v.get('redirect')) || '/profile')
+      this.$router.replace(safeReturnPath(v.get('redirect'), this.$router) || '/profile')
       return
     }
     const code = v.get('code')
@@ -87,7 +102,8 @@ export default {
     try {
       const redirect = await auth.completeSso(code)
       if (v.get('joined') === '1') toast.success(`Welcome to ${auth.user?.organization_name || 'DASYIN'}! Your account was created from your company email.`)
-      this.$router.replace(safePath(redirect) || safePath(localStorage.getItem('lastRoute')) || '/dashboard')
+      // Never back to a camera / microphone page (video call, meeting room, secure call): home instead.
+      this.$router.replace(safeReturnPath(redirect, this.$router) || safeReturnPath(localStorage.getItem('lastRoute'), this.$router) || '/dashboard')
     } catch {
       this.fail('expired')
     }
@@ -96,6 +112,14 @@ export default {
     fail(code) {
       this.code = code
       this.state = 'error'
+    },
+    async copy(text) {
+      try {
+        await navigator.clipboard.writeText(text)
+        toast.success('Copied')
+      } catch {
+        toast.info(text)
+      }
     }
   }
 }
@@ -180,5 +204,57 @@ export default {
   font-size: 12.5px;
   color: var(--text-3) !important;
   margin-top: 6px !important;
+}
+.sso__admin {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.sso__admin summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sso__admin summary i {
+  color: var(--text-3);
+}
+.sso__admin p {
+  margin: 8px 0 0 !important;
+  color: var(--text-2);
+}
+.sso__copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  min-width: 0;
+}
+.sso__copy code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  color: var(--text);
+}
+.sso__admin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
 }
 </style>

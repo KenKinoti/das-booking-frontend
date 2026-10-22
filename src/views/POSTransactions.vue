@@ -4,7 +4,7 @@
       <div>
         <div class="ui-eyebrow">Sales</div>
         <h1>POS Transactions</h1>
-        <p>Every sale rung up at the register — look up receipts, reprint or void.</p>
+        <p>Every sale rung up at the register — look up receipts, reprint or void{{ isManager ? ', and see who sold what on which device' : '' }}.</p>
       </div>
       <div class="ui-actions">
         <button class="ui-btn" :disabled="exporting || !total" @click="exportCsv">
@@ -37,7 +37,26 @@
       </button>
     </div>
 
-    <section class="ui-card">
+    <div v-if="isManager" class="ui-tabs view-tabs" role="tablist" aria-label="View">
+      <button class="ui-tab" :class="{ 'is-active': view === 'sales' }" role="tab" :aria-selected="view === 'sales'" @click="setView('sales')"><i class="fa-solid fa-receipt"></i> Sales</button>
+      <button class="ui-tab" :class="{ 'is-active': view === 'people' }" role="tab" :aria-selected="view === 'people'" data-testid="view-people" @click="setView('people')"><i class="fa-solid fa-users"></i> By person &amp; device</button>
+    </div>
+
+    <section v-if="view === 'people'" class="ui-card">
+      <div class="rangebar">
+        <div class="presets" role="group" aria-label="Date range">
+          <button v-for="p in presets" :key="p.value" class="chip" :class="{ 'is-active': range === p.value }" @click="setRange(p.value)">{{ p.label }}</button>
+        </div>
+        <div v-if="range === 'custom'" class="custom">
+          <input v-model="from" class="ui-input" type="date" aria-label="From date" :max="to || undefined" @change="reload" />
+          <span class="muted">to</span>
+          <input v-model="to" class="ui-input" type="date" aria-label="To date" :min="from || undefined" @change="reload" />
+        </div>
+      </div>
+      <PeopleSummary :summary="people" :loading="peopleLoading" :error="peopleError" :range-label="rangeLabel" :currency="currency" @person="pickPerson" @device="pickDevice" />
+    </section>
+
+    <section v-else class="ui-card">
       <div class="toolbar">
         <div class="ui-tabs" role="tablist" aria-label="Status">
           <button v-for="t in statusTabs" :key="t.value" class="ui-tab" :class="{ 'is-active': status === t.value }" role="tab" :aria-selected="status === t.value" @click="setStatus(t.value)">{{ t.label }}</button>
@@ -50,12 +69,21 @@
           <select v-model="method" class="ui-select method" aria-label="Payment method" @change="reload">
             <option value="">All payments</option>
             <option value="cash">Cash</option>
+            <option value="mobile_money">{{ mobileLabel }}</option>
             <option value="card">Card</option>
             <option value="eftpos">EFTPOS</option>
             <option value="bank_transfer">Bank transfer</option>
             <option value="voucher">Gift voucher</option>
             <option value="other">Other</option>
             <option value="split">Split payments</option>
+          </select>
+          <select v-if="isManager" v-model="soldBy" class="ui-select sold-by" aria-label="Sold by" data-testid="sold-by" @change="reload">
+            <option value="">Everyone</option>
+            <option v-for="p in personOptions" :key="p.user_id" :value="p.user_id">{{ p.name }}</option>
+          </select>
+          <select v-if="isManager && deviceOptions.length" v-model="soldOn" class="ui-select sold-by" aria-label="Device" data-testid="sold-on" @change="reload">
+            <option value="">All devices</option>
+            <option v-for="d in deviceOptions" :key="d.device_id || 'none'" :value="d.device_id || 'none'">{{ d.device_label || (d.device_id ? 'Unnamed device' : 'Device not recorded') }}</option>
           </select>
         </div>
       </div>
@@ -103,6 +131,7 @@
               <th>Receipt</th>
               <th>Date</th>
               <th class="hide-md">Customer</th>
+              <th class="hide-lg">Sold by</th>
               <th class="hide-lg">Items</th>
               <th class="hide-sm">Payment</th>
               <th>Status</th>
@@ -111,13 +140,17 @@
           </thead>
           <tbody>
             <tr v-for="t in rows" :key="t.id" class="is-clickable" tabindex="0" @click="openId = t.id" @keydown.enter="openId = t.id">
-              <td><strong class="mono">{{ t.transaction_number }}</strong></td>
+              <td><strong class="mono">{{ t.transaction_number }}</strong><i v-if="t.photo_count" class="fa-solid fa-camera photo-ic" :title="`${t.photo_count} photo${t.photo_count === 1 ? '' : 's'}`"></i></td>
               <td class="nowrap">
                 {{ shortDate(t.created_at) }} <span class="muted">{{ time(t.created_at) }}</span>
               </td>
               <td class="hide-md card-show">
                 <span v-if="t.customer" class="nowrap">{{ name(t.customer) }}</span>
                 <span v-else class="muted">Walk-in</span>
+              </td>
+              <td class="hide-lg card-show sold-cell">
+                <span class="nowrap">{{ name(t.cashier) || '—' }}</span>
+                <small v-if="t.device_label" class="muted dev-label"><i class="fa-solid fa-mobile-screen"></i> {{ t.device_label }}</small>
               </td>
               <td class="hide-lg items-cell card-show">
                 <span class="muted">{{ qty(t) }} ×</span> {{ itemsLabel(t) }}
@@ -146,16 +179,19 @@
       </footer>
     </section>
 
-    <TransactionDrawer v-if="openId" :transaction-id="openId" :organization="organization" @close="openId = null" @voided="onVoided" />
+    <TransactionDrawer v-if="openId" :transaction-id="openId" :organization="organization" @close="openId = null" @voided="onVoided" @photos="onPhotos" />
   </div>
 </template>
 
 <script>
 import TransactionDrawer from '@/components/pos/TransactionDrawer.vue'
-import { posService, PAYMENT_LABELS, paymentSummary, personName } from '@/services/posService'
+import PeopleSummary from '@/components/pos/PeopleSummary.vue'
+import { posService, PAYMENT_LABELS, paymentSummary, personName, mobileMoneyLabel } from '@/services/posService'
 import { apiErrorMessage } from '@/services/api'
 import { formatMoney, formatDateTime, formatDate, isoDate, addDays, downloadBlob } from '@/utils/format'
 import { toast } from '@/composables/useToast'
+import { atLeast } from '@/composables/useAccess'
+import { orgCurrency } from '@/utils/orgDefaults'
 
 const PRESETS = [
   { value: 'today', label: 'Today' },
@@ -169,7 +205,7 @@ const PRESETS = [
 
 export default {
   name: 'POSTransactions',
-  components: { TransactionDrawer },
+  components: { TransactionDrawer, PeopleSummary },
   data() {
     const qy = this.$route.query
     return {
@@ -181,6 +217,13 @@ export default {
       q: qy.q || '',
       status: qy.status || '',
       method: qy.method || '',
+      soldBy: qy.sold_by || '',
+      soldOn: qy.device || '',
+      view: qy.view === 'people' ? 'people' : 'sales',
+      people: null,
+      peopleLoading: false,
+      peopleError: '',
+      peopleKey: '',
       range: PRESETS.some((p) => p.value === qy.range) ? qy.range : 'today',
       from: qy.from || isoDate(),
       to: qy.to || isoDate(),
@@ -229,10 +272,30 @@ export default {
       return PRESETS.find((p) => p.value === this.range)?.label || ''
     },
     params() {
-      return { ...this.dates, status: this.status, payment_method: this.method, search: this.q.trim() }
+      return { ...this.dates, status: this.status, payment_method: this.method, search: this.q.trim(), cashier_id: this.isManager ? this.soldBy : '', device_id: this.isManager ? this.soldOn : '' }
     },
     hasNarrowing() {
-      return !!(this.q.trim() || this.status || this.method)
+      return !!(this.q.trim() || this.status || this.method || this.soldBy || this.soldOn)
+    },
+    isManager() {
+      return atLeast('manager')
+    },
+    currency() {
+      return orgCurrency()
+    },
+    mobileLabel() {
+      return mobileMoneyLabel(this.currency)
+    },
+    personOptions() {
+      const list = (this.people?.people || []).filter((p) => p.sales_count > 0 || p.voided_count > 0)
+      // keep a person picked from a link even when they sold nothing in this range
+      if (this.soldBy && !list.some((p) => p.user_id === this.soldBy)) list.push({ user_id: this.soldBy, name: 'Selected person' })
+      return list
+    },
+    deviceOptions() {
+      const list = [...(this.people?.devices || [])]
+      if (this.soldOn && !list.some((d) => (d.device_id || 'none') === this.soldOn)) list.push({ device_id: this.soldOn === 'none' ? '' : this.soldOn, device_label: this.soldOn === 'none' ? '' : 'Selected device' })
+      return list
     },
     hasFilters() {
       return this.hasNarrowing || this.range !== 'today'
@@ -245,6 +308,7 @@ export default {
   },
   created() {
     this.load()
+    this.loadPeople()
     posService
       .organization()
       .then((o) => (this.organization = o))
@@ -272,7 +336,7 @@ export default {
       const ps = t.payments || []
       if (ps.length > 1) return 'fa-solid fa-code-fork'
       const m = ps[0]?.method
-      return m === 'cash' ? 'fa-solid fa-money-bill-wave' : m === 'card' || m === 'eftpos' ? 'fa-regular fa-credit-card' : 'fa-solid fa-building-columns'
+      return m === 'cash' ? 'fa-solid fa-money-bill-wave' : m === 'card' || m === 'eftpos' ? 'fa-regular fa-credit-card' : m === 'mobile_money' ? 'fa-solid fa-mobile-screen-button' : 'fa-solid fa-building-columns'
     },
     qty(t) {
       return (t.items || []).reduce((n, i) => n + i.quantity, 0)
@@ -306,6 +370,46 @@ export default {
       this.page = 1
       this.syncQuery()
       this.load()
+      this.loadPeople()
+    },
+    /** Managers: the per-person / per-device summary for the date range (also fills the "Sold by" list). */
+    async loadPeople(force = false) {
+      if (!this.isManager) return
+      const d = this.dates.start_date ? this.dates : { start_date: '2000-01-01', end_date: isoDate() }
+      const key = `${d.start_date}|${d.end_date}`
+      if (!force && key === this.peopleKey && this.people) return
+      this.peopleKey = key
+      this.peopleLoading = true
+      this.peopleError = ''
+      try {
+        const s = await posService.peopleSummary({ start_date: d.start_date, end_date: d.end_date })
+        if (this.peopleKey === key) this.people = s
+      } catch (e) {
+        if (this.peopleKey === key) this.peopleError = apiErrorMessage(e, 'Could not add up sales by person')
+      } finally {
+        if (this.peopleKey === key) this.peopleLoading = false
+      }
+    },
+    setView(v) {
+      this.view = v
+      this.syncQuery()
+      if (v === 'people') this.loadPeople(true)
+    },
+    pickPerson(id) {
+      this.soldBy = id
+      this.soldOn = ''
+      this.view = 'sales'
+      this.reload()
+    },
+    pickDevice(id) {
+      this.soldOn = id
+      this.soldBy = ''
+      this.view = 'sales'
+      this.reload()
+    },
+    onPhotos(n) {
+      const row = this.rows.find((r) => r.id === this.openId)
+      if (row) row.photo_count = n
     },
     debouncedLoad() {
       clearTimeout(this.timer)
@@ -327,6 +431,8 @@ export default {
       this.q = ''
       this.status = ''
       this.method = ''
+      this.soldBy = ''
+      this.soldOn = ''
       this.range = 'today'
       this.reload()
     },
@@ -340,6 +446,9 @@ export default {
       if (this.q.trim()) query.q = this.q.trim()
       if (this.status) query.status = this.status
       if (this.method) query.method = this.method
+      if (this.soldBy) query.sold_by = this.soldBy
+      if (this.soldOn) query.device = this.soldOn
+      if (this.view === 'people') query.view = 'people'
       if (this.range !== 'today') query.range = this.range
       if (this.range === 'custom') Object.assign(query, { from: this.from, to: this.to })
       if (this.page > 1) query.page = String(this.page)
@@ -362,7 +471,7 @@ export default {
           const s = v === null || v === undefined ? '' : String(v)
           return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
         }
-        const header = ['Receipt', 'Date', 'Status', 'Customer', 'Cashier', 'Items', 'Quantity', 'Subtotal', 'Discount', 'Tax', 'Tax inclusive', 'Total', 'Payment', 'Tendered', 'Change', 'Void reason']
+        const header = ['Receipt', 'Date', 'Status', 'Customer', 'Cashier', 'Device', 'Items', 'Quantity', 'Subtotal', 'Discount', 'Tax', 'Tax inclusive', 'Total', 'Payment', 'Tendered', 'Change', 'Void reason']
         const lines = all.map((t) =>
           [
             t.transaction_number,
@@ -370,6 +479,7 @@ export default {
             t.status,
             personName(t.customer),
             personName(t.cashier),
+            t.device_label || '',
             (t.items || []).map((i) => `${i.quantity}x ${i.item_name}`).join('; '),
             this.qty(t),
             t.sub_total,
@@ -465,6 +575,30 @@ export default {
 }
 .method {
   width: 170px;
+}
+.sold-by {
+  width: 170px;
+}
+.view-tabs {
+  margin-bottom: 12px;
+}
+.view-tabs .ui-tab i {
+  margin-right: 6px;
+}
+.photo-ic {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.sold-cell {
+  white-space: nowrap;
+}
+.dev-label {
+  display: block;
+  font-size: 12px;
+}
+.dev-label i {
+  font-size: 11px;
 }
 .rangebar {
   display: flex;
@@ -574,6 +708,7 @@ tr.is-clickable:focus-visible {
   }
   .search,
   .method,
+  .sold-by,
   .toolbar__right {
     width: 100%;
   }

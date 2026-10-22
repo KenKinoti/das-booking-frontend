@@ -175,6 +175,11 @@
               <VehicleManagementModal embedded :customer="customer" :initial="vehicles" @changed="onVehiclesChanged" />
             </section>
 
+            <!-- Subscriptions (pkg/subscriptions) -->
+            <section v-else-if="tab === 'subscriptions'">
+              <CustomerSubscriptions :customer-id="customer.id" :customer-name="name" />
+            </section>
+
             <!-- Invoices -->
             <section v-else-if="tab === 'invoices'">
               <div v-if="invoicesLoading" class="list">
@@ -222,6 +227,9 @@
 import { orgCurrency } from '@/utils/orgDefaults'
 import VehicleManagementModal from './VehicleManagementModal.vue'
 import CustomerContacts from './customers/CustomerContacts.vue'
+import CustomerSubscriptions from './subscriptions/CustomerSubscriptions.vue'
+import { hasModule } from '@/composables/useEntitlements'
+import { atLeast } from '@/composables/useAccess'
 import { customerService, customerName, initials, customerAddress, customerCountryLabel, customerCountry, newInvoiceLink, newBookingLink, invoicesLink } from '@/services/customerService'
 import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
@@ -238,7 +246,7 @@ const BOOKING_BADGES = {
 
 export default {
   name: 'CustomerDetailsModal',
-  components: { VehicleManagementModal, CustomerContacts },
+  components: { VehicleManagementModal, CustomerContacts, CustomerSubscriptions },
   props: {
     show: { type: Boolean, default: false },
     customerId: { type: String, default: '' },
@@ -283,8 +291,17 @@ export default {
         { id: 'bookings', label: 'Bookings', count: this.customer?.bookings_count ?? this.bookings.length },
         { id: 'contacts', label: 'Contacts', count: this.contactsCount },
         { id: 'vehicles', label: 'Vehicles', count: this.vehicles.length },
-        { id: 'invoices', label: 'Invoices', count: this.invoicesLoaded ? this.invoicesTotal : null }
+        { id: 'invoices', label: 'Invoices', count: this.invoicesLoaded ? this.invoicesTotal : null },
+        // Recurring services billed to this client (invoicing module, managers and admins).
+        ...(this.showSubscriptions ? [{ id: 'subscriptions', label: 'Subscriptions' }] : [])
       ]
+    },
+    showSubscriptions() {
+      try {
+        return hasModule('invoicing') && atLeast('manager')
+      } catch {
+        return false
+      }
     }
   },
   watch: {

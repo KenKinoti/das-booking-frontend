@@ -30,6 +30,11 @@
         <AiKeySettings />
       </div>
 
+      <!-- Secure calls: STUN / TURN relay (loads on its own) -->
+      <div v-else-if="tab === 'calls'" class="ui-card__body">
+        <SecureCallSettings />
+      </div>
+
       <div v-else-if="!settings" class="ui-card__body">
         <div v-for="n in 6" :key="n" class="ui-skeleton" style="height: 40px; margin-bottom: 14px; max-width: 640px"></div>
       </div>
@@ -292,6 +297,7 @@ import { platformAPI, ensurePlatformSession } from '@/services/platform'
 import EmailSettingsPanel from '@/components/settings/EmailSettingsPanel.vue'
 import SignInProviders from '@/components/auth/SignInProviders.vue'
 import AiKeySettings from '@/components/assistant/AiKeySettings.vue'
+import SecureCallSettings from '@/components/calls/SecureCallSettings.vue'
 import { paymentsApi } from '@/services/payments'
 import { SOURCE_LABELS, SECURITY_LABELS } from '@/services/emailSettings'
 
@@ -342,7 +348,7 @@ const SECTIONS = {
 
 export default {
   name: 'SystemSettings',
-  components: { EmailSettingsPanel, SignInProviders, AiKeySettings },
+  components: { EmailSettingsPanel, SignInProviders, AiKeySettings, SecureCallSettings },
   data() {
     return {
       settings: null,
@@ -355,7 +361,7 @@ export default {
       saving: false,
       testing: false,
       error: '',
-      tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'signin', 'ai', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
+      tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'signin', 'ai', 'calls', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
       testTo: '',
       sendingTest: false,
       testResult: null,
@@ -371,6 +377,7 @@ export default {
         { value: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', section: 'whatsapp_settings' },
         { value: 'signin', label: 'Sign-in providers', icon: 'fa-solid fa-right-to-bracket' },
         { value: 'ai', label: 'AI assistant', icon: 'fa-solid fa-wand-magic-sparkles' },
+        { value: 'calls', label: 'Calls', icon: 'fa-solid fa-user-shield' },
         { value: 'activity', label: 'Activity', icon: 'fa-solid fa-list-check' }
       ]
     }

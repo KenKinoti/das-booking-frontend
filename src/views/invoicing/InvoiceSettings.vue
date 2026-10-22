@@ -211,6 +211,8 @@
           <p v-else-if="!emailEnabled" class="ui-hint mt">To send directly from the app, connect an email account (e.g. Gmail) under <router-link to="/settings#email">Settings → Outgoing email</router-link>. Until then, “Open in email app” is used.</p>
         </div>
       </section>
+
+      <EmailTrackingCard />
     </template>
   </div>
 </template>
@@ -224,12 +226,13 @@ import { confirmDialog } from '@/composables/useConfirm'
 import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
 import FxRatesCard from '@/components/invoicing/FxRatesCard.vue'
 import CountryDefaultsNotice from '@/components/invoicing/CountryDefaultsNotice.vue'
+import EmailTrackingCard from '@/components/invoicing/EmailTrackingCard.vue'
 
 let tmp = 0
 
 export default {
   name: 'InvoiceSettings',
-  components: { CountryDefaultsNotice, OrgLogoUploader, FxRatesCard },
+  components: { CountryDefaultsNotice, OrgLogoUploader, FxRatesCard, EmailTrackingCard },
   data() {
     return {
       s: null,

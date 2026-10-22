@@ -18,6 +18,9 @@
         </div>
       </div>
       <div class="ui-modal__foot">
+        <button v-if="afterSale && transaction.id" class="ui-btn photo-btn" data-testid="receipt-photo" title="Attach a photo (M-Pesa message, damaged bottle) — managers see it with the sale" @click="$emit('photo')">
+          <i class="fa-solid fa-camera"></i> {{ transaction.photo_count ? `Photo added (${transaction.photo_count})` : 'Add photo' }}
+        </button>
         <button class="ui-btn" @click="print"><i class="fa-solid fa-print"></i> Print</button>
         <button v-if="afterSale" ref="primary" class="ui-btn ui-btn--primary" @click="$emit('new-sale')"><i class="fa-solid fa-plus"></i> New sale</button>
         <button v-else ref="primary" class="ui-btn ui-btn--primary" @click="$emit('close')">Done</button>
@@ -46,7 +49,7 @@ export default {
     currency: { type: String, default: () => orgCurrency() },
     afterSale: { type: Boolean, default: false }
   },
-  emits: ['close', 'new-sale'],
+  emits: ['close', 'new-sale', 'photo'],
   mounted() {
     this.$nextTick(() => this.$refs.primary?.focus())
     document.addEventListener('keydown', this.onKey)
@@ -60,7 +63,8 @@ export default {
       return formatMoney(v, this.transaction?.currency || this.currency)
     },
     onKey(e) {
-      if (e.key === 'Escape') this.$emit('close')
+      // a sheet on top (the photo) handles its own Escape
+      if (e.key === 'Escape' && !document.querySelector('[data-testid="sale-photo"]')) this.$emit('close')
     },
     print() {
       document.body.classList.add('pos-printing')
@@ -79,6 +83,9 @@ export default {
 <style scoped>
 .receipt-modal {
   max-width: 420px;
+}
+.photo-btn {
+  margin-right: auto;
 }
 .done {
   display: flex;

@@ -97,6 +97,7 @@ export const navGroups = [
     items: [
       { label: 'Profit & loss', to: '/reports/profit-loss', module: 'core', icon: 'fa-solid fa-chart-line', match: /^\/reports\/profit-loss/ },
       { label: 'Accounting', to: '/finance', module: 'accounting', icon: 'fa-solid fa-scale-balanced' },
+      { label: 'Subscriptions', to: '/subscriptions', module: 'invoicing', icon: 'fa-solid fa-arrows-rotate', minBase: 'manager', match: /^\/subscriptions/ },
       { label: 'Bills', to: '/bills', module: 'accounting', icon: 'fa-solid fa-money-bill-wave' },
       { label: 'Expenses', to: '/expenses', module: 'core', icon: 'fa-solid fa-receipt' },
       { label: 'Supplier prices', to: '/supplier-prices', module: 'accounting', icon: 'fa-solid fa-tags', minBase: 'manager' },
@@ -120,6 +121,10 @@ export const navGroups = [
     icon: 'fa-solid fa-comments',
     items: [
       { label: 'Meetings & calls', to: '/meetings', module: 'communication', icon: 'fa-solid fa-calendar-plus', match: /^\/meetings/ },
+      // End-to-end encrypted call links. Core (every plan and business type) for
+      // managers and above, so the Communication group shows it even when the
+      // organisation has no communication module.
+      { label: 'Secure calls', to: '/secure-calls', module: 'core', minBase: 'manager', icon: 'fa-solid fa-user-shield', match: /^\/secure-calls/ },
       { label: 'Messages', to: '/messages', module: 'communication', icon: 'fa-solid fa-message' },
       { label: 'Communication hub', to: '/communication', module: 'communication', icon: 'fa-solid fa-tower-broadcast' },
       { label: 'Video calls', to: '/video-call', module: 'communication', icon: 'fa-solid fa-video' },
@@ -147,8 +152,10 @@ export const navGroups = [
     superAdmin: true,
     items: [
       { label: 'Platform overview', to: '/super-admin', icon: 'fa-solid fa-crown', match: /^\/super-admin$/ },
+      { label: 'Announcements', to: '/super-admin/announcements', icon: 'fa-solid fa-bullhorn' },
       { label: 'Plans & pricing', to: '/super-admin/plans', icon: 'fa-solid fa-tags' },
       { label: 'Business types', to: '/super-admin/business-types', icon: 'fa-solid fa-shapes' },
+      { label: 'Seasonal themes', to: '/super-admin/seasons', icon: 'fa-solid fa-holly-berry' },
       { label: 'Organizations', to: '/organizations', icon: 'fa-solid fa-building' },
       { label: 'Users', to: '/users-admin', icon: 'fa-solid fa-users-gear' },
       { label: 'Modules', to: '/module-management', icon: 'fa-solid fa-puzzle-piece' },

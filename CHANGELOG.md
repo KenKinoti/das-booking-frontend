@@ -6,6 +6,115 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.14.0] - 2026-10-21
+
+**Secure calls — end-to-end encrypted call links.** Owners, admins and managers can start a private video call from
+Communication → Secure calls or Create → Secure call. Choose how long the link works (1 hour, 24 hours or 7 days),
+optionally turn on "Ask me before people join", then copy the link or send it by WhatsApp, SMS or email; guests join
+from a phone or computer without an account. The call's secret key is made on your device and travels only in the part
+of the link after #, which browsers never send to a server — DASYIN can't open the call. The messages that set up the
+call are encrypted and signed with that key, and sound and video go directly between the participants (DTLS-SRTP); a
+TURN relay, if a platform admin sets one up under System settings → Calls, only forwards encrypted packets. Everyone
+can check a 12-digit security code in the "End-to-end encrypted" panel, and the call shows how many tampered messages
+it blocked. Hosts see every join and can let people in, remove someone, lock the call or end it for all. Up to 6
+people (best with up to 4 on phones); nothing is recorded; the title, times and participants' names are kept for the
+host for 7 days. Without a TURN server some mobile and office networks cannot connect.
+
+**Announcements from DASYIN.** Platform admin → Announcements lets super admins message everyone who uses DASYIN:
+updates, reminders, offers and urgent notices, with simple formatting, an optional button and image, to a chosen
+audience (organisations, business types, plan tiers, countries, role level, recent activity) with a live recipient
+count. Send now, or at a set time in any time zone, once or weekly/monthly. Messages appear in the notification centre
+("From DASYIN"); urgent ones also as a banner on the home page. Anyone who hasn't read it in the app is emailed after
+1 hour (urgent) or 3 hours (or a chosen delay). Updates and reminders follow each person's "Updates from DASYIN" email
+switch; urgent service notices always go. Offers carry a one-click unsubscribe that stops offer emails and in-app
+offers at once (Kenya's Data Protection Act, Australia's Spam Act). Before important dates — Mashujaa Day, Christmas,
+Black Friday and more — super admins are nudged 14 and 3 days ahead with a ready draft to schedule for 08:00 in one
+click or rewrite with AI (optionally in Kiswahili). Per-announcement stats: delivered, read, clicked, emailed, failed,
+unsubscribed, with CSV export.
+
+**Seasonal themes.** On holidays and festivals DASYIN dresses up: Halloween brings pumpkin-and-purple buttons with a
+dripping edge, a wobbly glow and a cobweb in the corner, and the same care goes into Christmas, New Year, Valentine's,
+Easter, Eid, Diwali, Black Friday, International Women's Day, Mother's and Father's Day, Australia Day and Anzac Day.
+Kenyan national days — Madaraka, Mazingira, Mashujaa and Jamhuri — get black, red, green and white stripes with no
+emblems. Each organisation's country decides which national days it sees, and a short greeting appears in the top bar.
+Every theme works in light and dark mode with readable buttons, stays still for people who prefer reduced motion, and
+never touches invoices, printouts or customer pages. Platform admin → Seasonal themes shows the calendar with sources,
+live "Preview now", per-occasion and global switches and custom occasions. Owners can turn themes off in
+Settings → Appearance, and everyone can choose for themselves in My profile.
+
+**Sign in with Google / Microsoft.** Saving a client ID and secret now turns the provider on (unless an administrator
+switched it off — then a warning with a one-click "Turn on" shows), so the button can no longer go missing unnoticed.
+Each provider in System settings → Sign-in providers has a server-checked status list: switched on, client ID and
+secret present and plausible, the exact redirect URI to register, PUBLIC_API_URL / PUBLIC_APP_URL, whether the server
+can reach the provider, the last sign-in attempt, and "Shows on the sign-in page: yes/no" with the reason, plus
+"Check now". Pasted IDs and secrets are cleaned of spaces and line breaks. The sign-in error page explains
+redirect_uri_mismatch, invalid_client, access_denied (Testing mode) and unknown accounts. Sign-in now starts on the
+redirect URI's own host, fixing "started in a different browser" failures; the provider list is never cached.
+
+**Camera and microphone only on your tap.** Signing in (Google, Microsoft or password) or reopening the app no longer
+takes you back to a video call, meeting room or secure call, so nothing switches on by itself. Those pages open with the
+camera and microphone off and a clear "Turn on camera & mic" button; Join switches them on as part of your tap.
+Turning the camera off in the preview really turns it off, live meeting transcription only listens while your
+microphone is on, and camera and microphone stop whenever you leave a call page, sign out, or leave a join screen in a
+background tab for a minute.
+
+**Fast sale on any device.** A phone is now a till. On phones the POS shows search and a Scan button at the top,
+"Your favourites" — what you sell most at this bar over the last 30 days, then the best sellers — and big rows for the
+whole catalogue. A bar along the bottom keeps Scan, the total and Pay in reach; the cart opens as a sheet with one-tap
+Cash (quick KES notes and change), M-Pesa (with the confirmation code), Card and Split, plus Repeat last sale and Park.
+Tap Scan and the rear camera reads barcodes continuously, with a beep and vibration; a bottle is counted once while it
+stays in view, and the torch can be switched on where the phone has one. Android Chrome uses the phone's barcode reader
+(QR codes too); iPhone, Firefox and computers use DASYIN's own reader for EAN-13/8, UPC-A/E and Code 128, and every
+code's check digit is verified. Bluetooth and USB scanners work anywhere on the till. A code the till doesn't know
+opens "Link this barcode": managers pick the product and tap Link, or create a new product; staff are asked to fetch a
+manager. Product and bar stock item forms can fill the barcode from the camera. The camera only opens on a tap and
+turns off when you close it. Every sale records which device sold it ("Brian's phone", named from ⋯ → This device).
+POS transactions gains a "Sold by" filter and, for managers, "By person & device": sales, value, voids, discounts, cash
+kept and M-Pesa per person and per phone. A photo — an M-Pesa message or a damaged bottle — can be added to a sale,
+shrunk on the phone and visible to managers. Products and prices stay on the device, so search keeps working without
+a connection; a sale retried on a bad network is recorded once.
+
+**Client subscriptions.** Finance → Subscriptions bills clients for hosting, domains, email and maintenance monthly,
+quarterly or yearly from your catalogue, in each client's currency. Invoices go out 7 days ahead (14 for yearly) with
+the pay link; paying any way moves the next billing date and unsuspends the service. Clients get reminders 3 days
+before, on and 3 days after the due date, then a final notice 2 days before suspension. Admins always hear at least
+3 days before a suspension ("<Client> will be suspended in 3 days", then "tomorrow") with one-click Give more time,
+Mark as paid, Suspend now and Don't suspend this time, plus a daily digest and domain renewal reminders 30, 14 and
+7 days ahead (new "Client billing" email category). Synergy Wholesale hosting is suspended and unsuspended through
+its API (hostingSuspendService / hostingUnsuspendService); other providers such as hosting.com get a task with the
+steps. Nothing is ever cancelled automatically. The page shows MRR, ARR, past due, suspended, churn and renewals, the
+Synergy sites with one-click and bulk "Create subscriptions", tasks, activity and settings; customers get a
+Subscriptions tab and clients a "Your services" page. New AI tools: subscriptions_overview, subscriptions_list,
+subscriptions_extend.
+
+**Know who read it.** Invoice, quote, reminder and receipt emails now go to each person as their own copy, with "Also
+sent to: …" so everyone still knows who's included. The Emails tab shows every person's progress: Sent → Opened (and
+how many times) → Viewed invoice → Paid via link. Opens that look automatic (Apple Mail Privacy Protection, security
+scanners) are labelled as such and aren't counted. The invoice header and list summarise it as "Opened by 2 of 3".
+"Opened" depends on the reader's images loading, so it's a hint; "viewed" (they used their own View or Pay link) is
+reliable. Always-BCC copies are sent separately and aren't tracked. Under Invoice settings → Email tracking you can
+switch per-person copies off, turn open tracking off (link clicks are still recorded), or add a footer line telling
+recipients. Only the network part of an IP address is stored. Older emails and links work as before, and the
+assistant/MCP `invoices_get` tool reports each recipient's status.
+
+**Fixes.** Reset for handover now also clears secure call links, sale photos and per-recipient email tracking, and
+keeps seasonal-theme and email-tracking settings. Synergy's "Priority tickets" decision no longer disappears three
+weeks into a quarter when that quarter's first statement isn't uploaded yet. On tablets (641–1100 px) the top bar no longer
+runs past the window when a trial plan chip and a long name are showing: "Ask DASYIN" becomes an icon and the name
+moves into the account menu. The POS "⋯" and "Add customer" buttons are full-size tap targets. `deploy.sh` now sets `PUBLIC_API_URL`
+(from the frontend's API address) and `APP_VERSION` (from package.json) on every backend deploy, so sign-in redirect
+URIs, email open tracking and the version shown by /health are always right.
+
+API: secure calls `/secure-calls/**`, `/public/calls/:id/{preview,join,signal,poll,leave,ice}`, `/secure-call-settings`;
+announcements `/super-admin/announcements/**`, `/announcements/me/**`, `/public/announcements/{open,unsubscribe,resubscribe}`;
+seasons `/occasions/theme`, `/super-admin/occasions/**`; sign-in status `/sso/admin/providers/:provider/status`.
+fast sale `/pos/quick-picks`, `/pos/people-summary`, `/pos/barcode-links`, `/pos/transactions/:id/photos`,
+`/pos/sale-photos/:id` (payment method `mobile_money`; sales gain `device_id`, `device_label`, `location_id`,
+`client_ref`, `photo_count`); subscriptions `/subscriptions/**`, `/public/your-services/:token`; email tracking
+`/public/email-open/:token.gif`, `?r=<token>` on view / pay links.
+New packages `pkg/seccall`, `pkg/broadcast`, `pkg/occasions`, `pkg/mpos`, `pkg/subscriptions`; new email categories
+`platform_updates` and `client_billing`.
+
 ## [2.13.0] - 2026-10-20
 
 ### Handing an organisation to its owner

@@ -15,6 +15,7 @@
       <OrganizationContext />
       <main class="app-content" id="main">
         <RegionSetupPrompt />
+        <AnnouncementBanner />
         <WhatsNew v-if="$route.path === '/dashboard'" />
         <router-view v-slot="{ Component, route }">
           <transition name="page" mode="out-in">

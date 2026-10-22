@@ -138,6 +138,7 @@
 
 <script>
 import { paymentsApi, feeText, apiURL } from '@/services/payments'
+import { invoicingApi, recipientToken } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import { formatCurrency, currencyStep } from '@/utils/currencies'
@@ -203,6 +204,10 @@ export default {
       this.error = ''
       this.result = null
       await this.load()
+      // Opened from a recipient's own "Pay now" link: credit the view (and a
+      // payment started here) to that person (pkg/invoicing/emailtrack.go).
+      const r = recipientToken(this.$route.query)
+      if (r && this.page && !this.returning) invoicingApi.publicTrack(this.token, { r, event: 'pay_page' })
       if (this.returning && this.page) await this.verify()
     },
     async load(amount) {
@@ -239,6 +244,8 @@ export default {
       this.payError = ''
       try {
         const r = await paymentsApi.checkout(this.token, { amount: this.page.amount, method: this.method })
+        const rt = recipientToken(this.$route.query)
+        if (rt && r.tx_ref) invoicingApi.publicTrack(this.token, { r: rt, event: 'checkout', tx_ref: r.tx_ref })
         window.location.assign(r.link)
       } catch (e) {
         this.payError = apiErrorMessage(e, 'Could not start the payment')

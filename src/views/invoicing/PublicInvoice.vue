@@ -24,7 +24,7 @@
           </div>
           <div class="ui-actions">
             <button v-if="canAccept" class="ui-btn ui-btn--success" :disabled="busy" @click="accept"><i class="fa-solid fa-check"></i> Accept quote</button>
-            <router-link v-if="canPay" :to="`/pay/${token}`" class="ui-btn ui-btn--primary" data-testid="public-pay"><i class="fa-solid fa-credit-card"></i> Pay now</router-link>
+            <router-link v-if="canPay" :to="{ path: `/pay/${token}`, query: rt ? { r: rt } : {} }" class="ui-btn ui-btn--primary" data-testid="public-pay"><i class="fa-solid fa-credit-card"></i> Pay now</router-link>
             <a class="ui-btn" :href="pdfURL" data-testid="public-pdf"><i class="fa-solid fa-download"></i> Download PDF</a>
             <button class="ui-btn ui-btn--icon" title="Print" aria-label="Print" @click="print"><i class="fa-solid fa-print"></i></button>
           </div>
@@ -39,7 +39,7 @@
 
 <script>
 import InvoiceDocument from '@/components/invoicing/InvoiceDocument.vue'
-import { invoicingApi, STATUS_LABELS } from '@/services/invoicing'
+import { invoicingApi, STATUS_LABELS, recipientToken } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import { formatCurrency } from '@/utils/currencies'
@@ -56,6 +56,10 @@ export default {
     isQuote() {
       return this.doc?.doc_type === 'quote'
     },
+    /** The recipient's own token when opened from their email (who viewed / accepted / paid). */
+    rt() {
+      return recipientToken(this.$route.query)
+    },
     label() {
       return STATUS_LABELS[this.doc.display_status] || this.doc.display_status
     },
@@ -71,7 +75,7 @@ export default {
   },
   async created() {
     try {
-      const res = await invoicingApi.publicView(this.token)
+      const res = await invoicingApi.publicView(this.token, this.rt)
       this.doc = res.invoice
       this.business = res.business || {}
       this.payEnabled = !!res.pay_enabled
@@ -91,7 +95,7 @@ export default {
     async accept() {
       this.busy = true
       try {
-        await invoicingApi.publicAccept(this.token)
+        await invoicingApi.publicAccept(this.token, this.rt)
         this.accepted = true
         this.doc.status = 'accepted'
         this.doc.display_status = 'accepted'

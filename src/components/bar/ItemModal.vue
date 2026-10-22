@@ -70,7 +70,10 @@
           </label>
           <label class="ui-field">
             <span class="ui-label">Barcode</span>
-            <input v-model.trim="f.barcode" class="ui-input" maxlength="100" inputmode="numeric" placeholder="Scan or type" data-testid="item-barcode" />
+            <span class="with-scan">
+              <input v-model.trim="f.barcode" class="ui-input" maxlength="100" inputmode="numeric" placeholder="Scan or type" data-testid="item-barcode" />
+              <button type="button" class="ui-btn ui-btn--icon" title="Scan the barcode with the camera" aria-label="Scan barcode" data-testid="item-barcode-scan" @click.prevent="scanning = true"><i class="fa-solid fa-camera"></i></button>
+            </span>
           </label>
           <label class="ui-field">
             <span class="ui-label">Selling price as is</span>
@@ -120,6 +123,7 @@
         <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy" data-testid="item-save">{{ busy ? 'Saving…' : item ? 'Save' : 'Add item' }}</button>
       </div>
     </form>
+    <BarcodeScanner v-if="scanning" title="Scan the bottle’s barcode" @code="onScanned" @close="scanning = false" />
   </div>
 </template>
 
@@ -130,12 +134,14 @@ import { apiErrorMessage, listFrom } from '@/services/api'
 import { supplierService } from '@/services/supplierService'
 import { toast } from '@/composables/useToast'
 import { CATEGORIES, plural } from '@/utils/barUnits'
+import BarcodeScanner from './BarcodeScanner.vue'
 
 const SIZES = [200, 250, 330, 350, 375, 500, 700, 750, 1000, 1500, 1750, 20000, 30000, 50000]
 const nOrNull = (v) => (v === '' || v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v))
 
 export default {
   name: 'ItemModal',
+  components: { BarcodeScanner },
   props: { item: { type: Object, default: null } },
   emits: ['close', 'saved'],
   data() {
@@ -147,6 +153,7 @@ export default {
       return { location_id: l.id, par: v(p.par), reorder_point: v(p.reorder_point) }
     })
     return {
+      scanning: false,
       bar,
       CATEGORIES,
       SIZES,
@@ -194,6 +201,11 @@ export default {
     this.$nextTick(() => this.$refs.name?.focus())
   },
   methods: {
+    onScanned(code) {
+      this.scanning = false
+      this.f.barcode = String(code || '').trim()
+      toast.success(`Barcode ${this.f.barcode} scanned`)
+    },
     plural,
     locationName,
     setBase(b) {
@@ -254,6 +266,14 @@ export default {
 </script>
 
 <style scoped>
+.with-scan {
+  display: flex;
+  gap: 6px;
+}
+.with-scan > .ui-input {
+  flex: 1;
+  min-width: 0;
+}
 .body {
   display: flex;
   flex-direction: column;

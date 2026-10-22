@@ -44,8 +44,33 @@ export const invoicingApi = {
   emailLog: (id) => api.get(`${base}/invoices/${id}/email-log`).then(unwrap),
   // Exchange rate: lock today's rate ({}), or a manual one ({ exchange_rate })
   lockRate: (id, body) => api.post(`${base}/invoices/${id}/rate`, body || {}).then(unwrap),
-  publicView: (token) => api.get(`/public/invoices/${token}`).then(unwrap),
-  publicAccept: (token) => api.post(`/public/invoices/${token}/accept`).then(unwrap)
+  // r = the recipient's own token from their email link (per-recipient tracking, pkg/invoicing/emailtrack.go)
+  publicView: (token, r) => api.get(`/public/invoices/${token}`, { params: r ? { r } : {} }).then(unwrap),
+  publicAccept: (token, r) => api.post(`/public/invoices/${token}/accept`, null, { params: r ? { r } : {} }).then(unwrap),
+  /** Pay page: report that it was opened from a recipient's link / the checkout it started. Never throws. */
+  publicTrack: (token, body) => {
+    const url = `${(api.defaults.baseURL || '/api/v1').replace(/\/$/, '')}/public/invoices/${token}/track`
+    const data = JSON.stringify(body)
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(url, data)) return
+    } catch {
+      /* fall back to fetch */
+    }
+    try {
+      fetch(url, { method: 'POST', body: data, keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {})
+    } catch {
+      /* tracking is best effort */
+    }
+  },
+  // Organisation email tracking settings (Invoice settings → Email tracking)
+  emailTracking: () => api.get(`${base}/email-tracking`).then(unwrap),
+  saveEmailTracking: (payload) => api.put(`${base}/email-tracking`, payload).then(unwrap)
+}
+
+/** A recipient's token from an email link (?r=), or '' — 32 URL-safe characters. */
+export function recipientToken(query) {
+  const r = typeof query?.r === 'string' ? query.r : ''
+  return /^[A-Za-z0-9_-]{32}$/.test(r) ? r : ''
 }
 
 export const STATUS_LABELS = {

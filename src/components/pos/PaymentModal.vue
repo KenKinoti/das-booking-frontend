@@ -1,6 +1,6 @@
 <template>
   <div class="ui-modal-backdrop" @mousedown.self="!busy && $emit('close')">
-    <div class="ui-modal pay" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+    <div class="ui-modal pay" role="dialog" aria-modal="true" aria-labelledby="pay-title" data-testid="pay-modal">
       <div class="ui-modal__head">
         <div>
           <h2 id="pay-title">Take payment</h2>
@@ -30,12 +30,21 @@
             </div>
           </div>
           <div class="quick">
-            <button v-for="q in quickCash" :key="q" type="button" class="ui-btn ui-btn--sm" @click="tendered = q.toFixed(2)">{{ q === total ? 'Exact' : money(q, true) }}</button>
+            <button v-for="q in quickCash" :key="q" type="button" class="ui-btn ui-btn--sm" :class="{ 'is-picked': Number(tendered) === q }" :data-amount="q" @click="tendered = q.toFixed(2)">{{ q === total ? 'Exact' : money(q, true) }}</button>
           </div>
           <div class="result" :class="cashShort > 0 ? 'is-short' : 'is-ok'">
             <span>{{ cashShort > 0 ? 'Still owing' : 'Change' }}</span>
             <strong>{{ money(cashShort > 0 ? cashShort : cashChange) }}</strong>
           </div>
+        </div>
+
+        <!-- M-Pesa / mobile money -->
+        <div v-else-if="mode === 'mobile'" class="pane">
+          <div class="ui-field">
+            <label for="mpesa-ref">{{ mobileLabel }} confirmation code <span class="opt">(optional)</span></label>
+            <input id="mpesa-ref" ref="mpesaRef" v-model="reference" class="ui-input mono-input" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. QK12AB34CD" @input="reference = cleanCode(reference)" @keydown.enter.prevent="submit" />
+          </div>
+          <p class="ui-hint">Check the customer’s {{ mobileLabel }} message shows {{ money(total) }} to your till before completing.<template v-if="reference && !codeOk"> That code doesn’t look like an M-Pesa code (10 letters and digits) — check it.</template> You can add a photo of the message after the sale.</p>
         </div>
 
         <!-- Card -->
@@ -100,6 +109,8 @@
 <script>
 import { orgCurrency } from '@/utils/orgDefaults'
 import { formatMoney } from '@/utils/format'
+import { quickCashAmounts, cleanMpesaCode, isMpesaCode } from '@/utils/posFast'
+import { mobileMoneyLabel } from '@/services/posService'
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
 
@@ -109,18 +120,14 @@ export default {
     total: { type: Number, required: true },
     currency: { type: String, default: () => orgCurrency() },
     busy: { type: Boolean, default: false },
-    error: { type: String, default: '' }
+    error: { type: String, default: '' },
+    // cash | mobile | card | split | other (the cart's one-tap payment buttons)
+    initialMode: { type: String, default: 'cash' }
   },
   emits: ['close', 'confirm'],
   data() {
     return {
-      mode: 'cash',
-      modes: [
-        { value: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave' },
-        { value: 'card', label: 'Card', icon: 'fa-regular fa-credit-card' },
-        { value: 'split', label: 'Split', icon: 'fa-solid fa-code-fork' },
-        { value: 'other', label: 'Other', icon: 'fa-solid fa-ellipsis' }
-      ],
+      mode: ['cash', 'mobile', 'card', 'split', 'other'].includes(this.initialMode) ? this.initialMode : 'cash',
       tendered: this.total.toFixed(2),
       cardMethod: 'card',
       otherMethod: 'bank_transfer',
@@ -129,18 +136,27 @@ export default {
         { method: 'cash', amount: '' },
         { method: 'card', amount: '' }
       ],
-      splitMethods: { cash: 'Cash', card: 'Card', eftpos: 'EFTPOS', bank_transfer: 'Bank transfer', voucher: 'Gift voucher', other: 'Other' }
+      splitMethods: { cash: 'Cash', mobile_money: mobileMoneyLabel(this.currency), card: 'Card', eftpos: 'EFTPOS', bank_transfer: 'Bank transfer', voucher: 'Gift voucher', other: 'Other' }
     }
   },
   computed: {
+    mobileLabel() {
+      return mobileMoneyLabel(this.currency)
+    },
+    modes() {
+      return [
+        { value: 'cash', label: 'Cash', icon: 'fa-solid fa-money-bill-wave' },
+        { value: 'mobile', label: mobileMoneyLabel(this.currency, true), icon: 'fa-solid fa-mobile-screen-button' },
+        { value: 'card', label: 'Card', icon: 'fa-regular fa-credit-card' },
+        { value: 'split', label: 'Split', icon: 'fa-solid fa-code-fork' },
+        { value: 'other', label: 'Other', icon: 'fa-solid fa-ellipsis' }
+      ]
+    },
+    codeOk() {
+      return isMpesaCode(this.reference)
+    },
     quickCash() {
-      const t = this.total
-      const set = new Set([r2(t)])
-      for (const step of [5, 10, 20, 50, 100]) {
-        const v = Math.ceil(t / step) * step
-        if (v > t) set.add(v)
-      }
-      return [...set].sort((a, b) => a - b).slice(0, 5)
+      return quickCashAmounts(this.total, this.currency)
     },
     cashShort() {
       return Math.max(0, r2(this.total - (Number(this.tendered) || 0)))
@@ -167,6 +183,7 @@ export default {
     }
   },
   mounted() {
+    if (this.mode === 'split') this.setMode('split')
     this.focusMode()
     document.addEventListener('keydown', this.onKey)
   },
@@ -180,6 +197,7 @@ export default {
     onKey(e) {
       if (e.key === 'Escape' && !this.busy) this.$emit('close')
     },
+    cleanCode: cleanMpesaCode,
     setMode(m) {
       this.mode = m
       this.reference = ''
@@ -191,7 +209,9 @@ export default {
     },
     focusMode() {
       this.$nextTick(() => {
-        const el = this.mode === 'cash' ? this.$refs.tendered : this.mode === 'card' ? this.$refs.cardRef : null
+        // on phones keep the keyboard down: the quick amounts / Complete button are what people tap
+        if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 480px)').matches) return
+        const el = this.mode === 'cash' ? this.$refs.tendered : this.mode === 'card' ? this.$refs.cardRef : this.mode === 'mobile' ? this.$refs.mpesaRef : null
         if (el) {
           el.focus()
           el.select?.()
@@ -205,6 +225,7 @@ export default {
       if (!this.valid || this.busy) return
       let payments
       if (this.mode === 'cash') payments = [{ method: 'cash', amount: r2(this.tendered) }]
+      else if (this.mode === 'mobile') payments = [{ method: 'mobile_money', amount: r2(this.total), reference: cleanMpesaCode(this.reference) }]
       else if (this.mode === 'card') payments = [{ method: this.cardMethod, amount: r2(this.total), reference: this.reference }]
       else if (this.mode === 'other') payments = [{ method: this.otherMethod, amount: r2(this.total), reference: this.reference }]
       else payments = this.splits.filter((p) => Number(p.amount) > 0).map((p) => ({ method: p.method, amount: r2(p.amount) }))
@@ -234,7 +255,7 @@ export default {
 }
 .methods {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -287,6 +308,16 @@ export default {
   flex: 1;
   min-width: 64px;
   font-variant-numeric: tabular-nums;
+}
+.quick .ui-btn.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mono-input {
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .result {
   display: flex;
@@ -361,11 +392,35 @@ export default {
   font-size: 15px;
 }
 @media (max-width: 480px) {
+  /* (the global modal is a bottom sheet on phones) big tap targets */
   .methods {
-    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .method {
+    padding: 10px 2px;
+    font-size: 12px;
+  }
+  .method i {
+    font-size: 17px;
+  }
+  .quick .ui-btn {
+    min-height: 46px;
+    font-size: 15px;
+    min-width: calc(33% - 6px);
+  }
+  .result strong {
+    font-size: 24px;
   }
   .split-row {
     grid-template-columns: 1fr 100px auto;
+  }
+  .ui-modal__foot .ui-btn {
+    min-height: 50px;
+  }
+  .ui-modal__foot .ui-btn--lg {
+    flex: 1;
+    justify-content: center;
+    font-size: 16px;
   }
 }
 </style>

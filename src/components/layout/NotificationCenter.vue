@@ -89,6 +89,7 @@
                         <strong>{{ n.title }}</strong>
                         <span v-if="n.body" class="nc__body-text">{{ n.body }}</span>
                         <small>
+                          <span v-if="fromDasyin(n)" class="nc__from"><i class="fa-solid fa-certificate"></i> From DASYIN</span>
                           <span :title="fullTime(n.created_at)">{{ ago(n.created_at) }}</span>
                           <span v-if="severityLabel(n)" class="nc__sev"> · {{ severityLabel(n) }}</span>
                         </small>
@@ -130,8 +131,14 @@ import {
   stopNotifications
 } from '@/composables/useNotifications'
 import { confirmDialog } from '@/composables/useConfirm'
+// Platform admin → Announcements and the public unsubscribe page register their routes here (the shell always loads this component).
+import '@/components/announcements/routes'
 
 const TYPE_ICONS = [
+  [/^announcement\.urgent/, 'fa-solid fa-triangle-exclamation'],
+  [/^announcement\.promotion/, 'fa-solid fa-gift'],
+  [/^announcement\./, 'fa-solid fa-bullhorn'],
+  [/^broadcast\./, 'fa-solid fa-calendar-day'],
   [/^booking\./, 'fa-solid fa-calendar-check'],
   [/^quote\./, 'fa-solid fa-file-signature'],
   [/^(invoice|payment)\./, 'fa-solid fa-file-invoice-dollar'],
@@ -227,6 +234,12 @@ export default {
     },
     openItem(n) {
       markRead(n, true)
+      if (/^announcement\./.test(n.type || '') && n.entity_id) {
+        // "From DASYIN": the message opens over the current page (AnnouncementBanner).
+        this.open = false
+        this.$router.push({ path: this.$route.path, query: { ...this.$route.query, announcement: n.entity_id } }).catch(() => {})
+        return
+      }
       if (n.link) {
         this.open = false
         this.$router.push(n.link).catch(() => {})
@@ -243,7 +256,11 @@ export default {
       return hit ? hit[1] : SEV_ICONS[n.severity] || SEV_ICONS.info
     },
     severityLabel(n) {
+      if (/^announcement\./.test(n.type || '')) return { 'announcement.urgent': 'Urgent', 'announcement.promotion': 'Offer', 'announcement.reminder': 'Reminder' }[n.type] || ''
       return { warning: 'Needs attention', error: 'Action needed' }[n.severity] || ''
+    },
+    fromDasyin(n) {
+      return /^(announcement|broadcast)\./.test(n.type || '')
     },
     ago(iso) {
       const t = new Date(iso).getTime()
@@ -328,6 +345,16 @@ export default {
   text-align: center;
   box-shadow: 0 0 0 2px var(--bg);
   font-variant-numeric: tabular-nums;
+}
+
+.nc__from {
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.nc__from i {
+  font-size: 9px;
 }
 
 .nc__scrim {

@@ -62,6 +62,7 @@
                 <button type="button" class="ui-btn ui-btn--primary" :disabled="saving" data-testid="site-save" @click="save">
                   <i :class="saving ? 'fa-solid fa-circle-notch fa-spin' : 'fa-solid fa-check'"></i> Save
                 </button>
+                <router-link :to="{ path: '/subscriptions', query: { tab: 'sites', site: domain } }" class="ui-btn" data-testid="site-subscription"><i class="fa-solid fa-arrows-rotate"></i> Bill as a subscription</router-link>
               </div>
             </div>
           </section>
