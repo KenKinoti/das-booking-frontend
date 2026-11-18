@@ -8,6 +8,7 @@
       </div>
       <div class="ui-actions">
         <router-link to="/meetings" class="ui-btn"><i class="fa-solid fa-calendar-plus"></i> Schedule meeting</router-link>
+        <router-link :to="{ path: '/communication/scheduled', query: { new: 'customer' } }" class="ui-btn" data-testid="hub-schedule"><i class="fa-regular fa-clock"></i> Schedule message</router-link>
         <router-link :to="{ path: '/messages', query: { new: '1' } }" class="ui-btn ui-btn--primary"><i class="fa-regular fa-pen-to-square"></i> New message</router-link>
       </div>
     </header>
@@ -129,6 +130,7 @@ export default {
       meetingsError: '',
       tools: [
         { to: '/messages', label: 'Messages', hint: 'Team chat, one-to-one and groups', icon: 'fa-regular fa-message', tone: '' },
+        { to: '/communication/scheduled', label: 'Scheduled messages', hint: 'Invoices, reminders, statements, customer and team messages set to go out later', icon: 'fa-regular fa-clock', tone: 'info' },
         { to: '/meetings', label: 'Meetings & calls', hint: 'Schedule calls with calendar invites and transcripts', icon: 'fa-solid fa-calendar-plus', tone: 'info' },
         { to: '/video-call', label: 'Video call room', hint: 'Start an instant call and share the room link', icon: 'fa-solid fa-video', tone: 'success' },
         { to: '/messaging-settings', label: 'Messaging settings', hint: 'Team chat options and WhatsApp Business', icon: 'fa-solid fa-gear', tone: 'warning' }

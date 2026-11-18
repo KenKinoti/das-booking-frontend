@@ -212,6 +212,8 @@
         </div>
       </section>
 
+      <EmailSendingCard />
+
       <EmailTrackingCard />
     </template>
   </div>
@@ -227,12 +229,13 @@ import OrgLogoUploader from '@/components/branding/OrgLogoUploader.vue'
 import FxRatesCard from '@/components/invoicing/FxRatesCard.vue'
 import CountryDefaultsNotice from '@/components/invoicing/CountryDefaultsNotice.vue'
 import EmailTrackingCard from '@/components/invoicing/EmailTrackingCard.vue'
+import EmailSendingCard from '@/components/invoicing/EmailSendingCard.vue'
 
 let tmp = 0
 
 export default {
   name: 'InvoiceSettings',
-  components: { CountryDefaultsNotice, OrgLogoUploader, FxRatesCard, EmailTrackingCard },
+  components: { CountryDefaultsNotice, OrgLogoUploader, FxRatesCard, EmailTrackingCard, EmailSendingCard },
   data() {
     return {
       s: null,

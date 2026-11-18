@@ -21,6 +21,7 @@
     <IndustryWatch v-else-if="tab === 'watch'" />
     <TradeExports v-else-if="tab === 'trade'" />
     <StrategyBrief v-else-if="tab === 'brief'" />
+    <MarketScout v-else-if="tab === 'scout'" />
     <MarketIndicators v-else-if="tab === 'market'" />
     <DataExport v-else />
   </div>
@@ -34,10 +35,12 @@ import DataExport from '@/components/insights/DataExport.vue'
 import IndustryWatch from '@/components/insights/IndustryWatch.vue'
 import TradeExports from '@/components/insights/TradeExports.vue'
 import StrategyBrief from '@/components/insights/StrategyBrief.vue'
+import MarketScout from '@/components/insights/scout/MarketScout.vue'
 
 const TABS = [
   { key: 'opportunities', label: 'Opportunities', icon: 'fa-solid fa-lightbulb' },
   { key: 'watch', label: 'Industry watch', icon: 'fa-solid fa-rss' },
+  { key: 'scout', label: 'Market scout', icon: 'fa-solid fa-binoculars' },
   { key: 'trade', label: 'Trade & exports', icon: 'fa-solid fa-plane-departure' },
   { key: 'brief', label: 'Strategy brief', icon: 'fa-solid fa-chess-knight' },
   { key: 'market', label: 'Market indicators', icon: 'fa-solid fa-earth-africa' },
@@ -46,7 +49,7 @@ const TABS = [
 
 export default {
   name: 'InsightsView',
-  components: { OpportunitiesPanel, MarketIndicators, DataExport, IndustryWatch, TradeExports, StrategyBrief },
+  components: { OpportunitiesPanel, MarketIndicators, DataExport, IndustryWatch, TradeExports, StrategyBrief, MarketScout },
   data() {
     return { TABS }
   },

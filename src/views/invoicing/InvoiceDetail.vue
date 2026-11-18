@@ -30,6 +30,10 @@
               <i class="fa-regular fa-envelope-open"></i> <span>{{ openSummary.text }}</span>
             </button>
             <span v-if="es && es.viewed_at" class="viewed-chip" data-testid="viewed-chip"><i class="fa-regular fa-eye"></i> Viewed {{ dtz(es.viewed_at) }}</span>
+            <router-link v-if="sched" :to="{ path: '/communication/scheduled', query: { invoice: doc.id } }" class="sched-chip" :class="{ paused: !sched.next_local }" data-testid="scheduled-chip" :title="sched.count + ' scheduled send' + (sched.count === 1 ? '' : 's')">
+              <i class="fa-regular fa-clock"></i>
+              <span>{{ sched.next_local ? 'Scheduled ' + schedWhen(sched.next_local) : 'Scheduled send paused' }}<template v-if="sched.count > 1"> · +{{ sched.count - 1 }} more</template></span>
+            </router-link>
           </div>
         </div>
         <div class="ui-actions">
@@ -194,6 +198,8 @@
               <li v-if="emailLog.length" class="elog-sum muted small" data-testid="email-log-summary">
                 {{ emailSummaryText }} · times in {{ orgTz.replace(/_/g, ' ') }}
               </li>
+              <!-- Scheduled sends that haven't gone yet, with Cancel (pkg/schedsend) -->
+              <ScheduledEmails :invoice-id="doc.id" :refresh="schedRefresh" @changed="loadScheduled" />
               <li v-if="hasTrackedEmail" class="elog-note" data-testid="email-tracking-note">
                 <i class="fa-solid fa-circle-info"></i>
                 <span>
@@ -213,24 +219,42 @@
                     <i class="fa-solid" :class="openLog === e.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
                   </button>
                   <button v-if="canResend(e)" type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon resend" :data-testid="'resend-' + e.kind" :title="(e.status === 'failed' ? 'Retry ' : 'Resend ') + logKind(e).toLowerCase()" :aria-label="(e.status === 'failed' ? 'Retry ' : 'Resend ') + logKind(e).toLowerCase()" @click="resend(e)"><i :class="e.status === 'failed' ? 'fa-solid fa-rotate-right' : 'fa-solid fa-paper-plane'"></i></button>
+                  <button v-if="canRecall(e)" type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon resend" data-testid="recall-email" :title="'Recall this ' + logKind(e).toLowerCase() + ' email'" :aria-label="'Recall this ' + logKind(e).toLowerCase() + ' email'" @click="openRecall(e)"><i class="fa-solid fa-link-slash"></i></button>
                 </div>
+                <!-- Undo send (pkg/invoicing hold.go): held on the server, nothing sent yet -->
+                <div v-if="e.status === 'held'" class="elog-held" data-testid="email-held" :data-log="e.id">
+                  <i class="fa-regular fa-clock"></i>
+                  <span v-if="heldLeft(e) > 0">Sending in <strong class="tabular">{{ countdownText(heldLeft(e)) }}</strong> — nothing has gone yet</span>
+                  <span v-else>Going out now…</span>
+                  <span class="elog-held__btns">
+                    <button type="button" class="ui-btn ui-btn--sm" :disabled="heldBusy === e.id" data-testid="email-undo" @click="undoHeld(e)"><i class="fa-solid fa-rotate-left"></i> Undo</button>
+                    <button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" :disabled="heldBusy === e.id" data-testid="email-send-now" @click="sendHeldNow(e)"><i class="fa-solid fa-paper-plane"></i> Send now</button>
+                  </span>
+                </div>
+                <p v-else-if="e.status === 'cancelled'" class="erc-single muted small" data-testid="email-undone"><i class="fa-solid fa-rotate-left"></i> {{ e.response || 'Undone — nothing was sent' }}</p>
                 <ul v-if="e.tracking === 'per_recipient' && e.recipients && e.recipients.length" class="erc" data-testid="email-recipients">
                   <li v-for="r in e.recipients" :key="r.role + r.email" class="erc-item" :data-email="r.email" :data-state="r.state" data-testid="email-recipient">
                     <div class="erc-who">
                       <span class="erc-role">{{ roleLabel(r.role) }}</span>
                       <span class="erc-email">{{ r.email }}</span>
+                      <span v-if="r.recalled" class="ui-badge ui-badge--overdue erc-badge" data-testid="recipient-recalled">Recalled</span>
+                      <button v-else-if="canRecall(e) && r.state !== 'failed'" type="button" class="linkish erc-recall" data-testid="recall-recipient" :aria-label="'Recall for ' + r.email" @click="openRecall(e, r.email)">Recall</button>
                     </div>
                     <ol class="erc-steps">
                       <li v-for="(st, i) in recipientSteps(r, e)" :key="i" :class="'st-' + st.tone" :title="st.title || null" :data-step="st.key">
                         <i :class="st.icon"></i><span>{{ st.text }}</span>
                       </li>
                     </ol>
+                    <p v-if="r.recall" class="erc-recall-line" data-testid="recall-line"><i class="fa-solid fa-link-slash"></i> {{ r.recall.text }}</p>
                     <p v-if="r.opened_automatic" class="erc-hint" data-testid="auto-open-hint">
                       <i class="fa-solid fa-robot"></i> Opened automatically — probably {{ autoWhy(r) }} loading the images, so it may not be a person. It counts once they open it themselves or use their link.
                     </p>
                   </li>
                 </ul>
                 <p v-else-if="e.tracking === 'single' && e.status === 'sent'" class="erc-single muted small"><i class="fa-regular fa-envelope"></i> Sent as one message to everyone — not tracked per person.</p>
+                <ul v-if="e.recalls && e.recalls.length && e.tracking !== 'per_recipient'" class="erc" data-testid="email-recalls">
+                  <li v-for="rc in e.recalls" :key="rc.email" class="erc-item"><p class="erc-recall-line"><i class="fa-solid fa-link-slash"></i> {{ rc.email }}: {{ rc.text }}</p></li>
+                </ul>
                 <div v-if="openLog === e.id" class="elog-detail" data-testid="email-log-detail">
                   <div v-if="e.error" class="ui-alert ui-alert--danger"><i class="fa-solid fa-circle-exclamation"></i><span><strong>{{ e.error_code || 'Error' }}</strong> {{ e.error }}</span></div>
                   <dl>
@@ -392,7 +416,17 @@
       @sent="onSent"
       @marked="onMarked"
       @logged="loadEmailLog"
+      @scheduled="onScheduled"
     />
+
+    <!-- Room to scroll a held email above the undo toast on a phone -->
+    <div v-if="emailLog.some((e) => e.status === 'held')" class="held-spacer no-print" aria-hidden="true"></div>
+
+    <!-- Recall a sent email (pkg/invoicing recall.go) -->
+    <RecallDialog v-if="recall.open" :doc="doc" :log="recall.log" :recipient="recall.email" :timezone="orgTz" @close="recall.open = false" @done="onRecalled" />
+
+    <!-- Schedule payment reminders (pkg/schedsend) -->
+    <ScheduleComposer v-if="remindOpen" kind="reminder" fixed-kind :invoice="doc" @close="remindOpen = false" @saved="onScheduled" />
   </div>
 </template>
 
@@ -411,10 +445,20 @@ import { useBranding } from '@/composables/useBranding'
 import { paymentsApi, TX_STATUS } from '@/services/payments'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import ImportedDocCard from '@/components/imports/ImportedDocCard.vue'
+import ScheduleComposer from '@/components/schedsend/ScheduleComposer.vue'
+import { schedsendApi, localLabel } from '@/services/schedsend'
+import RecallDialog from '@/components/invoicing/RecallDialog.vue'
+import ScheduledEmails from '@/components/invoicing/ScheduledEmails.vue'
+import { holdToast, secondsLeft, settleHoldToast, countdown } from '@/components/invoicing/heldEmail'
+
+/** Settle the countdown toast of a held email; false when there was none. */
+function settleHoldToastFor(logId, message, type = 'success') {
+  return settleHoldToast(logId, message, type)
+}
 
 export default {
   name: 'InvoiceDetail',
-  components: { InvoiceDocument, SendDialog, StatusBadge, ImportedDocCard },
+  components: { InvoiceDocument, SendDialog, StatusBadge, ImportedDocCard, ScheduleComposer, RecallDialog, ScheduledEmails },
   props: { id: { type: String, required: true } },
   setup() {
     return { branding: useBranding().branding }
@@ -449,7 +493,16 @@ export default {
       online: { enabled: false, mode: 'test', transactions: [] },
       payLink: { payable: false, url: '', reason: '' },
       conv: { open: false, enabled: false, amount: '', date: '', method: 'bank_transfer', reference: '', error: '' },
-      today: isoDate()
+      sched: null,
+      remindOpen: false,
+      today: isoDate(),
+      // Undo send / recall (heldEmail.js, RecallDialog.vue)
+      recall: { open: false, log: null, email: '' },
+      logFetchedAt: 0,
+      nowTick: Date.now(),
+      heldTimer: null,
+      heldBusy: '',
+      schedRefresh: 0
     }
   },
   computed: {
@@ -462,16 +515,20 @@ export default {
     },
     emailState() {
       const s = this.es
-      const kind = (k) => ({ invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt' })[k] || 'Email'
+      const kind = (k) => ({ invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt', notice: 'Disregard notice' })[k] || 'Email'
       if (!s || s.state === 'none') {
         return { state: 'none', icon: 'fa-regular fa-envelope', text: s && s.recorded ? 'Opened in your email app (not sent from here)' : 'Not emailed yet', title: 'No email about this document has been sent from DASYIN' }
       }
       const cc = s.last_cc ? ` (+${s.last_cc} CC)` : ''
+      if (s.held) {
+        return { state: 'held', icon: 'fa-regular fa-clock', text: `${kind(s.held_kind)} email waiting to go — you can still undo it`, title: 'Held for the undo window (Invoice settings → Email). Nothing has been sent yet.' }
+      }
       if (s.state === 'failed') {
         return { state: 'failed', icon: 'fa-solid fa-triangle-exclamation', text: `Last email failed ${this.dtz(s.last_at)}`, title: s.last_error || 'The mail server refused the email' }
       }
       const times = s.sent > 1 ? ` · ${s.sent} emails` : ''
-      return { state: 'sent', icon: 'fa-solid fa-circle-check', text: `${kind(s.last_kind)} emailed ${this.dtz(s.last_sent_at)} to ${s.last_to}${cc}${times}`, title: 'Last email accepted by the mail server' }
+      const recalled = s.recalled ? ` · recalled for ${s.recalled}` : ''
+      return { state: 'sent', icon: 'fa-solid fa-circle-check', text: `${kind(s.last_kind)} emailed ${this.dtz(s.last_sent_at)} to ${s.last_to}${cc}${times}${recalled}`, title: 'Last email accepted by the mail server' }
     },
     /** "Opened by 2 of 3 · 1 viewed" for the last email, when it was tracked per person. */
     openSummary() {
@@ -612,6 +669,7 @@ export default {
       const d = this.doc
       const a = []
       if (this.canRemind) a.push({ label: 'Send payment reminder', icon: 'fa-regular fa-bell', run: () => this.openSend('reminder') })
+      if (this.canRemind) a.push({ label: d.display_status === 'overdue' ? 'Schedule reminders' : 'Schedule a reminder', icon: 'fa-regular fa-clock', run: () => (this.remindOpen = true) })
       if (d.status !== 'draft' && d.status !== 'void' && d.status !== 'converted') a.push({ label: 'Resend', icon: 'fa-solid fa-paper-plane', run: () => this.openSend() })
       if (d.status === 'draft') a.push({ label: 'Mark as sent', icon: 'fa-solid fa-check', run: this.markSentOnly })
       if (this.isQuote && d.status === 'sent') {
@@ -641,6 +699,7 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('click', this.onDocClick)
+    clearInterval(this.heldTimer)
   },
   methods: {
     money(v) {
@@ -665,6 +724,7 @@ export default {
         this.sender = s?.sender || null
         this.loadOnline()
         this.loadEmailLog()
+        this.loadScheduled()
         const expected = inv.doc_type === 'quote' ? '/quotes' : '/invoices'
         if (!this.$route.path.startsWith(expected)) this.$router.replace(`${expected}/${inv.id}`)
         if (this.$route.query.send === '1') {
@@ -674,6 +734,23 @@ export default {
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not load this document')
       }
+    },
+    async loadScheduled() {
+      try {
+        const b = await schedsendApi.badges([this.id])
+        this.sched = b[this.id] || null
+      } catch {
+        this.sched = null
+      }
+    },
+    schedWhen(local) {
+      return localLabel(local)
+    },
+    onScheduled() {
+      this.sendOpen = false
+      this.remindOpen = false
+      this.loadScheduled()
+      this.schedRefresh++
     },
     txStatus(t) {
       return TX_STATUS[t.status] || { label: t.status, badge: 'ui-badge--draft' }
@@ -789,7 +866,7 @@ export default {
         let rec = null
         if (this.payEdit) {
           paymentId = this.payEdit.id
-          const body = { reference: this.pay.reference, notes: this.pay.notes, reason: this.pay.reason, email_receipt: autoEmail }
+          const body = { reference: this.pay.reference, notes: this.pay.notes, reason: this.pay.reason, email_receipt: autoEmail, hold: autoEmail }
           if (!this.payLocked) Object.assign(body, { amount: amt, date: this.pay.date, method: this.pay.method })
           const res = await invoicingApi.updatePayment(this.doc.id, paymentId, body)
           this.doc = res.invoice
@@ -797,14 +874,15 @@ export default {
           if (!res.changed && !autoEmail && !review) toast.info('Nothing changed')
           else toast.success(this.doc.status === 'paid' ? `Payment updated — ${this.doc.number} is paid in full` : `Payment updated — balance ${this.money(this.doc.balance_due)}`)
         } else {
-          const res = await invoicingApi.addPayment(this.doc.id, { amount: amt, date: this.pay.date, method: this.pay.method, reference: this.pay.reference, notes: this.pay.notes, email_receipt: autoEmail })
+          const res = await invoicingApi.addPayment(this.doc.id, { amount: amt, date: this.pay.date, method: this.pay.method, reference: this.pay.reference, notes: this.pay.notes, email_receipt: autoEmail, hold: autoEmail })
           rec = res.receipt_email || null
           paymentId = res.last_payment_id
           this.doc = res
           toast.success(this.doc.status === 'paid' ? `${this.doc.number} is fully paid` : `Payment recorded — balance ${this.money(this.doc.balance_due)}`)
         }
         if (rec) {
-          if (rec.emailed) toast.success(`Receipt emailed to ${rec.to}${rec.cc?.length ? ` (CC ${rec.cc.length})` : ''} with ${rec.attachment}`)
+          if (rec.held) holdToast(this.doc.id, { log_id: rec.log_id, seconds: rec.seconds, seconds_left: rec.seconds }, { what: 'Receipt', to: rec.to, onChange: this.afterHold })
+          else if (rec.emailed) toast.success(`Receipt emailed to ${rec.to}${rec.cc?.length ? ` (CC ${rec.cc.length})` : ''} with ${rec.attachment}`)
           else toast.warning(`The receipt wasn’t emailed: ${rec.reason || 'unknown problem'}. Use “Send receipt” to try again.`, { duration: 9000 })
         }
         this.payOpen = false
@@ -844,6 +922,90 @@ export default {
       this.sendOpen = false
       this.loadOnline()
       this.loadEmailLog()
+      // Held for undo: "Sending in 1:58 · Undo" (pkg/invoicing hold.go) — the toast, and the Emails tab with the countdown.
+      if (res?.held && res.hold) {
+        holdToast(this.doc.id, res.hold, { what: res.held_label || 'Email', to: res.held_to || res.to, onChange: this.afterHold })
+        this.showEmails()
+      }
+    },
+    /** A held email was undone, sent now, or its time came: show the truth. */
+    async afterHold() {
+      try {
+        const inv = await invoicingApi.get(this.id)
+        if (inv && inv.id === this.doc?.id) this.doc = inv
+      } catch {
+        /* keep what we have */
+      }
+      this.loadOnline()
+      await this.loadEmailLog()
+    },
+    heldLeft(e) {
+      return secondsLeft(e.hold, this.logFetchedAt, this.nowTick)
+    },
+    countdownText(s) {
+      return countdown(s)
+    },
+    /** Tick while something is held; reload once its time has come. */
+    watchHeld() {
+      clearInterval(this.heldTimer)
+      this.heldTimer = null
+      if (!this.emailLog.some((e) => e.status === 'held')) return
+      let waited = 0
+      this.heldTimer = setInterval(() => {
+        this.nowTick = Date.now()
+        const due = this.emailLog.some((e) => e.status === 'held' && this.heldLeft(e) <= 0)
+        if (due && ++waited % 2 === 0) this.afterHold()
+      }, 1000)
+    },
+    async undoHeld(e) {
+      this.heldBusy = e.id
+      try {
+        await invoicingApi.undoEmail(this.doc.id, e.id)
+        if (!settleHoldToastFor(e.id, `Undone — nothing was sent to ${e.to}.`)) toast.success(`Undone — nothing was sent to ${e.to}`)
+      } catch (err) {
+        settleHoldToastFor(e.id, apiErrorMessage(err, 'Too late to undo'), 'warning') || toast.warning(apiErrorMessage(err, 'Too late to undo'))
+      } finally {
+        this.heldBusy = ''
+      }
+      await this.afterHold()
+    },
+    async sendHeldNow(e) {
+      this.heldBusy = e.id
+      try {
+        await invoicingApi.sendEmailNow(this.doc.id, e.id)
+        if (!settleHoldToastFor(e.id, `${this.logKind(e)} emailed to ${e.to}`)) toast.success(`${this.logKind(e)} emailed to ${e.to}`)
+      } catch (err) {
+        toast.error(apiErrorMessage(err, 'Could not send it'))
+      } finally {
+        this.heldBusy = ''
+      }
+      await this.afterHold()
+    },
+    /** A sent email from DASYIN that still has someone to recall it for. */
+    canRecall(e) {
+      if (e.mode !== 'email' || e.status !== 'sent' || e.kind === 'notice') return false
+      const rs = e.recipients || []
+      if (rs.length) return rs.some((r) => !r.recalled && r.state !== 'failed')
+      return !(e.recalls && e.recalls.length)
+    },
+    openRecall(e, email = '') {
+      this.recall = { open: true, log: e, email }
+    },
+    async onRecalled({ res, editPayment, paymentId }) {
+      this.recall.open = false
+      if (res?.invoice) this.doc = res.invoice
+      await this.loadEmailLog()
+      const c = res?.correct
+      if (c && c.invoice_id) {
+        const path = `${c.doc_type === 'quote' ? '/quotes' : '/invoices'}/${c.invoice_id}/edit`
+        if (c.action !== 'edit') toast.info(c.action === 'replace' ? `${c.from} was voided — correct the new copy ${c.number} and send it` : `Correct the new copy ${c.number} and send it`, { duration: 8000 })
+        this.$router.push(path)
+        return
+      }
+      if (editPayment) {
+        const p = (this.doc.payments || []).find((x) => x.id === paymentId)
+        if (p) this.openEditPayment(p)
+      }
     },
     onMarked(doc) {
       if (doc) this.doc = doc
@@ -855,7 +1017,10 @@ export default {
       try {
         const r = await invoicingApi.emailLog(this.doc.id)
         this.emailLog = r?.log || []
+        this.logFetchedAt = Date.now()
+        this.nowTick = this.logFetchedAt
         this.emailLogSummary = r?.summary || null
+        this.watchHeld()
         this.trackingPrefs = r?.tracking || null
         if (r?.timezone) this.logTz = r.timezone
       } catch {
@@ -871,7 +1036,9 @@ export default {
           sent: { label: 'Sent', cls: 'ui-badge--success' },
           failed: { label: 'Failed', cls: 'ui-badge--danger' },
           blocked: { label: 'Blocked', cls: 'ui-badge--warning' },
-          recorded: { label: 'Email app', cls: 'ui-badge--draft' }
+          recorded: { label: 'Email app', cls: 'ui-badge--draft' },
+          held: { label: 'Waiting', cls: 'ui-badge--warning' },
+          cancelled: { label: 'Undone', cls: 'ui-badge--draft' }
         }[e.status] || { label: e.status, cls: 'ui-badge--draft' }
       )
     },
@@ -890,7 +1057,7 @@ export default {
       this.$nextTick(() => document.querySelector('[data-testid="activity-card"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     },
     canResend(e) {
-      return this.canEdit !== false && e.mode !== 'test' && (e.status === 'sent' || e.status === 'failed') && this.doc.status !== 'void'
+      return this.canEdit !== false && e.mode !== 'test' && e.kind !== 'notice' && (e.status === 'sent' || e.status === 'failed') && this.doc.status !== 'void'
     },
     resend(e) {
       if (e.kind === 'receipt') {
@@ -900,7 +1067,7 @@ export default {
       this.openSend(e.kind === 'receipt' ? 'invoice' : e.kind || 'invoice')
     },
     logKind(e) {
-      return { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt' }[e.kind] || 'Email'
+      return { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt', notice: 'Disregard notice' }[e.kind] || 'Email'
     },
     /** Short date + time in the organisation's time zone ("21 Oct, 10:42"). */
     tShort(v) {
@@ -1241,6 +1408,69 @@ export default {
 .erc-single {
   margin: 0 6px 6px;
   font-size: 12px;
+}
+.held-spacer {
+  display: none;
+}
+@media (max-width: 640px) {
+  .held-spacer {
+    display: block;
+    height: 180px;
+  }
+}
+.elog-held {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 0 6px 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.elog-held > i {
+  color: var(--warning);
+}
+.elog-held__btns {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.erc-badge {
+  font-size: 10.5px;
+  padding: 1px 6px;
+}
+.erc-recall {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--danger);
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  cursor: pointer;
+  text-decoration: underline;
+  flex-shrink: 0;
+}
+.erc-recall-line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+.erc-recall-line i {
+  font-size: 11px;
+  margin-right: 2px;
+}
+.email-chip.ec-held {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+  color: var(--text);
+}
+.email-chip.ec-held i {
+  color: var(--warning);
 }
 .elog-viewed {
   font-size: 12px;
@@ -1847,7 +2077,7 @@ export default {
 
 @media (max-width: 1200px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1856,7 +2086,7 @@ export default {
     display: none;
   }
   .grid-form {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1867,5 +2097,25 @@ export default {
   .layout {
     display: block;
   }
+}
+.sched-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid transparent;
+}
+.sched-chip:hover {
+  border-color: var(--accent);
+}
+.sched-chip.paused {
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 </style>

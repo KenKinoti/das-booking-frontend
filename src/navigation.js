@@ -24,6 +24,7 @@ export const navGroups = [
     icon: 'fa-solid fa-house',
     items: [
       { label: 'Dashboard', to: '/dashboard', module: 'core', icon: 'fa-solid fa-gauge-high' },
+      { label: 'Morning brief', to: '/brief', module: 'core', icon: 'fa-solid fa-mug-hot', match: /^\/brief/ },
       { label: 'Insights', to: '/insights', module: 'core', icon: 'fa-solid fa-lightbulb', minBase: 'manager', match: /^\/insights/ },
       { label: 'Ask DASYIN', to: '/assistant', module: 'core', icon: 'fa-solid fa-wand-magic-sparkles' },
       { label: 'Analytics', to: '/reports-analytics', module: 'core', icon: 'fa-solid fa-chart-column' },
@@ -126,7 +127,9 @@ export const navGroups = [
       // organisation has no communication module.
       { label: 'Secure calls', to: '/secure-calls', module: 'core', minBase: 'manager', icon: 'fa-solid fa-user-shield', match: /^\/secure-calls/ },
       { label: 'Messages', to: '/messages', module: 'communication', icon: 'fa-solid fa-message' },
-      { label: 'Communication hub', to: '/communication', module: 'communication', icon: 'fa-solid fa-tower-broadcast' },
+      { label: 'Communication hub', to: '/communication', module: 'communication', icon: 'fa-solid fa-tower-broadcast', match: /^\/communication\/?$/ },
+      // Schedule send: invoices, reminders, customer and team messages (core: invoice emails are scheduled without the communication module).
+      { label: 'Scheduled', to: '/communication/scheduled', module: 'core', icon: 'fa-regular fa-clock', match: /^\/communication\/scheduled/ },
       { label: 'Video calls', to: '/video-call', module: 'communication', icon: 'fa-solid fa-video' },
       { label: 'Messaging settings', to: '/messaging-settings', module: 'communication', icon: 'fa-solid fa-gear' }
     ]

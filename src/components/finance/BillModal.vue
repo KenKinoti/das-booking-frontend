@@ -145,7 +145,9 @@ import { formatMoney, formatDate, isoDate, addDays } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 
 let key = 0
-const blank = (rate = 10) => ({ key: ++key, description: '', account_id: '', quantity: 1, unit_price: '', tax_rate: rate })
+// New lines take the organisation's default tax rate (VAT 16% in Kenya, GST 10% in Australia …),
+// known once the tax rates have loaded; until then (or when there is none) 0.
+const blank = (rate = 0) => ({ key: ++key, description: '', account_id: '', quantity: 1, unit_price: '', tax_rate: rate })
 
 export default {
   name: 'BillModal',
@@ -178,6 +180,7 @@ export default {
       creatingVendor: false,
       newVendor: { name: '', email: '', payment_terms: 'NET30' },
       taxRates: [],
+      defaultRate: 0,
       pos: [],
       saving: '',
       touched: false,
@@ -210,7 +213,6 @@ export default {
           seen.add(Number(t.rate))
         }
       }
-      if (!seen.has(10)) opts.push({ label: 'GST 10%', rate: 10 })
       for (const l of this.form.lines) {
         const r = Number(l.tax_rate)
         if (!seen.has(r) && !opts.some((o) => o.rate === r)) opts.push({ label: `${r}%`, rate: r })
@@ -233,10 +235,9 @@ export default {
     this.loadPOs()
     try {
       this.taxRates = (await invoicingApi.taxRates()) || []
-      if (!this.bill) {
-        const def = this.taxRates.find((t) => t.is_default)
-        if (def) this.form.lines.forEach((l) => (l.tax_rate = Number(def.rate)))
-      }
+      const def = this.taxRates.find((t) => t.is_default)
+      this.defaultRate = def ? Number(def.rate) || 0 : 0
+      if (!this.bill) this.form.lines.forEach((l) => (l.tax_rate = this.defaultRate))
     } catch {
       this.taxRates = []
     }
@@ -261,7 +262,7 @@ export default {
     },
     addLine() {
       const last = this.form.lines[this.form.lines.length - 1]
-      this.form.lines.push(blank(last ? last.tax_rate : 10))
+      this.form.lines.push(blank(last ? last.tax_rate : this.defaultRate))
     },
     onVendor() {
       const v = this.vendorList.find((x) => x.id === this.form.vendor_id)

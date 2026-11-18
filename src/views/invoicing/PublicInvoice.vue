@@ -1,7 +1,10 @@
 <template>
   <div class="pub">
     <div class="pub__wrap">
-      <div v-if="error" class="pub__state">
+      <!-- A recalled email's link (pkg/invoicing recall.go): who withdrew it, no amounts. -->
+      <WithdrawnNotice v-if="withdrawn" :w="withdrawn" />
+
+      <div v-else-if="error" class="pub__state">
         <div class="ui-empty__icon"><i class="fa-solid fa-link-slash"></i></div>
         <h1>Link unavailable</h1>
         <p>{{ error }}</p>
@@ -39,7 +42,8 @@
 
 <script>
 import InvoiceDocument from '@/components/invoicing/InvoiceDocument.vue'
-import { invoicingApi, STATUS_LABELS, recipientToken } from '@/services/invoicing'
+import WithdrawnNotice from '@/components/invoicing/WithdrawnNotice.vue'
+import { invoicingApi, STATUS_LABELS, recipientToken, withdrawnOf } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import { formatCurrency } from '@/utils/currencies'
@@ -47,10 +51,10 @@ import { apiURL } from '@/services/payments'
 
 export default {
   name: 'PublicInvoice',
-  components: { InvoiceDocument },
+  components: { InvoiceDocument, WithdrawnNotice },
   props: { token: { type: String, required: true } },
   data() {
-    return { doc: null, business: {}, error: null, busy: false, accepted: false, payEnabled: false }
+    return { doc: null, business: {}, error: null, busy: false, accepted: false, payEnabled: false, withdrawn: null }
   },
   computed: {
     isQuote() {
@@ -81,6 +85,8 @@ export default {
       this.payEnabled = !!res.pay_enabled
       document.title = `${this.isQuote ? 'Quote' : 'Invoice'} ${this.doc.number}${this.business.business_name ? ' · ' + this.business.business_name : ''}`
     } catch (e) {
+      this.withdrawn = withdrawnOf(e)
+      if (this.withdrawn) document.title = `Withdrawn${this.withdrawn.business?.name ? ' · ' + this.withdrawn.business.name : ''}`
       this.error = e.response?.status === 404 ? 'This link is invalid or has been replaced. Ask the sender for a new one.' : apiErrorMessage(e)
     }
   },
@@ -100,6 +106,7 @@ export default {
         this.doc.status = 'accepted'
         this.doc.display_status = 'accepted'
       } catch (e) {
+        this.withdrawn = withdrawnOf(e)
         this.error = apiErrorMessage(e, 'Could not accept the quote')
       } finally {
         this.busy = false

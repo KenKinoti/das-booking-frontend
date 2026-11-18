@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.14.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.15.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,14 +26,14 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Your phone as a till with camera scanning, client subscriptions that warn you before a suspension, who opened each email, encrypted call links, announcements and seasonal themes.'
+export const RELEASE_LEAD = 'A morning brief at 8:00 by email and WhatsApp, schedule any message, an AI market scout that hunts for opportunities, and Undo and Recall for invoice emails.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-barcode', text: 'Fast sale on any device: scan bottles with the phone camera or a Bluetooth scanner, favourites, one-tap M-Pesa and cash with change, and who sold what on which phone' },
-  { icon: 'fa-solid fa-arrows-rotate', text: 'Client subscriptions: invoices go out automatically, reminders to clients, and you hear at least 3 days before any hosting is suspended' },
-  { icon: 'fa-solid fa-envelope-open-text', text: 'Know who read it: each person gets their own copy, and the Emails tab shows who opened, viewed and paid' },
-  { icon: 'fa-solid fa-shield-halved', text: 'Secure calls: share a link, guests join from any phone without an account; the key stays in the link, so DASYIN itself cannot listen in' },
-  { icon: 'fa-solid fa-bullhorn', text: 'Announcements from DASYIN with holiday nudges, and seasonal themes: a little spooky for Halloween, Kenyan colours on national days' },
-  { icon: 'fa-solid fa-video-slash', text: 'Google sign-in that shows exactly why a button would be hidden, and the camera and microphone only ever start on your tap' }
+  { icon: 'fa-solid fa-mug-hot', text: 'Morning brief: bills (incl. Synergy), money in, Jira progress and opportunities in one short note at 8:00 your time, by email and WhatsApp' },
+  { icon: 'fa-solid fa-clock', text: 'Schedule send: invoices, quotes, receipts, reminders, customer and team messages by email, SMS or WhatsApp — once or on repeat' },
+  { icon: 'fa-solid fa-binoculars', text: 'Market scout (Insights): tenders, grants, leads and new markets found on the web, ranked by fit, with sources and a monthly budget' },
+  { icon: 'fa-solid fa-rotate-left', text: 'Undo send (2 minutes) and Recall for invoice emails: switch off their links and send a "please disregard" notice' },
+  { icon: 'fa-brands fa-whatsapp', text: 'WhatsApp Business connected: approved templates, delivery and read status, and SMS through Africa\'s Talking or Twilio' },
+  { icon: 'fa-solid fa-scale-balanced', text: 'Tax rates follow your country (Kenya: VAT 16%) with a one-click fix for older settings, bookings keep the business\'s time, and phone pages no longer cut off' }
 ]

@@ -30,9 +30,19 @@
         <AiKeySettings />
       </div>
 
+      <!-- SMS provider: Africa's Talking or Twilio (pkg/schedsend; loads on its own) -->
+      <div v-else-if="tab === 'sms'" class="ui-card__body">
+        <SmsProviderSettings />
+      </div>
+
       <!-- Secure calls: STUN / TURN relay (loads on its own) -->
       <div v-else-if="tab === 'calls'" class="ui-card__body">
         <SecureCallSettings />
+      </div>
+
+      <!-- Notifications: the morning brief's WhatsApp template (loads on its own) -->
+      <div v-else-if="tab === 'notifications'" class="ui-card__body">
+        <BriefNotificationSettings @tab="setTab" />
       </div>
 
       <div v-else-if="!settings" class="ui-card__body">
@@ -298,6 +308,8 @@ import EmailSettingsPanel from '@/components/settings/EmailSettingsPanel.vue'
 import SignInProviders from '@/components/auth/SignInProviders.vue'
 import AiKeySettings from '@/components/assistant/AiKeySettings.vue'
 import SecureCallSettings from '@/components/calls/SecureCallSettings.vue'
+import SmsProviderSettings from '@/components/schedsend/SmsProviderSettings.vue'
+import BriefNotificationSettings from '@/components/brief/BriefNotificationSettings.vue'
 import { paymentsApi } from '@/services/payments'
 import { SOURCE_LABELS, SECURITY_LABELS } from '@/services/emailSettings'
 
@@ -348,7 +360,7 @@ const SECTIONS = {
 
 export default {
   name: 'SystemSettings',
-  components: { EmailSettingsPanel, SignInProviders, AiKeySettings, SecureCallSettings },
+  components: { EmailSettingsPanel, SignInProviders, AiKeySettings, SecureCallSettings, BriefNotificationSettings, SmsProviderSettings },
   data() {
     return {
       settings: null,
@@ -361,7 +373,7 @@ export default {
       saving: false,
       testing: false,
       error: '',
-      tab: ['overview', 'email', 'stripe', 'twilio', 'whatsapp', 'signin', 'ai', 'calls', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
+      tab: ['overview', 'email', 'stripe', 'sms', 'twilio', 'whatsapp', 'notifications', 'signin', 'ai', 'calls', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
       testTo: '',
       sendingTest: false,
       testResult: null,
@@ -373,8 +385,10 @@ export default {
         { value: 'overview', label: 'Overview', icon: 'fa-solid fa-gauge' },
         { value: 'email', label: 'Email', icon: 'fa-solid fa-envelope' },
         { value: 'stripe', label: 'Payments', icon: 'fa-solid fa-credit-card', section: 'stripe_settings' },
-        { value: 'twilio', label: 'SMS', icon: 'fa-solid fa-comment-sms', section: 'twilio_settings' },
+        { value: 'sms', label: 'SMS', icon: 'fa-solid fa-comment-sms' },
+        { value: 'twilio', label: 'Twilio', icon: 'fa-solid fa-phone', section: 'twilio_settings' },
         { value: 'whatsapp', label: 'WhatsApp', icon: 'fa-brands fa-whatsapp', section: 'whatsapp_settings' },
+        { value: 'notifications', label: 'Notifications', icon: 'fa-solid fa-bell' },
         { value: 'signin', label: 'Sign-in providers', icon: 'fa-solid fa-right-to-bracket' },
         { value: 'ai', label: 'AI assistant', icon: 'fa-solid fa-wand-magic-sparkles' },
         { value: 'calls', label: 'Calls', icon: 'fa-solid fa-user-shield' },

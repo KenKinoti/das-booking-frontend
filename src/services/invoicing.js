@@ -64,7 +64,21 @@ export const invoicingApi = {
   },
   // Organisation email tracking settings (Invoice settings → Email tracking)
   emailTracking: () => api.get(`${base}/email-tracking`).then(unwrap),
-  saveEmailTracking: (payload) => api.put(`${base}/email-tracking`, payload).then(unwrap)
+  saveEmailTracking: (payload) => api.put(`${base}/email-tracking`, payload).then(unwrap),
+  // Undo send & recall (pkg/invoicing hold.go, recall.go): sending options, a held email's Undo / Send now,
+  // recall preview + recall (links off, disregard notice, correct).
+  emailOptions: () => api.get(`${base}/email-options`).then(unwrap),
+  saveEmailOptions: (payload) => api.put(`${base}/email-options`, payload).then(unwrap),
+  undoEmail: (id, logId) => api.post(`${base}/invoices/${id}/emails/${logId}/undo`).then(unwrap),
+  sendEmailNow: (id, logId) => api.post(`${base}/invoices/${id}/emails/${logId}/send-now`, null, { timeout: 60000 }).then(unwrap),
+  recallPreview: (id, logId) => api.get(`${base}/invoices/${id}/emails/${logId}/recall`).then(unwrap),
+  recallEmail: (id, logId, body) => api.post(`${base}/invoices/${id}/emails/${logId}/recall`, { app_url: window.location.origin, ...body }, { timeout: 60000 }).then(unwrap)
+}
+
+/** The "withdrawn" answer (410) of a recalled email's link, or null. */
+export function withdrawnOf(err) {
+  const d = err?.response?.status === 410 ? err.response.data : null
+  return d && d.withdrawn ? d.withdrawn : null
 }
 
 /** A recipient's token from an email link (?r=), or '' — 32 URL-safe characters. */

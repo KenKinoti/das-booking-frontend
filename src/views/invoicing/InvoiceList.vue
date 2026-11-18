@@ -116,6 +116,7 @@
                 <div class="num-cell">
                   <strong>{{ inv.number }}</strong>
                   <i v-if="inv.is_recurring" class="fa-solid fa-repeat recurring" title="Recurring"></i>
+                  <router-link v-if="sched[inv.id]" :to="{ path: '/communication/scheduled', query: { invoice: inv.id } }" class="sched-ic" :class="{ paused: !sched[inv.id].next_local }" :title="schedTip(sched[inv.id])" :aria-label="schedTip(sched[inv.id])" data-testid="list-scheduled" @click.stop><i class="fa-regular fa-clock"></i></router-link>
                   <span v-if="inv.source === 'zoho'" class="src-badge" title="Imported from Zoho Books">Zoho</span>
                   <span v-else-if="inv.source === 'csv'" class="src-badge" title="Imported from a CSV file">CSV</span>
                 </div>
@@ -173,6 +174,7 @@ import { formatDate, downloadBlob, isoDate } from '@/utils/format'
 import { formatCurrency, currencyDecimals } from '@/utils/currencies'
 import { toast } from '@/composables/useToast'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import { schedsendApi, localLabel } from '@/services/schedsend'
 
 export default {
   name: 'InvoiceList',
@@ -181,6 +183,7 @@ export default {
   data() {
     return {
       rows: [],
+      sched: {},
       total: 0,
       page: 1,
       perPage: 25,
@@ -312,11 +315,25 @@ export default {
         const data = await invoicingApi.list({ type: this.docType, status: this.status, q: this.q || undefined, sort: this.sort || undefined, from: this.from || undefined, to: this.to || undefined, paid_from: this.paidFrom || undefined, paid_to: this.paidTo || undefined, source: this.source || undefined, import_job: this.importJob || undefined, page: this.page, per_page: this.perPage })
         this.rows = data.invoices || []
         this.total = data.total || 0
+        this.loadScheduled()
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not load documents')
       } finally {
         this.loading = false
       }
+    },
+    async loadScheduled() {
+      const ids = this.rows.map((r) => r.id)
+      if (!ids.length) return (this.sched = {})
+      try {
+        this.sched = await schedsendApi.badges(ids)
+      } catch {
+        this.sched = {}
+      }
+    },
+    schedTip(b) {
+      const more = b.count > 1 ? ` (+${b.count - 1} more)` : ''
+      return b.next_local ? `Scheduled send ${localLabel(b.next_local)}${more}` : `Scheduled send paused${more}`
     },
     async loadStats() {
       try {
@@ -608,5 +625,20 @@ export default {
   line-height: 17px;
   background: var(--info-soft);
   color: var(--info);
+}
+.sched-ic {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  text-decoration: none;
+}
+.sched-ic.paused {
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 </style>

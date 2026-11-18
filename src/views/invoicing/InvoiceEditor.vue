@@ -527,7 +527,7 @@ export default {
       return opts
     },
     defaultTax() {
-      return this.taxRates.find((t) => t.is_default) || this.taxRates[0] || { name: this.settings.tax_label || 'GST', rate: this.settings.default_tax_rate ?? 0 }
+      return this.taxRates.find((t) => t.is_default) || this.taxRates[0] || { name: this.settings.tax_label || 'Tax', rate: this.settings.default_tax_rate ?? 0 }
     },
     termOptions() {
       if (this.isQuote) return [{ days: 14, label: '14 days' }, { days: 30, label: '30 days' }, { days: 60, label: '60 days' }]

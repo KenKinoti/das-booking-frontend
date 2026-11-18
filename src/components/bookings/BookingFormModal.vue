@@ -156,6 +156,7 @@
           </div>
           <div class="when-meta">
             <span v-if="durationMinutes > 0" class="ui-hint"><i class="fa-regular fa-clock"></i> {{ formatDuration(durationMinutes) }}</span>
+            <span v-if="zoneHint" class="ui-hint" data-testid="booking-zone"><i class="fa-solid fa-earth-africa"></i> {{ zoneHint }}</span>
             <button v-if="endTouched && form.service_ids.length && durationMinutes !== servicesMinutes" type="button" class="linkbtn" @click="resetEnd">Match services duration</button>
           </div>
           <div v-if="showErrors && (errors.date || errors.start || errors.end)" class="err">{{ errors.date || errors.start || errors.end }}</div>
@@ -224,7 +225,7 @@ import api, { listFrom, apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { formatMoney, isoDate } from '@/utils/format'
 import { access } from '@/composables/useAccess'
-import { BOOKING_STATUSES, personName, initials, vehicleLabel, hhmm, combine, formatDuration, minutesBetween } from './bookingUtils'
+import { BOOKING_STATUSES, personName, initials, vehicleLabel, hhmm, combine, fromWall, toWall, nowWall, bizZone, zoneDiffers, formatDuration, minutesBetween } from './bookingUtils'
 
 const DEFAULT_MINUTES = 60
 
@@ -246,11 +247,12 @@ export default {
   emits: ['close', 'saved', 'customer-created'],
   data() {
     const b = this.booking
+    // Wall dates: the date and times below are the business's (bookingUtils)
     let start
-    if (b) start = new Date(b.start_time)
+    if (b) start = toWall(b.start_time)
     else if (this.preset?.start) start = new Date(this.preset.start)
     else {
-      start = new Date()
+      start = nowWall()
       start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0)
       start.setHours(start.getHours() + 1)
     }
@@ -344,6 +346,12 @@ export default {
     durationMinutes() {
       if (!this.startDate || !this.endDate) return 0
       return minutesBetween(this.startDate, this.endDate)
+    },
+    // "Times are Nairobi time" when the browser's clock is elsewhere
+    zoneHint() {
+      if (!zoneDiffers()) return ''
+      const z = bizZone()
+      return `${z.slice(z.lastIndexOf('/') + 1).replace(/_/g, ' ')} time`
     },
     statusOptions() {
       return this.isEdit ? BOOKING_STATUSES : BOOKING_STATUSES.filter((s) => ['scheduled', 'confirmed'].includes(s.value))
@@ -523,8 +531,8 @@ export default {
         vehicle_id: this.form.vehicle_id || '',
         staff_id: this.form.staff_id || '',
         service_ids: this.form.service_ids,
-        start_time: this.startDate.toISOString(),
-        end_time: this.endDate.toISOString(),
+        start_time: fromWall(this.startDate).toISOString(),
+        end_time: fromWall(this.endDate).toISOString(),
         status: this.form.status,
         total_price: Math.round(Number(this.form.price) * 100) / 100,
         notes: this.form.notes,
@@ -773,8 +781,9 @@ export default {
 
 .when-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 4px 12px;
   margin-top: 6px;
   min-height: 18px;
 }

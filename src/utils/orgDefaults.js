@@ -16,6 +16,9 @@ export const orgDefaults = reactive({
   currency: '',
   decimals: 2,
   timezone: '',
+  // The country's standard sales tax (e.g. VAT 16 in Kenya); '' / null when unknown.
+  taxLabel: '',
+  taxRate: null,
   source: '',
   needsSetup: false,
   canEdit: false,
@@ -40,6 +43,8 @@ export function applyOrgDefaults(d = {}, orgId = orgDefaults.orgId) {
     currency: d.currency || '',
     decimals: d.currency_decimals ?? 2,
     timezone: d.timezone || '',
+    taxLabel: d.defaults?.tax_label || '',
+    taxRate: d.defaults ? Number(d.defaults.tax_rate) || 0 : null,
     source: d.source || '',
     needsSetup: !!d.needs_setup,
     canEdit: !!d.can_edit,
@@ -48,5 +53,5 @@ export function applyOrgDefaults(d = {}, orgId = orgDefaults.orgId) {
 }
 
 export function resetOrgDefaults(orgId = '') {
-  Object.assign(orgDefaults, { orgId, countryCode: '', countryName: '', currency: '', decimals: 2, timezone: '', source: '', needsSetup: false, canEdit: false, loaded: false })
+  Object.assign(orgDefaults, { orgId, countryCode: '', countryName: '', currency: '', decimals: 2, timezone: '', taxLabel: '', taxRate: null, source: '', needsSetup: false, canEdit: false, loaded: false })
 }

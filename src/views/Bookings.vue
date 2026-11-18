@@ -59,7 +59,7 @@
           </div>
           <div v-if="view !== 'list'" class="cal-nav">
             <button class="ui-btn ui-btn--sm ui-btn--icon" :aria-label="`Previous ${view}`" @click="shift(-1)"><i class="fa-solid fa-chevron-left"></i></button>
-            <button class="ui-btn ui-btn--sm" :disabled="isCurrentPeriod" @click="setCursor(new Date())">Today</button>
+            <button class="ui-btn ui-btn--sm" :disabled="isCurrentPeriod" @click="setCursor(nowWall())">Today</button>
             <button class="ui-btn ui-btn--sm ui-btn--icon" :aria-label="`Next ${view}`" @click="shift(1)"><i class="fa-solid fa-chevron-right"></i></button>
             <label class="nav__label">
               <span>{{ periodLabel }}</span>
@@ -298,8 +298,12 @@ import {
   startOfDay,
   startOfWeek,
   addDaysDate,
-  sameDay
+  sameDay,
+  toWall,
+  fromWall,
+  nowWall
 } from '@/components/bookings/bookingUtils'
+import { loadOrgPrefs } from '@/composables/useOrgPrefs'
 
 const PRESETS = [
   { value: 'upcoming', label: 'Upcoming' },
@@ -331,8 +335,8 @@ export default {
       view,
       cursor,
       preset: PRESETS.some((p) => p.value === qy.range) ? qy.range : 'upcoming',
-      customFrom: isoDate(),
-      customTo: isoDate(addDaysDate(new Date(), 30)),
+      customFrom: isoDate(nowWall()),
+      customTo: isoDate(addDaysDate(nowWall(), 30)),
       statusFilter: qy.status || 'all',
       staffFilter: '',
       q: '',
@@ -392,7 +396,7 @@ export default {
       return Array.from({ length: 7 }, (_, i) => addDaysDate(this.weekStart, i))
     },
     isCurrentPeriod() {
-      return this.view === 'week' ? sameDay(this.weekStart, startOfWeek()) : sameDay(this.cursor, new Date())
+      return this.view === 'week' ? sameDay(this.weekStart, startOfWeek()) : sameDay(this.cursor, nowWall())
     },
     periodLabel() {
       if (this.view === 'day') {
@@ -407,7 +411,7 @@ export default {
     },
     defaultDayStart() {
       const d = new Date(this.cursor)
-      const now = new Date()
+      const now = nowWall()
       if (sameDay(d, now)) {
         d.setHours(now.getHours() + 1, 0, 0, 0)
       } else d.setHours(9, 0, 0, 0)
@@ -473,12 +477,12 @@ export default {
     groupedRows() {
       const groups = []
       const map = {}
-      const today = new Date()
+      const today = nowWall()
       const tomorrow = addDaysDate(today, 1)
       for (const b of this.listRows.slice(0, this.limit)) {
-        const key = isoDate(new Date(b.start_time))
+        const key = isoDate(toWall(b.start_time))
         if (!map[key]) {
-          const d = new Date(b.start_time)
+          const d = toWall(b.start_time)
           let label = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined }).format(d)
           if (sameDay(d, today)) label = `Today · ${label}`
           else if (sameDay(d, tomorrow)) label = `Tomorrow · ${label}`
@@ -512,8 +516,8 @@ export default {
       const live = (b) => !['cancelled', 'no_show'].includes(b.status)
       const todayRows = rows.filter((b) => sameDay(b.start_time, today) && live(b))
       const remaining = todayRows.filter((b) => new Date(b.end_time) > now && ACTIVE_STATUSES.includes(b.status)).length
-      const upcoming = rows.filter((b) => ACTIVE_STATUSES.includes(b.status) && new Date(b.start_time) >= today && new Date(b.start_time) < in7)
-      const month = rows.filter((b) => new Date(b.start_time) >= mFrom && new Date(b.start_time) < mTo)
+      const upcoming = rows.filter((b) => ACTIVE_STATUSES.includes(b.status) && toWall(b.start_time) >= today && toWall(b.start_time) < in7)
+      const month = rows.filter((b) => toWall(b.start_time) >= mFrom && toWall(b.start_time) < mTo)
       const completed = month.filter((b) => b.status === 'completed')
       const monthLive = month.filter(live)
       return {
@@ -537,10 +541,13 @@ export default {
       this.limit = 50
     }
   },
-  created() {
+  async created() {
+    this.loadRefs()
+    // Days and times follow the business's time zone (bookingUtils): know it before the first range.
+    const zone = await loadOrgPrefs().then((p) => p.timezone, () => '')
+    if (zone && !this.$route.query.date) this.cursor = startOfDay()
     this.loadRange()
     this.loadKpis()
-    this.loadRefs()
     this.handleDeepLinks()
   },
   methods: {
@@ -572,8 +579,8 @@ export default {
     params() {
       const p = {}
       const { from, to } = this.range
-      if (from) p.date_from = from.toISOString()
-      if (to) p.date_to = to.toISOString()
+      if (from) p.date_from = fromWall(from).toISOString()
+      if (to) p.date_to = fromWall(to).toISOString()
       if (this.staffFilter && this.staffFilter !== 'none') p.staff_id = this.staffFilter
       return p
     },
@@ -600,7 +607,7 @@ export default {
       const from = new Date(Math.min(new Date(today.getFullYear(), today.getMonth(), 1), today))
       const to = new Date(Math.max(new Date(today.getFullYear(), today.getMonth() + 1, 1), addDaysDate(today, 8)))
       try {
-        const res = await api.get('/bookings', { params: { date_from: from.toISOString(), date_to: to.toISOString() } })
+        const res = await api.get('/bookings', { params: { date_from: fromWall(from).toISOString(), date_to: fromWall(to).toISOString() } })
         this.kpiRows = listFrom(res, 'bookings')
       } catch {
         this.kpiRows = []
@@ -655,7 +662,7 @@ export default {
     },
     goToday() {
       this.view = 'day'
-      this.setCursor(new Date())
+      this.setCursor(nowWall())
     },
     showList(preset, status = 'all') {
       this.view = 'list'
@@ -712,7 +719,7 @@ export default {
       if (wasEdit && this.selected?.id === b.id) this.selected = b
       if (!wasEdit && this.view !== 'list') {
         // jump the calendar to the new booking
-        const d = new Date(b.start_time)
+        const d = toWall(b.start_time)
         const inRange = this.view === 'week' ? d >= this.weekStart && d < addDaysDate(this.weekStart, 7) : sameDay(d, this.cursor)
         if (!inRange) this.cursor = startOfDay(d)
         this.syncQuery()
@@ -757,7 +764,7 @@ export default {
     async remove(b) {
       const ok = await confirmDialog({
         title: 'Delete booking?',
-        message: `This permanently removes ${personName(b.customer) || 'this'}'s booking on ${new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(new Date(b.start_time))}. To keep a record, cancel it instead.`,
+        message: `This permanently removes ${personName(b.customer) || 'this'}'s booking on ${new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(toWall(b.start_time))}. To keep a record, cancel it instead.`,
         confirmText: 'Delete',
         danger: true
       })

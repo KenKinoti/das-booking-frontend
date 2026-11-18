@@ -111,6 +111,10 @@
                   <dt>Date of birth</dt>
                   <dd>{{ date(customer.date_of_birth) }}</dd>
                 </div>
+                <div>
+                  <dt>Marketing</dt>
+                  <dd><MarketingOptOut :customer-id="customer.id" /></dd>
+                </div>
               </dl>
               <div class="notes">
                 <h3>Notes</h3>
@@ -228,6 +232,7 @@ import { orgCurrency } from '@/utils/orgDefaults'
 import VehicleManagementModal from './VehicleManagementModal.vue'
 import CustomerContacts from './customers/CustomerContacts.vue'
 import CustomerSubscriptions from './subscriptions/CustomerSubscriptions.vue'
+import MarketingOptOut from './schedsend/MarketingOptOut.vue'
 import { hasModule } from '@/composables/useEntitlements'
 import { atLeast } from '@/composables/useAccess'
 import { customerService, customerName, initials, customerAddress, customerCountryLabel, customerCountry, newInvoiceLink, newBookingLink, invoicesLink } from '@/services/customerService'
@@ -246,7 +251,7 @@ const BOOKING_BADGES = {
 
 export default {
   name: 'CustomerDetailsModal',
-  components: { VehicleManagementModal, CustomerContacts, CustomerSubscriptions },
+  components: { VehicleManagementModal, CustomerContacts, CustomerSubscriptions, MarketingOptOut },
   props: {
     show: { type: Boolean, default: false },
     customerId: { type: String, default: '' },

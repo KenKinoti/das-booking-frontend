@@ -105,6 +105,8 @@
 
         <MyEmailNotificationsCard :org-name="me ? me.organization_name : ''" />
 
+        <MorningBriefCard @phone="briefPhone" />
+
         <MyBookingsCalendarCard />
 
         <SeasonProfileCard />
@@ -122,6 +124,7 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import LinkedAccounts from '@/components/auth/LinkedAccounts.vue'
 import MyEmailNotificationsCard from '@/components/settings/MyEmailNotificationsCard.vue'
+import MorningBriefCard from '@/components/brief/MorningBriefCard.vue'
 import MyBookingsCalendarCard from '@/components/bookings/MyBookingsCalendarCard.vue'
 import SeasonProfileCard from '@/components/seasons/SeasonProfileCard.vue'
 import { reopenOnboarding } from '@/components/onboarding/onboarding'
@@ -131,7 +134,7 @@ const ROLES = { super_admin: 'Super admin', admin: 'Admin', manager: 'Manager', 
 
 export default {
   name: 'Profile',
-  components: { LinkedAccounts, MyEmailNotificationsCard, MyBookingsCalendarCard, SeasonProfileCard },
+  components: { LinkedAccounts, MyEmailNotificationsCard, MorningBriefCard, MyBookingsCalendarCard, SeasonProfileCard },
   data() {
     return {
       me: null,
@@ -181,6 +184,13 @@ export default {
   methods: {
     showGettingStarted() {
       reopenOnboarding()
+    },
+    // The morning brief saved a WhatsApp number as the phone: show it here too.
+    briefPhone(p) {
+      if (!this.me || (this.me.phone || '') === p) return
+      const untouched = (this.form.phone || '') === (this.me.phone || '')
+      this.me = { ...this.me, phone: p }
+      if (untouched) this.form.phone = p
     },
     date: formatDate,
     dateTime: formatDateTime,

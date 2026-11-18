@@ -76,6 +76,12 @@
 
       <!-- Step 2: checks + exact preview -->
       <div v-else class="ui-modal__body sd-review">
+        <section v-if="later" class="sd-later" data-testid="send-later-panel">
+          <h3><i class="fa-regular fa-clock"></i> Send later</h3>
+          <p class="muted small m0">The same recipients, subject and message are sent at the time you choose — the checks run again then, and nothing goes out if the {{ docWord }} was voided{{ kind === 'receipt' ? '' : ' or already paid' }}.</p>
+          <div v-if="!laterMeta" class="ui-skeleton" style="height: 120px"></div>
+          <SendTimePicker v-else v-model="laterWhen" :meta="laterMeta" />
+        </section>
         <div v-if="checking" class="sd-checking"><i class="fa-solid fa-circle-notch spin"></i> Checking the {{ docWord }} and rendering the email…</div>
         <template v-else-if="result">
           <div class="sd-verdict" :class="verdict.cls" data-testid="preflight-verdict">
@@ -130,8 +136,15 @@
         </template>
         <template v-else>
           <button type="button" class="ui-btn ui-btn--ghost" :disabled="busy" @click="step = 'compose'"><i class="fa-solid fa-arrow-left"></i> Edit</button>
-          <button v-if="localEmailEnabled && result" type="button" class="ui-btn" :disabled="busy || testBusy" data-testid="send-test" @click="sendTest"><i :class="testBusy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-vial'"></i> Send test to me</button>
-          <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy || checking || !result || result.errors > 0" data-testid="send-confirm">
+          <button v-if="localEmailEnabled && result && !later" type="button" class="ui-btn" :disabled="busy || testBusy" data-testid="send-test" @click="sendTest"><i :class="testBusy ? 'fa-solid fa-circle-notch spin' : 'fa-solid fa-vial'"></i> Send test to me</button>
+          <template v-if="later">
+            <button type="button" class="ui-btn" :disabled="busy" @click="later = false">Send now instead</button>
+            <button type="button" class="ui-btn ui-btn--primary" :disabled="busy || checking || !result || result.errors > 0 || !laterWhen.local_send_at" data-testid="send-later-confirm" @click="scheduleLater">
+              <i :class="busy ? 'fa-solid fa-circle-notch spin' : 'fa-regular fa-clock'"></i> Schedule send
+            </button>
+          </template>
+          <button v-if="!later && localEmailEnabled" type="button" class="ui-btn" :disabled="busy || checking || !result || result.errors > 0" data-testid="send-later" @click="openLater"><i class="fa-regular fa-clock"></i> Send later</button>
+          <button v-if="!later" type="submit" class="ui-btn ui-btn--primary" :disabled="busy || checking || !result || result.errors > 0" data-testid="send-confirm">
             <i :class="busy ? 'fa-solid fa-circle-notch spin' : result && result.errors ? 'fa-solid fa-ban' : localEmailEnabled ? 'fa-solid fa-paper-plane' : 'fa-solid fa-arrow-up-right-from-square'"></i>
             {{ confirmLabel }}
           </button>
@@ -143,6 +156,8 @@
 
 <script>
 import EmailChips from '@/components/invoicing/EmailChips.vue'
+import SendTimePicker from '@/components/schedsend/SendTimePicker.vue'
+import { schedsendApi, localLabel } from '@/services/schedsend'
 import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatCurrency } from '@/utils/currencies'
@@ -156,7 +171,7 @@ import { toast } from '@/composables/useToast'
  */
 export default {
   name: 'SendDialog',
-  components: { EmailChips },
+  components: { EmailChips, SendTimePicker },
   props: {
     doc: { type: Object, required: true },
     kind: { type: String, default: 'invoice' }, // invoice | reminder | receipt (quotes use "invoice")
@@ -165,7 +180,7 @@ export default {
     sender: { type: Object, default: null },
     onlineEnabled: { type: Boolean, default: false }
   },
-  emits: ['close', 'sent', 'marked', 'logged'],
+  emits: ['close', 'sent', 'marked', 'logged', 'scheduled'],
   data() {
     return {
       step: 'compose',
@@ -185,7 +200,10 @@ export default {
       showPassed: false,
       mode: 'html',
       localEmailEnabled: this.emailEnabled,
-      localSender: this.sender
+      localSender: this.sender,
+      later: false,
+      laterMeta: null,
+      laterWhen: { local_send_at: '', timezone: '', repeat: { freq: 'none' } }
     }
   },
   computed: {
@@ -387,16 +405,58 @@ export default {
         this.testBusy = false
       }
     },
+    async openLater() {
+      this.later = true
+      if (!this.laterMeta) {
+        try {
+          this.laterMeta = await schedsendApi.meta()
+        } catch (e) {
+          this.later = false
+          this.error = apiErrorMessage(e, 'Could not load the times')
+        }
+      }
+    },
+    async scheduleLater() {
+      if (!this.result || this.result.errors || !this.laterWhen.local_send_at) return
+      this.busy = true
+      this.error = ''
+      const p = this.payload()
+      const kind = this.kind === 'reminder' ? 'reminder' : this.kind === 'receipt' ? 'receipt' : 'invoice'
+      try {
+        const res = await schedsendApi.create({
+          kind,
+          invoice_id: this.doc.id,
+          payment_id: p.payment_id,
+          channels: ['email'],
+          invoice_send: { to: p.to, cc: p.cc, bcc: p.bcc, subject: p.subject, message: p.message, app_url: window.location.origin, accept_warnings: this.result.warnings > 0, set: true },
+          local_send_at: this.laterWhen.local_send_at,
+          timezone: this.laterWhen.timezone,
+          repeat: { freq: 'none' }
+        })
+        toast.success(`Scheduled for ${localLabel(res.message.next_local)} (${(res.message.timezone || '').replace(/_/g, ' ')})`)
+        this.$emit('scheduled', res.message)
+      } catch (e) {
+        this.error = apiErrorMessage(e, 'Could not schedule it')
+      } finally {
+        this.busy = false
+      }
+    },
     async submit() {
+      if (this.later) return this.scheduleLater()
       if (!this.result || this.result.errors) return
       this.busy = true
       this.error = ''
       const to = this.send.to[0] || ''
       try {
-        const res = await invoicingApi.send(this.doc.id, { ...this.payload(), app_url: window.location.origin, accept_warnings: this.result.warnings > 0 })
+        // hold: the server keeps it for the organisation's undo window (Invoice settings → Email) — "Sending in 1:58 · Undo".
+        const res = await invoicingApi.send(this.doc.id, { ...this.payload(), app_url: window.location.origin, accept_warnings: this.result.warnings > 0, hold: this.localEmailEnabled })
         const ccText = [res.cc?.length ? `CC ${res.cc.length}` : '', res.bcc?.length ? `BCC ${res.bcc.length}` : ''].filter(Boolean).join(', ')
         const copyNote = ccText ? ` (${ccText})` : ''
-        if (res.emailed) {
+        if (res.held && res.hold) {
+          // Held for undo: the page shows "Sending in 1:58 · Undo" (heldEmail.js) — it outlives this dialog.
+          res.held_label = this.kind === 'reminder' ? 'Reminder' : this.kind === 'receipt' ? 'Receipt' : this.isQuote ? 'Quote' : 'Invoice'
+          res.held_to = `${res.to}${copyNote}`
+        } else if (res.emailed) {
           const what = this.kind === 'reminder' ? 'Reminder emailed' : this.kind === 'receipt' ? 'Receipt emailed' : 'Emailed'
           toast.success(`${what} to ${res.to}${copyNote}${res.attachment ? ` with ${res.attachment}` : ''}${res.sender?.from ? ` from ${res.sender.from}` : ''}`)
         } else {
@@ -568,6 +628,22 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.sd-later {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+.sd-later h3 {
+  margin: 0;
+  font-size: 15px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 .sd-review {
   display: flex;

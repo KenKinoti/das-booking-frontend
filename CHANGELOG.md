@@ -6,6 +6,71 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.15.0] - 2026-11-19
+
+**Morning brief.** Everyone can now get a short note each morning — 08:00 in their own time zone by default, every
+day or weekdays — by email and WhatsApp. It starts with a one-line headline ("2 bills due this week (KES 41,200),
+1 Jira issue overdue, 1 new opportunity worth ~KES 60,000") and covers bills & payables (new supplier bills including
+Synergy invoices, due this week, overdue, the Synergy balance and top-up, renewals), money in (yesterday's payments,
+overdue invoices, client subscriptions past due or about to be suspended), project progress from Jira and local
+projects (Jira is synced first), the opportunities worth going for, the market scout's best new finds, and the day's
+bookings, meetings and reminders. It only shows what each person may see. Switch it on in one click from the
+dashboard or in My profile → Morning brief, with a preview and "Send me a test now". Every brief is kept at /brief
+with its delivery status; the links in the email and WhatsApp open it after sign-in. People who get bills or client
+billing in their brief no longer also get the separate automatic digests unless they ask for both. WhatsApp uses an
+approved template chosen in System settings → Notifications, or the full text when the person messaged in the last
+24 hours. New AI tool: brief_today.
+
+**Schedule send.** Any message can go out later or on a schedule. "Send later" in the invoice, quote and receipt send
+dialog sends the same email at a chosen time in your time zone, and the document is checked again first — nothing goes
+out if it was voided or paid. "Schedule reminders" on an unpaid invoice repeats every N days until it is paid. Under
+Communication → Scheduled you can schedule customer messages by email, SMS or WhatsApp to one customer, chosen
+customers or a group (everyone, a country, overdue, active subscriptions …), and team messages in the app and by email
+or WhatsApp. They can repeat daily, weekly, monthly (including the last day) or yearly, so a monthly statement of
+account is one click. The page shows upcoming, recurring, sent and failed sends with each person's result; edit,
+pause, send now, duplicate or cancel. Marketing messages carry an unsubscribe link and respect each customer's new
+"No marketing messages" switch. SMS works with Africa's Talking or Twilio (System settings → SMS). WhatsApp to
+customers always comes from the organisation's own number: free text within 24 hours of their last message, otherwise
+an approved template. Ask DASYIN can list scheduled sends and schedule new ones.
+
+**Market scout (Insights).** A new tab searches the web with Claude for tenders, grants, partnerships, leads, new
+markets and services to add, ranked by a 0–100 fit score against what you sell, where your customers are and your
+chosen countries, sectors, keywords and sources (tenders.go.ke, AusTender, UNGM, AfDB and more suggested). Each card
+shows the value, deadline, why it fits, the next step and the pages it was found on — items not backed by real search
+results are dropped. Pursue turns a card into a CRM deal or lead with its source links; Save, Remind me, add notes, or
+Dismiss with a reason so later scans skip similar ones. A light scan runs every morning at 06:30, ready for the brief,
+and a deeper one on Mondays. Every scan's searches, tokens and cost are listed, and scanning stops at a monthly budget
+(US$10 by default). It stays off until a super admin turns it on and confirms the estimated cost; it uses the Anthropic
+key saved under System settings → AI assistant.
+
+**Undo send and Recall for invoice emails.** Invoices, quotes, reminders and receipts sent from DASYIN now wait
+2 minutes before going ("Sending in 1:58 · Undo · Send now"); change the window or turn it off under Invoice settings
+→ Email. Undo means nothing is sent and the document stays as it was. Once an email has gone it can't be deleted from
+the client's inbox (Outlook's recall only works inside one Microsoft 365 organisation, and an attached PDF stays where
+it landed), so the document's Emails tab offers Recall instead: it switches off that email's View, Pay and accept links
+(they show a "withdrawn" page and online payment is refused), can switch off every link to the document, can email a
+short "please disregard" notice to the same people, and can take you straight to correcting the document. The timeline
+shows who opened it before the recall and whether the notice was opened. New: "Attach the PDF to invoice emails" for
+link-only emails that can be fully withdrawn, Cancel for scheduled sends on the Emails tab, and recall in the AI
+assistant (invoices_recall_email).
+
+**WhatsApp Business.** System settings → WhatsApp now drives everything WhatsApp: the access token and verify token are
+stored encrypted, the webhook (`/api/v1/public/whatsapp/webhook`) records delivered / read / failed for every message
+and opens the 24-hour window when someone writes in, and approved templates are listed straight from Meta.
+
+**Fixes.** Organisations outside Australia were offered "GST 10%" on new invoices, quotes, bills and purchase orders:
+tax rates now follow the country (Kenya VAT 16%), and older settings that don't match get the "doesn't match your
+country" notice with a one-click fix. Bookings are entered and shown in the business's time zone, not the device's.
+Content no longer gets cut off at phone width on Invoicing, Settings, Expense sources, Business hub and quote pages.
+A day without a morning brief shows "No brief that day" instead of an error.
+
+API: brief `/brief/**`, `/super-admin/brief/config`; schedule send `/schedsend/**`, `/public/schedsend/**`,
+`/public/sms/{africastalking/delivery,twilio/status}`; market scout `/insights/scout/**`; email undo / recall
+`/invoicing/email-options`, `/invoicing/invoices/:id/emails/:logId/{undo,send-now,recall}` (public links answer 410
+WITHDRAWN once recalled); WhatsApp `/whatsapp/{status,templates}`, `/public/whatsapp/webhook`. New packages `pkg/brief`,
+`pkg/schedsend`, `pkg/scout`, `pkg/wa`; new email category `morning_brief`; new AI tools brief_today, scheduled_list,
+schedule_message, market_scout_opportunities, market_scout_scan, invoices_recall_email.
+
 ## [2.14.0] - 2026-10-21
 
 **Secure calls — end-to-end encrypted call links.** Owners, admins and managers can start a private video call from

@@ -1,13 +1,16 @@
 <template>
   <div class="pay">
     <div class="pay__wrap">
-      <header class="pay__brand">
+      <header v-if="!withdrawn" class="pay__brand">
         <img v-if="logo" :src="logo" :alt="biz || 'Logo'" class="pay__logo" @error="logoFailed = true" />
         <strong v-else-if="biz" class="pay__biz">{{ biz }}</strong>
         <span v-if="page && page.settings.mode === 'test'" class="ui-badge ui-badge--warning" data-testid="pay-test-mode">Test mode</span>
       </header>
 
-      <div v-if="error" class="ui-card pay__state" data-testid="pay-error">
+      <!-- A recalled email's pay link (pkg/invoicing recall.go): no amounts, no payment. -->
+      <WithdrawnNotice v-if="withdrawn" :w="withdrawn" />
+
+      <div v-else-if="error" class="ui-card pay__state" data-testid="pay-error">
         <div class="pay__icon is-bad"><i class="fa-solid fa-link-slash"></i></div>
         <h1>Payment link unavailable</h1>
         <p>{{ error }}</p>
@@ -138,19 +141,21 @@
 
 <script>
 import { paymentsApi, feeText, apiURL } from '@/services/payments'
-import { invoicingApi, recipientToken } from '@/services/invoicing'
+import { invoicingApi, recipientToken, withdrawnOf } from '@/services/invoicing'
+import WithdrawnNotice from '@/components/invoicing/WithdrawnNotice.vue'
 import { apiErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import { formatCurrency, currencyStep } from '@/utils/currencies'
 
 export default {
   name: 'PayInvoice',
+  components: { WithdrawnNotice },
   props: {
     token: { type: String, required: true },
     returning: { type: Boolean, default: false }
   },
   data() {
-    return { page: null, error: '', amount: null, method: '', busy: false, payError: '', amountError: '', result: null, logoFailed: false, timer: null }
+    return { page: null, error: '', amount: null, method: '', busy: false, payError: '', amountError: '', result: null, logoFailed: false, timer: null, withdrawn: null }
   },
   computed: {
     inv() {
@@ -212,7 +217,7 @@ export default {
     },
     async load(amount) {
       try {
-        const p = await paymentsApi.payPage(this.token, amount)
+        const p = await paymentsApi.payPage(this.token, amount, this.returning ? '' : recipientToken(this.$route.query))
         this.page = p
         if (this.amount === null || amount === undefined) this.amount = p.amount
         this.amountError = p.amount_error || ''
@@ -220,6 +225,7 @@ export default {
         if (!keep) this.method = (this.options.find((o) => o.recommended) || this.options[0] || {}).method || ''
         document.title = `Pay ${p.invoice.number}${this.biz ? ' · ' + this.biz : ''}`
       } catch (e) {
+        this.withdrawn = withdrawnOf(e)
         this.error = e.response?.status === 404 ? 'This payment link is invalid or has been replaced. Ask the sender for a new one.' : apiErrorMessage(e, 'Could not load this invoice')
       }
     },
@@ -243,11 +249,12 @@ export default {
       this.busy = true
       this.payError = ''
       try {
-        const r = await paymentsApi.checkout(this.token, { amount: this.page.amount, method: this.method })
         const rt = recipientToken(this.$route.query)
+        const r = await paymentsApi.checkout(this.token, { amount: this.page.amount, method: this.method, r: rt || undefined })
         if (rt && r.tx_ref) invoicingApi.publicTrack(this.token, { r: rt, event: 'checkout', tx_ref: r.tx_ref })
         window.location.assign(r.link)
       } catch (e) {
+        this.withdrawn = withdrawnOf(e)
         this.payError = apiErrorMessage(e, 'Could not start the payment')
         this.busy = false
       }

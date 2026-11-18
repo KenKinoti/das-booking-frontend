@@ -271,7 +271,7 @@ export default {
 }
 
 .grid-2 {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .legend {
@@ -496,7 +496,8 @@ export default {
 @media (max-width: 1100px) {
   .grid,
   .grid-2 {
-    grid-template-columns: 1fr;
+    /* minmax: a long name or amount can't stretch the card past a phone screen */
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

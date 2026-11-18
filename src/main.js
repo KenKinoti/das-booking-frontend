@@ -16,6 +16,8 @@ import './styles/app.css'
 import './styles/seasons.css'
 import './components/seasons/install' // seasonal themes: data-season controller, greeting, ornament, admin route
 import './components/subscriptions/install' // client subscriptions: /subscriptions pages + public "Your services" page
+import './components/brief/install' // morning brief: /brief and /brief/:date
+import './components/schedsend/install' // schedule send: Communication → Scheduled (/communication/scheduled)
 
 initTheme()
 

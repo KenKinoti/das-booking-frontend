@@ -124,7 +124,7 @@
 <script>
 import { formatMoney, formatDateTime } from '@/utils/format'
 import { bookingEmailsApi } from '@/services/recurringBills'
-import { statusMeta, statusActions, personName, initials, vehicleLabel, formatTime, formatDuration, minutesBetween } from './bookingUtils'
+import { statusMeta, statusActions, personName, initials, vehicleLabel, formatTime, formatDuration, minutesBetween, toWall } from './bookingUtils'
 import AddToCalendarMenu from './AddToCalendarMenu.vue'
 
 export default {
@@ -156,10 +156,10 @@ export default {
       return `${formatTime(this.booking.start_time)} – ${formatTime(this.booking.end_time)}`
     },
     dateLong() {
-      return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(this.booking.start_time))
+      return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(toWall(this.booking.start_time))
     },
     whenLong() {
-      return `${new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(this.booking.start_time))} · ${this.timeRange}`
+      return `${new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).format(toWall(this.booking.start_time))} · ${this.timeRange}`
     },
     duration() {
       return formatDuration(minutesBetween(this.booking.start_time, this.booking.end_time))

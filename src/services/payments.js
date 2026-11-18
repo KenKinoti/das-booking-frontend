@@ -11,7 +11,8 @@ export const paymentsApi = {
   invoiceTransactions: (id) => api.get(`/invoicing/invoices/${id}/online-payments`).then(unwrap),
   platformStatus: () => api.get('/super-admin/payments/status').then(unwrap),
   // Public (no sign-in)
-  payPage: (token, amount) => api.get(`/public/pay/${token}`, { params: amount ? { amount } : {} }).then(unwrap),
+  // r = the recipient token of the email link the payer came from (a recalled email's link is refused).
+  payPage: (token, amount, r) => api.get(`/public/pay/${token}`, { params: { ...(amount ? { amount } : {}), ...(r ? { r } : {}) } }).then(unwrap),
   checkout: (token, body) => api.post(`/public/pay/${token}/checkout`, { ...body, app_url: window.location.origin }, { timeout: 45000 }).then(unwrap),
   verify: (token, body) => api.post(`/public/pay/${token}/verify`, body, { timeout: 45000 }).then(unwrap)
 }

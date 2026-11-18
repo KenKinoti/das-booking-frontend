@@ -254,7 +254,7 @@
               <label v-if="taxRateId" class="incl" title="Prices already include tax">
                 <input v-model="taxInclusive" type="checkbox" /> Incl.
               </label>
-              <button v-if="!taxRates.length" class="ui-btn ui-btn--ghost ui-btn--sm" :disabled="creatingTax" @click="addGst">+ GST 10%</button>
+              <button v-if="!taxRates.length && starterTax.rate > 0" class="ui-btn ui-btn--ghost ui-btn--sm" :disabled="creatingTax" @click="addGst">+ {{ starterTax.name }} {{ starterTax.rate }}%</button>
             </div>
           </div>
 
@@ -331,7 +331,7 @@
 
 <script>
 import { markRaw } from 'vue'
-import { orgCurrency } from '@/utils/orgDefaults'
+import { orgCurrency, orgDefaults } from '@/utils/orgDefaults'
 import PaymentModal from '@/components/pos/PaymentModal.vue'
 import ReceiptModal from '@/components/pos/ReceiptModal.vue'
 import CashDrawerModal from '@/components/pos/CashDrawerModal.vue'
@@ -460,6 +460,12 @@ export default {
     }
   },
   computed: {
+    // The quick "add a tax rate" button: the country's standard tax (VAT 16% in Kenya, GST 10% in
+    // Australia — also the fallback while the country is unknown).
+    starterTax() {
+      if (orgDefaults.taxRate !== null && orgDefaults.taxLabel) return { name: orgDefaults.taxLabel, rate: orgDefaults.taxRate }
+      return { name: 'GST', rate: 10 }
+    },
     me() {
       try {
         return useAuthStore().user || {}
@@ -748,10 +754,11 @@ export default {
     async addGst() {
       this.creatingTax = true
       try {
-        const t = await posService.createTaxRate({ name: 'GST', rate: 10, is_default: true })
+        const { name, rate } = this.starterTax
+        const t = await posService.createTaxRate({ name, rate, is_default: true })
         this.taxRates = [t, ...this.taxRates]
         this.taxRateId = t.id
-        toast.success('GST 10% added as the default tax rate')
+        toast.success(`${name} ${rate}% added as the default tax rate`)
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not add tax rate'))
       } finally {

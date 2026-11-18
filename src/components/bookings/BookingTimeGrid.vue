@@ -56,18 +56,18 @@
 </template>
 
 <script>
-import { personName, formatTime, statusMeta, sameDay } from './bookingUtils'
+import { personName, formatTime, statusMeta, sameDay, toWall, nowWall } from './bookingUtils'
 
 export default {
   name: 'BookingTimeGrid',
   props: {
-    days: { type: Array, required: true }, // Date[] (local midnight)
+    days: { type: Array, required: true }, // wall Date[] (midnight, business time — see bookingUtils)
     bookings: { type: Array, default: () => [] },
     hourPx: { type: Number, default: 56 }
   },
   emits: ['slot', 'select'],
   data() {
-    return { now: new Date(), timer: null }
+    return { now: nowWall(), timer: null }
   },
   computed: {
     visible() {
@@ -75,13 +75,13 @@ export default {
     },
     startHour() {
       let h = 7
-      for (const b of this.visible) h = Math.min(h, new Date(b.start_time).getHours())
+      for (const b of this.visible) h = Math.min(h, toWall(b.start_time).getHours())
       return h
     },
     endHour() {
       let h = 20
       for (const b of this.visible) {
-        const e = new Date(b.end_time)
+        const e = toWall(b.end_time)
         const eh = sameDay(e, b.start_time) ? e.getHours() + (e.getMinutes() ? 1 : 0) : 24
         h = Math.max(h, eh)
       }
@@ -110,8 +110,8 @@ export default {
         const items = this.visible
           .filter((b) => sameDay(d, b.start_time))
           .map((b) => {
-            const s = new Date(b.start_time)
-            let e = new Date(b.end_time)
+            const s = toWall(b.start_time)
+            let e = toWall(b.end_time)
             if (!sameDay(e, s)) {
               e = new Date(s)
               e.setHours(this.endHour, 0, 0, 0)
@@ -148,7 +148,7 @@ export default {
     }
   },
   mounted() {
-    this.timer = setInterval(() => (this.now = new Date()), 60000)
+    this.timer = setInterval(() => (this.now = nowWall()), 60000)
     this.$nextTick(this.scrollToNow)
   },
   beforeUnmount() {

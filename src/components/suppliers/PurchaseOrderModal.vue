@@ -90,8 +90,7 @@
               <div class="row-input">
                 <dt>
                   <select v-model.number="form.tax_rate" class="ui-select ui-select--sm" aria-label="Tax">
-                    <option :value="0">No tax</option>
-                    <option :value="10">GST 10%</option>
+                    <option v-for="t in taxOptions" :key="t.rate" :value="t.rate">{{ t.label }}</option>
                   </select>
                 </dt>
                 <dd>{{ money(taxAmount) }}</dd>
@@ -123,6 +122,7 @@
 import { supplierService } from '@/services/supplierService'
 import { inventoryService } from '@/services/inventoryService'
 import { listFrom, apiErrorMessage } from '@/services/api'
+import { invoicingApi } from '@/services/invoicing'
 import { formatMoney, isoDate, addDays } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 
@@ -146,12 +146,13 @@ export default {
       errors: {},
       suppliers: [],
       products: [],
+      taxRates: [],
       form: {
         supplier_id: this.supplierId || '',
         order_date: isoDate(),
         expected_date: addDays(isoDate(), 7),
         notes: '',
-        tax_rate: 10,
+        tax_rate: 0, // the organisation's default tax rate once loaded (VAT 16% in Kenya, GST 10% in Australia …)
         shipping_cost: 0,
         items: [newLine()]
       }
@@ -172,6 +173,16 @@ export default {
     },
     subTotal() {
       return this.round(this.form.items.reduce((sum, l) => sum + this.lineTotal(l), 0))
+    },
+    taxOptions() {
+      const opts = [{ label: 'No tax', rate: 0 }]
+      for (const t of this.taxRates) {
+        const r = Number(t.rate) || 0
+        if (!opts.some((o) => o.rate === r)) opts.push({ label: `${t.name} ${r}%`, rate: r })
+      }
+      const cur = Number(this.form.tax_rate) || 0
+      if (!opts.some((o) => o.rate === cur)) opts.push({ label: `${cur}%`, rate: cur })
+      return opts
     },
     taxAmount() {
       return this.round((this.subTotal * (Number(this.form.tax_rate) || 0)) / 100)
@@ -196,7 +207,9 @@ export default {
       if (!this.form.items.length) this.form.items = [newLine()]
     }
     try {
-      const [s, p] = await Promise.all([supplierService.getSuppliers(), inventoryService.getProducts()])
+      const [s, p, rates] = await Promise.all([supplierService.getSuppliers(), inventoryService.getProducts(), invoicingApi.taxRates().catch(() => [])])
+      this.taxRates = Array.isArray(rates) ? rates : []
+      if (!this.isEdit) this.form.tax_rate = Number(this.taxRates.find((t) => t.is_default)?.rate) || 0
       this.suppliers = listFrom(s, 'suppliers')
       this.products = listFrom(p, 'products').filter((x) => x.is_active !== false || this.form.items.some((l) => l.product_id === x.id))
       if (!this.form.supplier_id && this.supplierOptions.length === 1) this.form.supplier_id = this.supplierOptions[0].id

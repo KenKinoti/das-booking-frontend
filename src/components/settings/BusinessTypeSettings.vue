@@ -374,6 +374,8 @@ export default {
 <style scoped>
 .bts {
   display: grid;
+  /* one column that never grows past the screen (the roles table scrolls inside its wrapper) */
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 

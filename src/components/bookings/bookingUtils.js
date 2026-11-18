@@ -1,4 +1,5 @@
 /** Shared helpers for the Bookings module. */
+import { orgDefaults } from '@/utils/orgDefaults'
 
 export const BOOKING_STATUSES = [
   { value: 'scheduled', label: 'Scheduled', badge: 'info', icon: 'fa-regular fa-calendar' },
@@ -72,14 +73,115 @@ export function vehicleLabel(v) {
 
 const pad = (n) => String(n).padStart(2, '0')
 
-/** HH:MM in local time */
+/*
+ * Business time. Bookings are made and shown in the organisation's time zone
+ * (Settings → where the business is based), not the browser's: 10:00 typed by
+ * an owner travelling in Sydney is 10:00 at the Nairobi shop.
+ *
+ * Inside the Bookings module every Date object is a "wall" date: its local
+ * fields (getHours(), getDate() …) are the business's clock and calendar.
+ * Booking times from the API (ISO strings) are real instants: toWall() turns
+ * them into wall dates, fromWall() turns a wall date back into the instant to
+ * send to the API. Helpers below accept either: strings / numbers are
+ * instants, Date objects are wall dates.
+ */
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
+}
+
+const zoneOk = {}
+/** The business's IANA time zone (the organisation's; the browser's until it is known). */
+export function bizZone() {
+  const tz = orgDefaults.timezone
+  if (tz) {
+    if (zoneOk[tz] === undefined) {
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: tz })
+        zoneOk[tz] = true
+      } catch {
+        zoneOk[tz] = false
+      }
+    }
+    if (zoneOk[tz]) return tz
+  }
+  return browserZone()
+}
+
+/** True when the browser's clock is in a different zone than the business. */
+export function zoneDiffers() {
+  const z = bizZone()
+  if (z === browserZone()) return false
+  const now = Date.now()
+  return offsetMs(z, now) !== -new Date(now).getTimezoneOffset() * 60000
+}
+
+const partFmt = {}
+function partsIn(tz, ms) {
+  if (!partFmt[tz]) {
+    partFmt[tz] = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  }
+  const o = {}
+  for (const p of partFmt[tz].formatToParts(new Date(ms))) if (p.type !== 'literal') o[p.type] = Number(p.value)
+  if (o.hour === 24) o.hour = 0
+  return o
+}
+
+/** The zone's offset from UTC (ms) at instant ms. */
+function offsetMs(tz, ms) {
+  const o = partsIn(tz, ms)
+  const asUtc = Date.UTC(o.year, o.month - 1, o.day, o.hour, o.minute, o.second)
+  return asUtc - (ms - (((ms % 1000) + 1000) % 1000))
+}
+
+/** An instant (ISO string, ms or Date) → a wall Date showing business time. */
+export function toWall(value) {
+  const ms = value instanceof Date ? value.getTime() : new Date(value).getTime()
+  if (Number.isNaN(ms)) return new Date(NaN)
+  const o = partsIn(bizZone(), ms)
+  return new Date(o.year, o.month - 1, o.day, o.hour, o.minute, o.second, ((ms % 1000) + 1000) % 1000)
+}
+
+/** A wall Date (business time) → the real instant (Date). */
+export function fromWall(wall) {
+  const w = wall instanceof Date ? wall : new Date(wall)
+  if (Number.isNaN(w.getTime())) return new Date(NaN)
+  const tz = bizZone()
+  const guess = Date.UTC(w.getFullYear(), w.getMonth(), w.getDate(), w.getHours(), w.getMinutes(), w.getSeconds(), w.getMilliseconds())
+  let ms = guess - offsetMs(tz, guess)
+  // Around a daylight-saving change the offset at the result can differ from the guess's.
+  const second = guess - offsetMs(tz, ms)
+  if (second !== ms) ms = second
+  return new Date(ms)
+}
+
+/** Now, as a wall Date. */
+export function nowWall() {
+  return toWall(Date.now())
+}
+
+const asWall = (value) => (value instanceof Date ? value : toWall(value))
+
+/** HH:MM in business time (strings are instants, Dates wall dates) */
 export function hhmm(value) {
-  const d = value instanceof Date ? value : new Date(value)
+  const d = asWall(value)
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 export function formatTime(value) {
-  const d = value instanceof Date ? value : new Date(value)
+  const d = asWall(value)
   if (Number.isNaN(d.getTime())) return '—'
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(d)
 }
@@ -96,7 +198,7 @@ export function minutesBetween(a, b) {
   return Math.round((new Date(b) - new Date(a)) / 60000)
 }
 
-/** Build a local Date from YYYY-MM-DD and HH:MM */
+/** Build a wall Date (business time) from YYYY-MM-DD and HH:MM */
 export function combine(dateIso, time) {
   if (!dateIso || !time) return null
   const [h, m] = time.split(':').map(Number)
@@ -105,14 +207,20 @@ export function combine(dateIso, time) {
   return d
 }
 
-export function startOfDay(d = new Date()) {
-  const x = new Date(d)
+/** The instant (ISO string) of a business date + time, for the API. */
+export function bizInstant(dateIso, time) {
+  const w = combine(dateIso, time)
+  return w ? fromWall(w).toISOString() : null
+}
+
+export function startOfDay(d = nowWall()) {
+  const x = new Date(asWall(d))
   x.setHours(0, 0, 0, 0)
   return x
 }
 
 /** Monday of the week containing d */
-export function startOfWeek(d = new Date()) {
+export function startOfWeek(d = nowWall()) {
   const x = startOfDay(d)
   const day = (x.getDay() + 6) % 7
   x.setDate(x.getDate() - day)
@@ -125,8 +233,9 @@ export function addDaysDate(d, n) {
   return x
 }
 
+/** Same business day (strings are instants, Dates wall dates). */
 export function sameDay(a, b) {
-  const x = new Date(a)
-  const y = new Date(b)
+  const x = asWall(a)
+  const y = asWall(b)
   return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate()
 }
