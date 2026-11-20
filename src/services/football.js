@@ -1,5 +1,5 @@
-// Football analysis & bet tracker (pages /football, /football/match/:id, /football/bets, /football/model
-// and System settings → Football data). Backend: pkg/football — data is global (API-Football + The Odds
+// Football analysis & bet tracker (pages /football, /football/match/:id, /football/bets, /football/model,
+// /football/jackpot and System settings → Football data). Backend: pkg/football — data is global (API-Football + The Odds
 // API, fetched once); bets, bankroll, limits, watchlist and typed-in prices belong to the signed-in person.
 import api from './api'
 
@@ -53,7 +53,38 @@ export const footballApi = {
   manualOdds: (fixtureId) => api.get('/football/odds/manual', { params: clean({ fixture_id: fixtureId }) }).then(unwrap),
   /** body: { fixture_id, bookmaker, market, selection, line?, price, seen_at? } */
   addManualOdd: (body) => api.post('/football/odds/manual', body).then(unwrap),
-  deleteManualOdd: (id) => api.delete(`/football/odds/manual/${enc(id)}`).then(unwrap)
+  deleteManualOdd: (id) => api.delete(`/football/odds/manual/${enc(id)}`).then(unwrap),
+
+  // v2.17 — team news & news (football-free-contract.md §2)
+  /** { team_news, news } */
+  fixtureNews: (id) => api.get(`/football/fixtures/${enc(id)}/news`).then(unwrap),
+  news: (params = {}) => api.get('/football/news', { params: clean(params) }).then(unwrap),
+  /** body: { action: confirm|dismiss|clear, note? } → { fact, audit } (owners, admins, managers, super admins) */
+  reviewFact: (id, body) => api.post(`/football/team-news/${enc(id)}/review`, body).then(unwrap),
+  factAudit: (id) => api.get(`/football/team-news/${enc(id)}/audit`).then(unwrap),
+
+  // v2.17 — jackpot analyser (§3): your own jackpots only
+  jackpots: (params = {}) => api.get('/football/jackpots', { params: clean(params) }).then(unwrap),
+  jackpotMeta: () => api.get('/football/jackpots/meta').then(unwrap),
+  /** { text, date? } → { games: [{ line, raw, home, away, odds, kickoff, country, match }], skipped, warnings } */
+  parseJackpot: (body) => api.post('/football/jackpots/parse', body, { timeout: 30000 }).then(unwrap),
+  analyseJackpot: (body) => api.post('/football/jackpots/analyse', body, { timeout: 60000 }).then(unwrap),
+  createJackpot: (body) => api.post('/football/jackpots', body, { timeout: 60000 }).then(unwrap),
+  /** JackpotView { jackpot, games, tickets, analysis, grading } */
+  jackpot: (id, params = {}) => api.get(`/football/jackpots/${enc(id)}`, { params: clean(params), timeout: 60000 }).then(unwrap),
+  updateJackpot: (id, body) => api.put(`/football/jackpots/${enc(id)}`, body, { timeout: 60000 }).then(unwrap),
+  deleteJackpot: (id) => api.delete(`/football/jackpots/${enc(id)}`).then(unwrap),
+  duplicateJackpot: (id, body = {}) => api.post(`/football/jackpots/${enc(id)}/duplicate`, body).then(unwrap),
+  /** fixtureId null = unmatch */
+  matchJackpotGame: (id, n, fixtureId) => api.put(`/football/jackpots/${enc(id)}/games/${enc(n)}/match`, { fixture_id: fixtureId }).then(unwrap),
+  setJackpotResult: (id, n, body) => api.put(`/football/jackpots/${enc(id)}/games/${enc(n)}/result`, body).then(unwrap),
+  /** body: { name, picks, source: custom|most_likely|top|cover|contrarian } */
+  addJackpotTicket: (id, body) => api.post(`/football/jackpots/${enc(id)}/tickets`, body).then(unwrap),
+  deleteJackpotTicket: (id, ticketId) => api.delete(`/football/jackpots/${enc(id)}/tickets/${enc(ticketId)}`).then(unwrap),
+  gradeJackpot: (id) => api.post(`/football/jackpots/${enc(id)}/grade`).then(unwrap),
+  jackpotHistory: (params = {}) => api.get('/football/jackpots/history', { params: clean(params) }).then(unwrap),
+  /** ?home=&away=&date=&q= → { candidates: [{ fixture_id, home, away, kickoff, competition, competition_id, confidence }] } */
+  jackpotCandidates: (params = {}) => api.get('/football/jackpots/candidates', { params: clean(params) }).then(unwrap)
 }
 
 // Super admin: the providers' keys, budgets and competitions are the platform's.
@@ -70,5 +101,22 @@ export const footballAdminApi = {
   aliases: () => api.get('/super-admin/football/aliases').then(unwrap),
   setAlias: (name, teamId) => api.put('/super-admin/football/aliases', { name, team_id: teamId }).then(unwrap),
   deleteAlias: (alias) => api.delete(`/super-admin/football/aliases/${enc(alias)}`).then(unwrap),
-  unmatched: () => api.get('/super-admin/football/unmatched').then(unwrap)
+  unmatched: () => api.get('/super-admin/football/unmatched').then(unwrap),
+
+  // v2.17 — free sources, news rules and feeds (football-free-contract.md §4)
+  sources: () => api.get('/super-admin/football/sources').then(unwrap),
+  saveSources: (body) => api.put('/super-admin/football/sources', body).then(unwrap),
+  testSource: (provider) => api.post('/super-admin/football/sources/test', { provider }, { timeout: 30000 }).then(unwrap),
+  runSources: (body = {}) => api.post('/super-admin/football/sources/run', body, { timeout: 280000 }).then(unwrap),
+  seedHistory: (body = {}) => api.post('/super-admin/football/sources/seed-history', body, { timeout: 280000 }).then(unwrap),
+  newsRules: () => api.get('/super-admin/football/news-rules').then(unwrap),
+  /** body: { rules } or { reset: true } */
+  saveNewsRules: (body) => api.put('/super-admin/football/news-rules', body).then(unwrap),
+  testNewsRules: (body) => api.post('/super-admin/football/news-rules/test', body).then(unwrap),
+  newsFeeds: () => api.get('/super-admin/football/news-feeds').then(unwrap),
+  addNewsFeed: (body) => api.post('/super-admin/football/news-feeds', body).then(unwrap),
+  updateNewsFeed: (id, body) => api.put(`/super-admin/football/news-feeds/${enc(id)}`, body).then(unwrap),
+  deleteNewsFeed: (id) => api.delete(`/super-admin/football/news-feeds/${enc(id)}`).then(unwrap),
+  newsSources: () => api.get('/super-admin/football/news-sources').then(unwrap),
+  unmatchedNames: (params = {}) => api.get('/super-admin/football/unmatched-names', { params: clean(params) }).then(unwrap)
 }

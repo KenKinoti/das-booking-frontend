@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.16.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.17.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,13 +26,13 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Football analysis for bars and clubs: fair odds from the sharp market, a transparent model, a price check for your betting app, and an honest bet tracker.'
+export const RELEASE_LEAD = 'Football on near-free data: Betika and Pinnacle prices, ClubElo, team news from the press, a source check on every stat, and a jackpot analyser.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-futbol', text: 'Match centre: every day\'s games with the fair chance from the sharp market, DASYIN\'s model as a second opinion, best prices and live scores' },
-  { icon: 'fa-solid fa-chart-column', text: 'Match analysis: form, home and away form, league position history, head to head, key players and absences, score probabilities, odds movement — with sources' },
-  { icon: 'fa-solid fa-scale-balanced', text: 'Price check: type the odds from SportPesa, Betika or Odibets and see the expected value against the fair price, with a capped stake suggestion' },
-  { icon: 'fa-solid fa-wallet', text: 'My bets: automatic settlement, P&L, ROI, closing-line value, bankroll and drawdown, with limits and breaks' },
-  { icon: 'fa-solid fa-bullseye', text: 'Model track record: calibration and accuracy against the market, measured openly' }
+  { icon: 'fa-solid fa-ticket', text: 'Jackpot analyser: paste a SportPesa or Betika jackpot and get each game\'s chances, the most likely ticket, which games to double first and what each plan costs' },
+  { icon: 'fa-solid fa-newspaper', text: 'Team news from club sites, league sites and the local press in eight languages — confirmed or reported, always with the link' },
+  { icon: 'fa-solid fa-list-check', text: 'Source check: positions, points, form and head-to-head compared across sources, with any disagreement flagged' },
+  { icon: 'fa-solid fa-coins', text: 'Near-free data: Betika and Pinnacle prices from OddsPapi, ClubElo ratings, football-data.co.uk history and football-data.org, each with its own budget' },
+  { icon: 'fa-solid fa-futbol', text: 'Match centre and analysis from v2.16: fair chances, the model\'s record, price check and the bet tracker' }
 ]

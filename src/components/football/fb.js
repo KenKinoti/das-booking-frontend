@@ -129,7 +129,7 @@ export function fmtShortDate(iso, tz) {
 }
 /** "12 min ago", "3 h ago", "2 days ago" relative to `now` (the API's clock). */
 export function ago(iso, now) {
-  if (!iso) return 'never'
+  if (!iso || new Date(iso).getUTCFullYear() < 2000) return 'never'
   const ms = new Date(now || Date.now()) - new Date(iso)
   if (!Number.isFinite(ms)) return '—'
   const m = Math.round(ms / 60000)
@@ -362,3 +362,30 @@ export function compact(v) {
   if (a >= 1e4) return (n / 1e3).toFixed(Number.isInteger(n / 1e3) ? 0 : 1) + 'K'
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
+
+// ------------------------------------------------------------------ v2.17 sources
+/** One consistent colour per probability source (market aqua, ClubElo yellow, model violet; the jackpot's own odds
+ *  as a hollow ink ring). Text never wears these colours — they sit on a swatch beside the label. */
+export const SOURCE_STYLE = {
+  jackpot: { color: 'var(--text-2)', ring: true, label: 'Jackpot odds' },
+  market: { color: 'var(--fb-market)', ring: false, label: 'Market' },
+  clubelo: { color: 'var(--fb-elo)', ring: false, label: 'ClubElo' },
+  model: { color: 'var(--fb-model)', ring: false, label: 'DASYIN model' }
+}
+/** Provider keys → plain names (sources panel, source check popovers, settings). */
+export const PROVIDER_NAMES = {
+  apifootball: 'API-Football',
+  oddsapi: 'The Odds API',
+  oddspapi: 'OddsPapi',
+  clubelo: 'ClubElo',
+  fdcouk: 'football-data.co.uk',
+  fdorg: 'football-data.org',
+  google_news: 'Google News',
+  gdelt: 'GDELT',
+  feed: 'RSS / Atom feed',
+  feeds: 'RSS / Atom feeds',
+  news: 'News',
+  dasyin: 'DASYIN model',
+  manager: 'A manager'
+}
+export const providerName = (p) => PROVIDER_NAMES[p] || (String(p || '').startsWith('manual') ? 'Typed in (' + String(p).replace('manual: ', '') + ')' : p || '—')

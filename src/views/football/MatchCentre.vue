@@ -90,6 +90,7 @@
           <span><i class="fb-key" style="background: var(--fb-away)"></i>Away</span>
           <span><i class="fb-dot fb-dot--fresh"></i>odds &lt; 6 h old</span>
           <span><i class="fb-dot fb-dot--stale"></i>stale</span>
+          <span><i class="fb-dotnews"></i>confirmed absence in the team news</span>
           <span><i class="fa-solid fa-caret-up fb-pos"></i>price above the fair odds</span>
         </span>
       </div>
@@ -144,8 +145,16 @@
               <template v-else>{{ fmtTime(f.kickoff, tz) }}</template>
             </div>
             <router-link class="fbmc-teams" :to="`/football/match/${f.id}`" @click.stop>
-              <span class="fbmc-team"><FbCrest :src="f.home.logo" :name="f.home.name" :code="f.home.code" :size="20" /><span class="fbmc-tname">{{ f.home.name }}</span><b v-if="f.score.home != null">{{ f.score.home }}</b></span>
-              <span class="fbmc-team"><FbCrest :src="f.away.logo" :name="f.away.name" :code="f.away.code" :size="20" /><span class="fbmc-tname">{{ f.away.name }}</span><b v-if="f.score.away != null">{{ f.score.away }}</b></span>
+              <span class="fbmc-team"
+                ><FbCrest :src="f.home.logo" :name="f.home.name" :code="f.home.code" :size="20" /><span class="fbmc-tname">{{ f.home.name }}</span
+                ><i v-if="newsOf(f) && newsOf(f).home" class="fb-dotnews" role="img" :aria-label="newsTitle(f, 'home')" :title="newsTitle(f, 'home')" data-test="fb-news-dot"></i
+                ><b v-if="f.score.home != null">{{ f.score.home }}</b></span
+              >
+              <span class="fbmc-team"
+                ><FbCrest :src="f.away.logo" :name="f.away.name" :code="f.away.code" :size="20" /><span class="fbmc-tname">{{ f.away.name }}</span
+                ><i v-if="newsOf(f) && newsOf(f).away" class="fb-dotnews" role="img" :aria-label="newsTitle(f, 'away')" :title="newsTitle(f, 'away')" data-test="fb-news-dot"></i
+                ><b v-if="f.score.away != null">{{ f.score.away }}</b></span
+              >
             </router-link>
             <div class="fbmc-fair" :data-fair="f.market_1x2 ? [f.market_1x2.home, f.market_1x2.draw, f.market_1x2.away].map((v) => v.toFixed(4)).join(',') : ''">
               <span class="fbmc-lbl">Fair</span>
@@ -169,6 +178,20 @@
             <div class="fbmc-flags">
               <span v-if="f.value_count" class="fb-pill fb-pill--info" :title="valueTitle(f)">{{ edgesOver(f).length || f.value_count }} edge{{ (edgesOver(f).length || f.value_count) === 1 ? '' : 's' }}</span>
               <i class="fb-dot" :class="'fb-dot--' + freshness(f.odds_at || f.fetched_at, now, f.stale)" :title="freshTitle(f)" role="img" :aria-label="freshTitle(f)"></i>
+              <FbPopBtn v-if="!isFinished(f.status) && !isLive(f.status)" label="Add to a jackpot" btn-class="fb-iconbtn" :test-id="'fb-add-jp-' + f.id" @click.stop>
+                <template #button><i class="fa-solid fa-ticket" aria-hidden="true"></i><span class="sr-only">Add to a jackpot</span></template>
+                <div class="fb-pop__title">Add {{ f.home.name }} v {{ f.away.name }} to a jackpot</div>
+                <ul class="fbmc-jplist">
+                  <li v-for="j in openJackpots" :key="j.id">
+                    <router-link :to="`/football/jackpot/${j.id}?add=${f.id}`" :data-jackpot="j.id">{{ j.name }}</router-link>
+                    <span class="fb-muted fb-small"> · {{ j.n_games }} games</span>
+                  </li>
+                  <li v-if="jackpotsLoaded && !openJackpots.length" class="fb-muted fb-small">No open jackpots.</li>
+                  <li>
+                    <router-link :to="`/football/jackpot/new?fixture=${f.id}`" data-test="fb-add-jp-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New jackpot with this match</router-link>
+                  </li>
+                </ul>
+              </FbPopBtn>
             </div>
           </div>
         </section>
@@ -198,9 +221,11 @@ import FbCrest from '@/components/football/FbCrest.vue'
 import FbThin from '@/components/football/charts/FbThin.vue'
 import FbNoAccess from '@/components/football/FbNoAccess.vue'
 import FbFootnote from '@/components/football/FbFootnote.vue'
+import FbPopBtn from '@/components/football/FbPopBtn.vue'
 import { fb, loadMeta, forbiddenReason } from '@/components/football/fbState'
 import { DEFAULT_TZ, dayKey, addDaysKey, fmtTime, fmtDateTime, odds, isLive, isFinished, statusText, freshness, ago } from '@/components/football/fb'
 
+const NEWS_CACHE = new Map()
 const GROUPS = [
   ['europe_top', 'Top European leagues'],
   ['uefa', 'UEFA competitions'],
@@ -211,7 +236,7 @@ const GROUPS = [
 
 export default {
   name: 'MatchCentre',
-  components: { FbCrest, FbThin, FbNoAccess, FbFootnote },
+  components: { FbCrest, FbThin, FbNoAccess, FbFootnote, FbPopBtn },
   data() {
     const q = this.$route.query
     return {
@@ -234,7 +259,10 @@ export default {
       timer: null,
       liveTimer: null,
       reqId: 0,
-      nextDay: null
+      nextDay: null,
+      news: {},
+      jackpots: [],
+      jackpotsLoaded: false
     }
   },
   computed: {
@@ -285,6 +313,9 @@ export default {
     tzLabel() {
       return this.tz.replace('_', ' ')
     },
+    openJackpots() {
+      return this.jackpots.filter((j) => j.status !== 'graded' && (!j.closes_at || new Date(j.closes_at) > new Date(this.now || Date.now())))
+    },
     emptyTitle() {
       if (this.fixtures.length && this.valueOnly) return 'No matches pass the value filter'
       if (this.fixtures.length && this.watchOnly) return 'No watched matches on this day'
@@ -306,6 +337,7 @@ export default {
     this.loadCompetitions()
     this.loadWatch()
     this.loadLive()
+    this.loadJackpots()
     await this.load(true)
     this.liveTimer = setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -397,6 +429,7 @@ export default {
           }
         }
         this.fixtures = d.fixtures || []
+        this.loadNews()
         this.nextDay = null
         if (!this.fixtures.length && !this.q && !this.competition) this.findNext()
         this.$nextTick(() => this.scrollDay())
@@ -438,6 +471,47 @@ export default {
       } catch {
         this.watch = []
       }
+    },
+    async loadJackpots() {
+      try {
+        this.jackpots = (await footballApi.jackpots({ limit: 50 })).jackpots || []
+      } catch {
+        this.jackpots = []
+      } finally {
+        this.jackpotsLoaded = true
+      }
+    },
+    /** Team-news flag per side: { home: n, away: n } confirmed absences seen in the last 7 days. */
+    newsOf(f) {
+      if (f.team_news) {
+        const t = f.team_news
+        return { home: t.home_confirmed ?? t.home ?? 0, away: t.away_confirmed ?? t.away ?? 0 }
+      }
+      return this.news[f.id] || null
+    },
+    newsTitle(f, side) {
+      const n = this.newsOf(f)?.[side] || 0
+      const team = side === 'home' ? f.home.name : f.away.name
+      return `${team}: ${n} confirmed absence${n === 1 ? '' : 's'} in the team news (last 7 days)`
+    },
+    async loadNews() {
+      // Until the fixtures list carries a team-news flag, read each upcoming match's team news (cached 10 min).
+      const list = this.fixtures.filter((f) => !f.team_news && !isFinished(f.status)).slice(0, 40)
+      const now = Date.now()
+      const todo = list.filter((f) => !(NEWS_CACHE.get(f.id)?.at > now - 600000))
+      for (const f of list) if (NEWS_CACHE.has(f.id)) this.news = { ...this.news, [f.id]: NEWS_CACHE.get(f.id).v }
+      const one = async (f) => {
+        try {
+          const d = await footballApi.fixtureNews(f.id)
+          const fresh = (x) => x.confidence === 'confirmed' && !x.dismissed && !x.expired && ['injured', 'suspended'].includes(x.status) && new Date(x.last_seen || x.first_seen) > new Date(now - 7 * 86400000)
+          const v = { home: (d.team_news?.home || []).filter(fresh).length, away: (d.team_news?.away || []).filter(fresh).length }
+          NEWS_CACHE.set(f.id, { at: Date.now(), v })
+          this.news = { ...this.news, [f.id]: v }
+        } catch {
+          NEWS_CACHE.set(f.id, { at: Date.now(), v: null })
+        }
+      }
+      for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map(one))
     },
     async loadLive() {
       try {
@@ -659,7 +733,7 @@ export default {
 .fbmc-cols,
 .fbmc-row {
   display: grid;
-  grid-template-columns: 30px 64px minmax(180px, 1.5fr) minmax(150px, 1.3fr) minmax(90px, 0.8fr) minmax(150px, 1.1fr) 76px;
+  grid-template-columns: 30px 64px minmax(180px, 1.5fr) minmax(150px, 1.3fr) minmax(90px, 0.8fr) minmax(150px, 1.1fr) 104px;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
@@ -761,6 +835,20 @@ export default {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+.fbmc-jplist {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.fbmc-jplist a {
+  color: var(--text);
+  font-weight: 600;
+}
+.fbmc-team .fb-dotnews {
+  margin-left: -2px;
 }
 .fbmc-lbl {
   display: none;

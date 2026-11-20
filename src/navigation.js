@@ -143,6 +143,7 @@ export const navGroups = [
     icon: 'fa-regular fa-futbol',
     items: [
       { label: 'Match centre', to: '/football', module: 'football', icon: 'fa-regular fa-futbol', match: /^\/football(\/match\/[^/]+)?\/?$/ },
+      { label: 'Jackpot analyser', to: '/football/jackpot', module: 'football', icon: 'fa-solid fa-ticket', match: /^\/football\/jackpot/ },
       { label: 'My bets', to: '/football/bets', module: 'football', icon: 'fa-solid fa-receipt', match: /^\/football\/bets/ },
       { label: 'Model track record', to: '/football/model', module: 'football', icon: 'fa-solid fa-scale-balanced', match: /^\/football\/model/ }
     ]

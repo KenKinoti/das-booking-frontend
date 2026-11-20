@@ -6,6 +6,28 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.17.0] - 2026-11-20
+
+**Football on near-free data, team news and a jackpot analyser.** API-Football stays the backbone; everything else is
+free and optional, each with its own switch, budget, usage chart and call log in System settings → Football data:
+OddsPapi (250 requests a month: Betika and Pinnacle prices for watched, jackpot and top fixtures), ClubElo
+(independent club ratings and probabilities), football-data.co.uk (results history and closing odds that seed the
+model and its grading, credited), football-data.org (a cross-check for the big leagues), and news from Google News,
+GDELT and any club, league or local-press RSS feed you add. Team news is read with editable keyword rules in eight
+languages (English, Polish, German, Dutch, Danish, Romanian, French and Swahili) and matched against the squad; a fact
+is "confirmed" only when the injury list has it, two independent sites report it within 7 days, or a manager confirms
+it, and only confirmed absences change the model. Facts expire after 14 days and every review is audited. The match
+page gains Team news & news, a ClubElo row, Betika prices in the price check and odds table, and a source check that
+compares position, points, played, goals, last five, head to head and kick-off across sources, flagging any
+disagreement. New **Jackpot analyser** (Football → Jackpot analyser): paste a SportPesa or Betika jackpot — messy
+capitals and spellings are fine — or add its fixtures one by one, and see each game's chances from the jackpot's own
+odds, the sharp market, ClubElo and the model; the most likely ticket (copyable, with its chance in plain words); the
+best tickets in order; which games to double or triple first, with the chance and cost of each plan; the chance of at
+least 10, 11, 12 or all correct; expected draws; the expected value of a ticket with bonuses and a "share with other
+winners" setting; and contrarian variants with what they cost in chance. Saved jackpots grade themselves after the
+games. The match centre shows a team-news dot and "Add to jackpot". New AI tools: football_jackpot_analyse,
+football_jackpots.
+
 ## [2.16.0] - 2026-11-20
 
 **Football analysis & bet tracker.** A new Football menu for owners and managers of bars and clubs (the Nightclub /

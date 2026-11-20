@@ -1,5 +1,8 @@
 <template>
   <FbSection id="league" title="League position" :subtitle="subtitle">
+    <template v-if="a.source_check" #actions>
+      <SourceBadge :checks="srcChecks" title="Source check · league table" test-key="standings" />
+    </template>
     <div v-if="!st || !st.table || !st.table.length" class="fb-muted">No league table for this competition (cup or not covered).</div>
     <div v-else class="fbl2">
       <div class="fb-fig">
@@ -82,18 +85,23 @@
 
 <script>
 import FbSection from './FbSection.vue'
+import SourceBadge from './SourceBadge.vue'
+import { checksFor } from './srccheck'
 import FbFigure from '../charts/FbFigure.vue'
 import FbLine from '../charts/FbLine.vue'
 import { fmtDateTime } from '../fb'
 
 export default {
   name: 'LeagueSection',
-  components: { FbSection, FbFigure, FbLine },
+  components: { FbSection, FbFigure, FbLine, SourceBadge },
   props: {
     a: { type: Object, required: true },
     tz: { type: String, default: 'Africa/Nairobi' }
   },
   computed: {
+    srcChecks() {
+      return checksFor(this.a.source_check, 'standings', this.tz)
+    },
     f() {
       return this.a.fixture
     },

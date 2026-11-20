@@ -27,6 +27,8 @@
           :watched="!!watchItem"
           :can-refresh="isSuper"
           :refreshing="refreshing"
+          :source-check="a.source_check || null"
+          @jump="jump"
           @sources="sourcesOpen = true"
           @watch="toggleWatch"
           @refresh="refreshFixture"
@@ -42,6 +44,7 @@
           <div class="fbma__main">
             <a v-if="live" href="#live" class="fbma__jumplive" @click.prevent="jump('live')"><span class="fb-livedot"></span> In play — jump to the live block</a>
             <ProbSection ref="probabilities" :a="a" :tz="tz" />
+            <NewsSection v-if="a.team_news || a.news" ref="team-news" :a="a" :tz="tz" :now="now" @reviewed="load(true)" />
             <PriceCheck ref="price-check" :a="a" :meta="meta" :limits="limits" :tz="tz" @recorded="afterRecord" @saved="load(true)" />
             <ScoreSection ref="scores" :a="a" />
             <GoalsSection ref="goals" :a="a" />
@@ -54,6 +57,7 @@
             <OddsSection ref="odds" :a="a" :tz="tz" :now="now" />
             <LiveSection v-if="a.live" ref="live" :a="a" :tz="tz" :now="now" />
             <TrackSection ref="track-record" :a="a" />
+            <SourceCheckPanel v-if="a.source_check" ref="source-check" :a="a" :tz="tz" />
             <ReferenceSection ref="reference" :a="a" :tz="tz" />
             <section id="sources" class="fb-panel fbma__sources" data-section="sources">
               <div class="fb-panel__head">
@@ -122,8 +126,9 @@ import OddsSection from '@/components/football/match/OddsSection.vue'
 import LiveSection from '@/components/football/match/LiveSection.vue'
 import TrackSection from '@/components/football/match/TrackSection.vue'
 import ReferenceSection from '@/components/football/match/ReferenceSection.vue'
-
-const PROVIDERS = { apifootball: 'API-Football', oddsapi: 'The Odds API', dasyin: 'DASYIN model' }
+import NewsSection from '@/components/football/match/NewsSection.vue'
+import SourceCheckPanel from '@/components/football/match/SourceCheckPanel.vue'
+import { providerName } from '@/components/football/fb'
 
 export default {
   name: 'MatchAnalysis',
@@ -145,7 +150,9 @@ export default {
     OddsSection,
     LiveSection,
     TrackSection,
-    ReferenceSection
+    ReferenceSection,
+    NewsSection,
+    SourceCheckPanel
   },
   props: { id: { type: [String, Number], required: true } },
   data() {
@@ -167,6 +174,7 @@ export default {
     nav() {
       const n = [
         ['probabilities', 'Probabilities'],
+        ['team-news', 'Team news & news'],
         ['price-check', 'Price check'],
         ['scores', 'Scores'],
         ['goals', 'Over/under & BTTS'],
@@ -179,10 +187,12 @@ export default {
         ['odds', 'Odds'],
         ['live', this.live ? 'Live' : 'Match events'],
         ['track-record', 'Track record'],
+        ['source-check', 'Source check'],
         ['reference', 'Reference'],
         ['sources', 'Sources']
       ]
-      return n.filter(([id]) => id !== 'live' || (this.a && this.a.live)).map(([id, label]) => ({ id, label }))
+      const has = { live: !!(this.a && this.a.live), 'team-news': !!(this.a && (this.a.team_news || this.a.news)), 'source-check': !!(this.a && this.a.source_check) }
+      return n.filter(([id]) => has[id] !== false).map(([id, label]) => ({ id, label }))
     }
   },
   watch: {
@@ -210,9 +220,7 @@ export default {
   methods: {
     fmtDateTime,
     ago,
-    providerName(p) {
-      return PROVIDERS[p] || (p.startsWith('manual') ? 'Typed in (' + p.replace('manual: ', '') + ')' : p)
-    },
+    providerName,
     async load(quiet = false) {
       if (!quiet) this.error = ''
       this.loading = true

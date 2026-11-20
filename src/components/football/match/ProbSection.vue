@@ -23,6 +23,7 @@
             <th class="num">Fair odds</th>
             <th class="num">Model</th>
             <th class="num">Model odds</th>
+            <th v-if="hasElo" class="num" title="ClubElo's probability (clubelo.com), an independent free model">ClubElo</th>
             <th class="num" title="Model probability minus the fair (market) probability">Edge</th>
             <th class="num">Best price</th>
             <th class="num" title="Expected value of 1 unit at the best price, using the fair probability">EV at best vs fair</th>
@@ -35,6 +36,7 @@
             <td class="num">{{ s.fair ? odds(1 / s.fair) : '—' }}</td>
             <td class="num" :data-v="s.model">{{ pct(s.model) }}</td>
             <td class="num">{{ s.model ? odds(1 / s.model) : '—' }}</td>
+            <td v-if="hasElo" class="num" :data-v="s.elo" data-col="clubelo">{{ pct(s.elo) }}</td>
             <td class="num" :data-v="s.edge">{{ pts(s.edge) }}</td>
             <td class="num">
               <template v-if="s.best">{{ odds(s.best.price) }} <span class="fb-muted fb-small">{{ s.best.title }}</span></template><template v-else>—</template>
@@ -67,6 +69,15 @@
           prices are the hardest to beat; otherwise the consensus of {{ market.books }} bookmakers.
         </li>
         <li v-for="(t, i) in model.inputs || []" :key="i">{{ t }}</li>
+        <li v-if="a.clubelo">
+          <strong>ClubElo:</strong>
+          <template v-if="a.clubelo.available"
+            >{{ a.clubelo.home && a.clubelo.home.club }} {{ a.clubelo.home && Math.round(a.clubelo.home.elo) }} (rank {{ a.clubelo.home && a.clubelo.home.rank }}) v
+            {{ a.clubelo.away && a.clubelo.away.club }} {{ a.clubelo.away && Math.round(a.clubelo.away.elo) }} (rank {{ a.clubelo.away && a.clubelo.away.rank }}), ratings of
+            {{ a.clubelo.home && a.clubelo.home.date }}. </template
+          >{{ a.clubelo.note }} <a v-if="a.clubelo.url" :href="a.clubelo.url" target="_blank" rel="noopener noreferrer">clubelo.com</a>
+        </li>
+        <li v-if="model.org_adjusted"><strong>Your organisation's team news:</strong> {{ model.org_note || 'the model was recomputed with the team news your managers confirmed or dismissed.' }}</li>
         <li>
           <strong>Model:</strong> {{ model.version }}. {{ model.kind === 'frozen' ? 'Frozen before kick-off at ' + fmtDateTime(model.frozen_at, tz) + ' and never changed.' : 'Recomputed with the latest data at ' + fmtDateTime(model.computed_at, tz) + '.' }}
         </li>
@@ -98,6 +109,9 @@ export default {
     market() {
       return this.a.market || {}
     },
+    hasElo() {
+      return !!(this.a.clubelo && this.a.clubelo.available && this.a.clubelo.probs)
+    },
     subtitle() {
       return this.model.kind === 'frozen' ? 'Model frozen before kick-off; the fair market is the de-margined sharp price' : 'Fair market first — the model is a second, transparent opinion'
     },
@@ -106,9 +120,10 @@ export default {
       const mk = this.market
       const rows = []
       const fair = mk.fair_1x2
-      rows.push({ key: 'fair', label: 'Fair market', sub: mk.fair_source || '', h: fair?.home, d: fair?.draw, a: fair?.away, empty: 'No bookmaker prices yet', note: 'Bookmaker margin removed' })
+      rows.push({ key: 'fair', label: 'Fair market', sub: mk.fair_source || '', h: fair?.home, d: fair?.draw, a: fair?.away, empty: 'No bookmaker prices yet', note: 'Bookmaker margin removed', dot: 'var(--fb-market)' })
       rows.push({
         key: 'blend',
+        dot: 'var(--fb-model)',
         label: 'Model blend',
         sub: m.weights ? `${Math.round((m.weights.dc || 0) * 100)}% Dixon–Coles + ${Math.round((m.weights.elo || 0) * 100)}% Elo` : '',
         h: m.blend?.home,
@@ -119,6 +134,22 @@ export default {
       if (m.elo) rows.push({ key: 'elo', label: 'Elo', sub: `ratings ${Math.round(m.elo.rating_home)} v ${Math.round(m.elo.rating_away)}`, h: m.elo.p_home, d: m.elo.p_draw, a: m.elo.p_away })
       const c = mk.consensus_1x2
       if (c) rows.push({ key: 'consensus', label: 'Consensus', sub: `${mk.books || 0} bookmakers, margin removed`, h: c.home, d: c.draw, a: c.away })
+      const ce = this.a.clubelo
+      // ClubElo only gets a row when it covers both clubs; otherwise "How these numbers were made" says why.
+      if (ce && ce.available && ce.probs) {
+        const p = ce.probs
+        rows.push({
+          key: 'clubelo',
+          label: 'ClubElo',
+          dot: 'var(--fb-elo)',
+          sub: ce.home && ce.away ? `Elo ${Math.round(ce.home.elo)} v ${Math.round(ce.away.elo)} · clubelo.com` : 'clubelo.com',
+          h: p?.home,
+          d: p?.draw,
+          a: p?.away,
+          empty: ce.note || 'Not covered by ClubElo',
+          note: ce.probs_source === 'elo_formula' ? 'From the Elo difference (ClubElo has no fixture probabilities for this match)' : 'ClubElo’s own fixture probabilities — an independent free model'
+        })
+      }
       return rows
     },
     stackTable() {
@@ -135,7 +166,8 @@ export default {
         const fair = this.market.fair_1x2?.[k] ?? null
         const model = this.model.blend?.[k] ?? null
         const best = ms?.best || null
-        return { key: k, label: labels[k], color: colors[k], fair, model, edge: fair != null && model != null ? model - fair : null, best, evFair: best && fair ? best.price * fair - 1 : null }
+        const elo = this.a.clubelo?.available ? this.a.clubelo.probs?.[k] ?? null : null
+        return { key: k, label: labels[k], color: colors[k], fair, model, elo, edge: fair != null && model != null ? model - fair : null, best, evFair: best && fair ? best.price * fair - 1 : null }
       })
     },
     honest() {

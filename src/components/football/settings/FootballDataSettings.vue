@@ -5,8 +5,8 @@
       <div>
         <h2>Football data</h2>
         <p class="pf-muted">
-          API-Football (fixtures, results, statistics, line-ups, injuries, players, standings, some odds) and The Odds API (more bookmakers, including Pinnacle). Data is fetched once for every
-          organisation; the keys and their costs are the platform's.
+          API-Football (fixtures, results, statistics, line-ups, injuries, players, standings, some odds) and The Odds API (more bookmakers, including Pinnacle), plus the free sources
+          below. Data is fetched once for every organisation; the keys and their costs are the platform's.
         </p>
       </div>
       <button type="button" class="ui-btn ui-btn--primary" :disabled="refreshing" data-test="fb-refresh-now" @click="refresh">
@@ -161,6 +161,11 @@
             <div v-else class="pf-muted pf-small">No calls yet.</div>
           </FbFigure>
         </div>
+      </div>
+
+      <!-- v2.17 free sources, news rules, feeds -->
+      <div class="fbset__sec">
+        <FreeSourcesSettings />
       </div>
 
       <!-- Competitions -->
@@ -337,6 +342,7 @@ import { fb, loadMeta } from '@/components/football/fbState'
 import { compact } from '@/components/football/fb'
 import FbFigure from '@/components/football/charts/FbFigure.vue'
 import FbColumns from '@/components/football/charts/FbColumns.vue'
+import FreeSourcesSettings from '@/components/football/settings/FreeSourcesSettings.vue'
 
 const POLICY = ['apifootball_plan', 'apifootball_daily_budget', 'oddsapi_monthly_budget', 'odds_regions', 'odds_markets', 'odds_snapshots', 'lookahead_days', 'live_interval_sec', 'min_edge', 'kelly_fraction', 'kelly_cap', 'scheduler_on', 'live_polling']
 const GROUPS = [
@@ -349,7 +355,7 @@ const GROUPS = [
 
 export default {
   name: 'FootballDataSettings',
-  components: { FbFigure, FbColumns },
+  components: { FbFigure, FbColumns, FreeSourcesSettings },
   data() {
     return {
       v: null,

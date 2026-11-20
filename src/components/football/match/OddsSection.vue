@@ -47,7 +47,7 @@
           </tbody>
         </table>
       </div>
-      <p class="fb-muted fb-small" style="margin: 6px 0 0">Best price per selection is marked. Bookmakers with lower margins give more back; SportPesa, Betika and Odibets aren't carried by the data providers — type their prices into the price check.</p>
+      <p class="fb-muted fb-small" style="margin: 6px 0 0">Best price per selection is marked. Bookmakers with lower margins give more back. Betika (KE) comes from OddsPapi when it prices the match; SportPesa and Odibets aren't carried by any data provider — type their prices into the price check.</p>
 
       <FbFigure
         v-if="moveSeries.length"
@@ -91,7 +91,7 @@ import FbFigure from '../charts/FbFigure.vue'
 import FbLine from '../charts/FbLine.vue'
 import { odds, pct, spct, ago, fmtDateTime, line, marketLabel } from '../fb'
 
-const KENYA = ['sportpesa', 'betika', 'odibets', 'betway', '1xbet', 'mozzartbet', 'shabiki', 'sportybet', 'betin', 'bangbet', '22bet', 'melbet', 'dafabet', 'helabet']
+const KENYA = ['sportpesa', 'betika', 'betika_ke', 'odibets', 'betway', '1xbet', 'mozzartbet', 'shabiki', 'sportybet', 'betin', 'bangbet', '22bet', 'melbet', 'dafabet', 'helabet']
 const ORDER = { '1x2': 0, dc: 1, dnb: 2, ou: 3, btts: 4, ah: 5 }
 
 export default {
@@ -162,7 +162,7 @@ export default {
       for (const m of this.market.movement || []) {
         if (m.market !== this.group.market || String(m.line ?? '') !== String(this.group.line ?? '')) continue
         const key = `${m.bookmaker}|${m.source}`
-        if (!seen.has(key)) seen.set(key, { key, title: (this.bookMeta.get(key)?.title || m.bookmaker) + (m.source === 'oddsapi' ? ' (The Odds API)' : '') })
+        if (!seen.has(key)) seen.set(key, { key, title: (this.bookMeta.get(key)?.title || m.bookmaker) + (m.source === 'oddsapi' ? ' (The Odds API)' : m.source === 'oddspapi' ? ' (OddsPapi)' : '') })
       }
       return [...seen.values()]
     },
@@ -236,7 +236,7 @@ export default {
     },
     srcLabel(src) {
       if (src.startsWith('manual')) return 'typed in'
-      return src === 'oddsapi' ? 'The Odds API' : src === 'apifootball' ? 'API-Football' : src
+      return src === 'oddsapi' ? 'The Odds API' : src === 'apifootball' ? 'API-Football' : src === 'oddspapi' ? 'OddsPapi' : src
     },
     isBest(s, b) {
       return s.best && b.prices[s.selection] != null && s.best.bookmaker === b.key && s.best.source === b.source

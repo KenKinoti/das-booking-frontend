@@ -1,5 +1,8 @@
 <template>
   <FbSection id="form" title="Form" subtitle="Last 10 results, form by window and venue, and the rolling goals and expected-goals trend">
+    <template v-if="a.source_check" #actions>
+      <SourceBadge :checks="srcChecks" title="Source check · recent results" test-key="form" />
+    </template>
     <!-- Last 10: oldest → newest -->
     <div class="fbf__tl">
       <div v-for="t in teams" :key="t.side" class="fbf__team" :data-team="t.side">
@@ -100,6 +103,8 @@
 
 <script>
 import FbSection from './FbSection.vue'
+import SourceBadge from './SourceBadge.vue'
+import { checksFor } from './srccheck'
 import FbFigure from '../charts/FbFigure.vue'
 import FbLine from '../charts/FbLine.vue'
 import { fixed, fmtShortDate, RESULT_LABEL } from '../fb'
@@ -113,7 +118,7 @@ const METRICS = [
 
 export default {
   name: 'FormSection',
-  components: { FbSection, FbFigure, FbLine },
+  components: { FbSection, FbFigure, FbLine, SourceBadge },
   props: {
     a: { type: Object, required: true },
     tz: { type: String, default: 'Africa/Nairobi' }
@@ -122,6 +127,9 @@ export default {
     return { metricKey: 'roll_xgf', metrics: METRICS }
   },
   computed: {
+    srcChecks() {
+      return checksFor(this.a.source_check, 'results', this.tz)
+    },
     f() {
       return this.a.fixture
     },

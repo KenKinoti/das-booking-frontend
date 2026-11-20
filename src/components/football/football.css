@@ -3,13 +3,19 @@
    home = categorical slot 1 (blue), away = slot 2 (orange), draw = neutral gray (the midpoint of the
    home ↔ away diverging scale), model = slot 7 (violet), market = slot 3 (aqua; under 3:1 on white,
    so every chart using it ships direct labels and a table view). Status good/critical only where a
-   value means good/bad (P&L, W/L) and always with a sign or letter. Labels never wear a series colour. */
+   value means good/bad (P&L, W/L) and always with a sign or letter. Labels never wear a series colour.
+   v2.17: ClubElo = slot 4 (yellow #eda100 / dark #c98500) — validated all-pairs with market aqua and model violet in
+   both modes (CVD ΔE 9.1 / 8.4, normal 22.9 / 19.8); under 3:1 on white, so it ships with labels + table view.
+   Team news: confirmed = filled mark / solid pill with a check; reported (one source) = hollow mark / outlined pill.
+   Source check: agree / minor difference / conflict = status good / warning / critical, always icon + word. */
 .fb {
   --fb-home: #2a78d6;
   --fb-away: #eb6834;
   --fb-draw: #8f8d86;
   --fb-model: #6250d6;
   --fb-market: #1baf7a;
+  --fb-elo: #eda100;
+  --fb-ink: var(--text);
   --fb-good: #0ca30c;
   --fb-good-text: #006300;
   --fb-bad: #d03b3b;
@@ -28,6 +34,7 @@
   --fb-draw: #75736d;
   --fb-model: #9085e9;
   --fb-market: #199e70;
+  --fb-elo: #c98500;
   --fb-good: #0ca30c;
   --fb-good-text: #3ccf7e;
   --fb-bad: #e66767;
@@ -466,4 +473,211 @@
 }
 .fb-seg button:focus-visible {
   outline: 2px solid var(--accent);
+}
+
+/* ---------- v2.17: team news facts (confirmed vs reported) ---------- */
+.fb-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.fb-fact--confirmed {
+  background: var(--text);
+  color: var(--surface);
+}
+.fb-fact--reported {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px dashed var(--border-strong);
+}
+.fb-fact--dismissed {
+  background: transparent;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  text-decoration: line-through;
+}
+/* the same idea as a chart mark: filled = confirmed, hollow ring = reported */
+.fb-mark {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.fb-mark--confirmed {
+  background: var(--text);
+}
+.fb-mark--reported {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--text-2);
+}
+
+/* ---------- v2.17: source check badges (agree / minor / conflict) ---------- */
+.fb-chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-2);
+  background: var(--neutral-soft);
+}
+.fb-chk i {
+  font-size: 11px;
+}
+.fb-chk--agree i {
+  color: var(--fb-good);
+}
+.fb-chk--minor i {
+  color: #b77a00;
+}
+.fb-chk--conflict {
+  background: var(--danger-soft);
+  color: var(--text);
+}
+.fb-chk--conflict i {
+  color: var(--fb-bad);
+}
+.fb-chk--none i {
+  color: var(--text-3);
+}
+.fb-chk:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+[data-theme='dark'] .fb-chk--minor i {
+  color: var(--fb-warn);
+}
+.fb-pop {
+  position: absolute;
+  z-index: 40;
+  min-width: 240px;
+  max-width: min(340px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+  text-align: left;
+  white-space: normal;
+}
+.fb-pop__title {
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+.fb-pop table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.fb-pop td {
+  padding: 3px 0;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+}
+.fb-pop td + td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 10px;
+}
+.fb-pop tr.is-off td {
+  color: var(--fb-bad);
+}
+[data-theme='dark'] .fb-pop tr.is-off td {
+  color: #ff8a8f;
+}
+
+/* ---------- v2.17: ticket selections (1 X 2) ---------- */
+.fb-ticket {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.fb-ticket b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: var(--neutral-soft);
+  color: var(--text);
+}
+.fb-ticket b.is-multi {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.fb-ticket b.is-hit {
+  box-shadow: inset 0 0 0 2px var(--fb-good);
+}
+.fb-ticket b.is-miss {
+  box-shadow: inset 0 0 0 2px var(--fb-bad);
+  color: var(--text-2);
+}
+.fb-dotnews {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--surface);
+  flex-shrink: 0;
+}
+.fb-table .fb-ticket {
+  flex-wrap: nowrap;
+  gap: 3px;
+}
+.fb-table .fb-ticket b {
+  min-width: 21px;
+  height: 22px;
+  font-size: 12px;
+  padding: 0 3px;
+}
+.fb-iconbtn {
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+}
+.fb-iconbtn:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.fb-iconbtn:focus-visible {
+  outline: 2px solid var(--accent);
+}
+button.fb-fact {
+  font-family: inherit;
+  cursor: pointer;
+}
+button.fb-fact:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }

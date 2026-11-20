@@ -4,7 +4,9 @@
   <div ref="root" class="fbs" :class="{ 'is-narrow': narrow }">
     <div v-for="r in rows" :key="r.key" class="fbs__row" :data-row="r.key">
       <div class="fbs__label">
-        <span class="fbs__name">{{ r.label }}</span>
+        <span class="fbs__name"
+          ><i v-if="r.dot" class="fbs__dot" :class="{ 'is-ring': r.ring }" :style="r.ring ? { boxShadow: 'inset 0 0 0 2px ' + r.dot } : { background: r.dot }" aria-hidden="true"></i>{{ r.label }}</span
+        >
         <span v-if="r.sub" class="fbs__sub">{{ r.sub }}</span>
       </div>
       <div
@@ -50,7 +52,7 @@ const COLORS = ['var(--fb-home)', 'var(--fb-draw)', 'var(--fb-away)']
 export default {
   name: 'FbStack',
   props: {
-    // [{ key, label, sub, h, d, a, note, empty }]
+    // [{ key, label, sub, h, d, a, note, empty, dot? (source colour swatch), ring? (hollow swatch) }]
     rows: { type: Array, default: () => [] },
     names: { type: Array, default: () => ['Home', 'Draw', 'Away'] }
   },
@@ -150,6 +152,14 @@ export default {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+}
+.fbs__dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 0;
 }
 .fbs__sub {
   font-size: 11.5px;

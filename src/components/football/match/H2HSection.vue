@@ -1,5 +1,8 @@
 <template>
   <FbSection id="h2h" title="Head to head" :subtitle="subtitle">
+    <template v-if="a.source_check" #actions>
+      <SourceBadge :checks="srcChecks" title="Source check · head to head" test-key="h2h" />
+    </template>
     <div v-if="!s.n" class="fb-muted">These teams haven't met in the data we have.</div>
     <template v-else>
       <FbFigure
@@ -54,17 +57,22 @@
 
 <script>
 import FbSection from './FbSection.vue'
+import SourceBadge from './SourceBadge.vue'
+import { checksFor } from './srccheck'
 import FbFigure from '../charts/FbFigure.vue'
 import { pct, fixed, fmtDay, fmtDateTime } from '../fb'
 
 export default {
   name: 'H2HSection',
-  components: { FbSection, FbFigure },
+  components: { FbSection, FbFigure, SourceBadge },
   props: {
     a: { type: Object, required: true },
     tz: { type: String, default: 'Africa/Nairobi' }
   },
   computed: {
+    srcChecks() {
+      return checksFor(this.a.source_check, 'h2h', this.tz)
+    },
     f() {
       return this.a.fixture
     },

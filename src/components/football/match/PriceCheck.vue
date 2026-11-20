@@ -1,5 +1,44 @@
 <template>
   <FbSection id="price-check" title="Price check" subtitle="Type the odds your app offers — SportPesa, Betika, Odibets… — and see them against the fair price and the model" open-on-phone>
+    <!-- Kenyan bookmakers' prices fetched automatically (OddsPapi) -->
+    <div v-if="ke" class="fbpc__ke" data-test="fb-pc-kenyan">
+      <div class="fbpc__kehead">
+        <div>
+          <div class="fb-fig__title">Kenyan bookmakers — fetched automatically</div>
+          <div class="fb-fig__sub">
+            <template v-if="ke.available && ke.bookmakers.length">Match result prices from OddsPapi against the fair price ({{ ke.fair_source || 'sharp market' }}). Select a price to check it below.</template>
+            <template v-else>No Kenyan bookmaker prices from OddsPapi for this match yet{{ ke.note ? ' — ' + ke.note : '' }}.</template>
+          </div>
+        </div>
+        <span v-if="ke.budget" class="fb-muted fb-small">OddsPapi this {{ ke.budget.period }}: {{ ke.budget.used }} of {{ ke.budget.budget }} requests</span>
+      </div>
+      <div v-if="ke.available && ke.bookmakers.length" class="fb-scroll">
+        <table class="fb-table fb-table--nowrap fbpc__ket">
+          <thead>
+            <tr>
+              <th>Bookmaker</th>
+              <th v-for="k in ['home', 'draw', 'away']" :key="k" class="num">{{ k === 'home' ? f.home.name : k === 'away' ? f.away.name : 'Draw' }}</th>
+              <th class="num" title="The bookmaker's built-in margin: sum of 1/price − 1">Margin</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in ke.bookmakers" :key="b.key" :data-book="b.key">
+              <td><strong>{{ b.title }}</strong> <span v-if="b.stale" class="fb-pill fb-pill--warn">stale</span></td>
+              <td v-for="k in ['home', 'draw', 'away']" :key="k" class="num">
+                <button v-if="b.prices && b.prices[k]" type="button" class="fbpc__keprice" :data-sel="k" :data-price="b.prices[k]" :title="`Check ${b.title} ${odds(b.prices[k])} below`" @click="useKenyan(b, k)">
+                  <strong>{{ odds(b.prices[k]) }}</strong>
+                  <span class="fb-small" :class="b.vs_fair && b.vs_fair[k] > 0.005 ? 'fb-pos' : 'fb-muted'">{{ b.vs_fair && b.vs_fair[k] != null ? spct(b.vs_fair[k]) + ' vs fair' : '' }}</span>
+                </button>
+                <span v-else class="fb-muted">—</span>
+              </td>
+              <td class="num">{{ b.margin != null ? pct(b.margin) : '—' }}</td>
+              <td class="fb-small fb-muted">{{ fmtDay(b.updated_at || b.fetched_at, tz, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
     <div class="fbpc">
       <form class="fbpc__form" novalidate @submit.prevent="record">
         <div class="ui-field">
@@ -49,6 +88,7 @@
             <label class="ui-label" for="fbpc-odds">Odds offered (decimal)</label>
             <input id="fbpc-odds" v-model="oddsIn" class="ui-input fbpc__odds" inputmode="decimal" autocomplete="off" placeholder="e.g. 2.10" data-test="fb-pc-odds" @input="onOdds" />
             <span v-if="oddsError" class="ui-field__error">{{ oddsError }}</span>
+            <span v-else-if="autoFrom" class="ui-hint" data-test="fb-pc-auto">{{ autoFrom }}</span>
           </div>
           <div class="ui-field">
             <label class="ui-label" for="fbpc-stake">Stake ({{ currency }})</label>
@@ -195,7 +235,7 @@ export default {
     } catch {
       /* private mode */
     }
-    return { MARKETS, market: '1x2', sel: 'home', ln: 2.5, book, otherBook: '', oddsIn: '', stakeIn: '', server: null, serverKey: '', timer: null, saving: false, savingPrice: false, recordError: '' }
+    return { MARKETS, market: '1x2', sel: 'home', ln: 2.5, book, otherBook: '', oddsIn: '', stakeIn: '', server: null, serverKey: '', timer: null, saving: false, savingPrice: false, recordError: '', autoFrom: '' }
   },
   computed: {
     f() {
@@ -328,6 +368,10 @@ export default {
     },
     manual() {
       return this.a.market?.manual || []
+    },
+    ke() {
+      const k = this.a.kenyan_odds
+      return k ? { ...k, bookmakers: k.bookmakers || [] } : null
     }
   },
   watch: {
@@ -337,6 +381,7 @@ export default {
     },
     sel() {
       if (this.market === 'ah') this.pickDefaultLine()
+      this.autoFill()
     },
     inputsKey() {
       this.recordError = ''
@@ -350,7 +395,11 @@ export default {
       } catch {
         /* private mode */
       }
+      this.autoFill()
     }
+  },
+  mounted() {
+    this.autoFill()
   },
   beforeUnmount() {
     clearTimeout(this.timer)
@@ -395,6 +444,46 @@ export default {
     },
     onOdds() {
       this.oddsIn = String(this.oddsIn).replace(/[^0-9.,]/g, '')
+      this.autoFrom = ''
+    },
+    /** The bookmaker name in the picker for an OddsPapi bookmaker ("betika" / "Betika (KE)" → "Betika"). */
+    bookNameFor(b) {
+      const norm = (x) => String(x || '').toLowerCase().replace(/\(ke\)/, '').replace(/[^a-z0-9]/g, '')
+      return this.bookmakers.find((x) => norm(x) === norm(b.key) || norm(x) === norm(b.title)) || String(b.title || b.key).replace(/\s*\(KE\)\s*$/i, '')
+    },
+    kenyanFor(bookName, sel) {
+      if (!this.ke || !this.ke.available) return null
+      const norm = (x) => String(x || '').toLowerCase().replace(/\(ke\)/, '').replace(/[^a-z0-9]/g, '')
+      const b = this.ke.bookmakers.find((x) => norm(x.key) === norm(bookName) || norm(x.title) === norm(bookName))
+      return b && b.prices && b.prices[sel] ? { b, price: b.prices[sel] } : null
+    },
+    /** Fill the odds from OddsPapi when the chosen bookmaker has a match-result price and nothing was typed. */
+    autoFill() {
+      if (this.market !== '1x2' || (String(this.oddsIn).trim() && !this.autoFrom)) return
+      const k = this.kenyanFor(this.bookName, this.sel)
+      if (!k) {
+        if (this.autoFrom) {
+          this.oddsIn = ''
+          this.autoFrom = ''
+        }
+        return
+      }
+      this.oddsIn = String(k.price)
+      this.autoFrom = `From OddsPapi (${k.b.title}), updated ${fmtDay(k.b.updated_at || k.b.fetched_at, this.tz, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    },
+    useKenyan(b, k) {
+      const name = this.bookNameFor(b)
+      this.market = '1x2'
+      this.$nextTick(() => {
+        this.sel = k
+        if (this.bookmakers.includes(name)) this.book = name
+        else {
+          this.book = '__other'
+          this.otherBook = name
+        }
+        this.oddsIn = String(b.prices[k])
+        this.autoFrom = `From OddsPapi (${b.title})`
+      })
     },
     stakeFor(fr) {
       if (this.bankroll == null || !(fr > 0)) return 0
@@ -487,6 +576,38 @@ function round4(x) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
+}
+.fbpc__ke {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.fbpc__kehead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 16px;
+  align-items: flex-end;
+  margin-bottom: 6px;
+}
+.fbpc__keprice {
+  display: inline-grid;
+  justify-items: end;
+  gap: 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 3px 8px;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.25;
+}
+.fbpc__keprice:hover {
+  border-color: var(--accent);
+}
+.fbpc__keprice:focus-visible {
+  outline: 2px solid var(--accent);
 }
 .fbpc__form {
   display: grid;

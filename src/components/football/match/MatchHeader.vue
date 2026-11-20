@@ -52,6 +52,13 @@
         <dt>Referee</dt>
         <dd>{{ f.referee }}</dd>
       </div>
+      <div v-if="sourceCheck">
+        <dt>Source check</dt>
+        <dd>
+          <SourceBadge :checks="headerChecks" title="Source check · kick-off and team names" test-key="header" />
+          <a href="#source-check" class="fb-small fbmh__sclink" @click.prevent="$emit('jump', 'source-check')">all checks</a>
+        </dd>
+      </div>
       <div>
         <dt>Data as of</dt>
         <dd data-test="fb-as-of">
@@ -74,11 +81,13 @@
 
 <script>
 import FbCrest from '../FbCrest.vue'
+import SourceBadge from './SourceBadge.vue'
+import { checksFor } from './srccheck'
 import { fmtTime, fmtDay, fmtDateTime, statusText, isLive } from '../fb'
 
 export default {
   name: 'MatchHeader',
-  components: { FbCrest },
+  components: { FbCrest, SourceBadge },
   props: {
     f: { type: Object, required: true },
     tz: { type: String, default: 'Africa/Nairobi' },
@@ -91,10 +100,14 @@ export default {
     awayRank: { type: Number, default: null },
     watched: { type: Boolean, default: false },
     canRefresh: { type: Boolean, default: false },
-    refreshing: { type: Boolean, default: false }
+    refreshing: { type: Boolean, default: false },
+    sourceCheck: { type: Object, default: null }
   },
-  emits: ['sources', 'watch', 'refresh'],
+  emits: ['sources', 'watch', 'refresh', 'jump'],
   computed: {
+    headerChecks() {
+      return checksFor(this.sourceCheck, ['kickoff', 'identity'], this.tz)
+    },
     live() {
       return isLive(this.f.status)
     },
@@ -108,7 +121,7 @@ export default {
       const ms = new Date(this.f.kickoff) - new Date(this.now || Date.now())
       if (!(ms > 0)) return 'Kick-off due'
       const h = Math.floor(ms / 3600000)
-      const m = Math.round((ms % 3600000) / 60000)
+      const m = Math.floor((ms % 3600000) / 60000)
       if (h >= 48) return `in ${Math.round(h / 24)} days`
       return h ? `in ${h} h ${m} min` : `in ${m} min`
     }
@@ -227,6 +240,9 @@ export default {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+}
+.fbmh__sclink {
+  color: var(--text-2);
 }
 .fbmh__actions {
   display: flex;

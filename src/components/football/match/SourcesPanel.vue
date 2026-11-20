@@ -32,7 +32,9 @@
           <p class="fb-muted fb-small">
             API-Football (api-sports.io, v3) supplies fixtures, results, statistics, line-ups, injuries, players, standings and some bookmakers' odds; The Odds API (v4) supplies more
             bookmakers, including Pinnacle. Prices marked “manual” were typed in by someone in your organisation from a bookmaker's app. DASYIN's model is computed here from the
-            stored results.
+            stored results. Since v2.17 also: OddsPapi (Kenyan bookmakers such as Betika, and Pinnacle), ClubElo (club ratings and its own probabilities), football-data.co.uk (results
+            history and closing odds), football-data.org (a cross-check of tables and results) and news headlines from Google News, GDELT and publishers' feeds — headlines and
+            links only.
           </p>
         </div>
       </aside>
@@ -43,7 +45,7 @@
 <script>
 import { fmtDateTime, ago } from '../fb'
 
-const LABELS = { apifootball: 'API-Football', oddsapi: 'The Odds API', dasyin: 'DASYIN model' }
+const LABELS = { apifootball: 'API-Football', oddsapi: 'The Odds API', dasyin: 'DASYIN model', oddspapi: 'OddsPapi', clubelo: 'ClubElo', fdcouk: 'football-data.co.uk', fdorg: 'football-data.org', google_news: 'Google News', gdelt: 'GDELT', feed: 'RSS / Atom feeds' }
 
 export default {
   name: 'SourcesPanel',
