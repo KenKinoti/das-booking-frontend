@@ -18,6 +18,7 @@ import './components/seasons/install' // seasonal themes: data-season controller
 import './components/subscriptions/install' // client subscriptions: /subscriptions pages + public "Your services" page
 import './components/brief/install' // morning brief: /brief and /brief/:date
 import './components/schedsend/install' // schedule send: Communication → Scheduled (/communication/scheduled)
+import './components/football/install' // football analysis & bet tracker: /football, /football/match/:id, /football/bets, /football/model
 
 initTheme()
 

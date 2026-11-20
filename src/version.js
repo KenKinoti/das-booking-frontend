@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.15.0'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.16.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,14 +26,13 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'A morning brief at 8:00 by email and WhatsApp, schedule any message, an AI market scout that hunts for opportunities, and Undo and Recall for invoice emails.'
+export const RELEASE_LEAD = 'Football analysis for bars and clubs: fair odds from the sharp market, a transparent model, a price check for your betting app, and an honest bet tracker.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-mug-hot', text: 'Morning brief: bills (incl. Synergy), money in, Jira progress and opportunities in one short note at 8:00 your time, by email and WhatsApp' },
-  { icon: 'fa-solid fa-clock', text: 'Schedule send: invoices, quotes, receipts, reminders, customer and team messages by email, SMS or WhatsApp — once or on repeat' },
-  { icon: 'fa-solid fa-binoculars', text: 'Market scout (Insights): tenders, grants, leads and new markets found on the web, ranked by fit, with sources and a monthly budget' },
-  { icon: 'fa-solid fa-rotate-left', text: 'Undo send (2 minutes) and Recall for invoice emails: switch off their links and send a "please disregard" notice' },
-  { icon: 'fa-brands fa-whatsapp', text: 'WhatsApp Business connected: approved templates, delivery and read status, and SMS through Africa\'s Talking or Twilio' },
-  { icon: 'fa-solid fa-scale-balanced', text: 'Tax rates follow your country (Kenya: VAT 16%) with a one-click fix for older settings, bookings keep the business\'s time, and phone pages no longer cut off' }
+  { icon: 'fa-solid fa-futbol', text: 'Match centre: every day\'s games with the fair chance from the sharp market, DASYIN\'s model as a second opinion, best prices and live scores' },
+  { icon: 'fa-solid fa-chart-column', text: 'Match analysis: form, home and away form, league position history, head to head, key players and absences, score probabilities, odds movement — with sources' },
+  { icon: 'fa-solid fa-scale-balanced', text: 'Price check: type the odds from SportPesa, Betika or Odibets and see the expected value against the fair price, with a capped stake suggestion' },
+  { icon: 'fa-solid fa-wallet', text: 'My bets: automatic settlement, P&L, ROI, closing-line value, bankroll and drawdown, with limits and breaks' },
+  { icon: 'fa-solid fa-bullseye', text: 'Model track record: calibration and accuracy against the market, measured openly' }
 ]

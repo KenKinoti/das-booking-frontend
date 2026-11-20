@@ -35,6 +35,11 @@
         <SmsProviderSettings />
       </div>
 
+      <!-- Football data: API-Football + The Odds API keys, budgets, usage, competitions (pkg/football; loads on its own) -->
+      <div v-else-if="tab === 'football'" class="ui-card__body">
+        <FootballDataSettings />
+      </div>
+
       <!-- Secure calls: STUN / TURN relay (loads on its own) -->
       <div v-else-if="tab === 'calls'" class="ui-card__body">
         <SecureCallSettings />
@@ -310,6 +315,7 @@ import AiKeySettings from '@/components/assistant/AiKeySettings.vue'
 import SecureCallSettings from '@/components/calls/SecureCallSettings.vue'
 import SmsProviderSettings from '@/components/schedsend/SmsProviderSettings.vue'
 import BriefNotificationSettings from '@/components/brief/BriefNotificationSettings.vue'
+import FootballDataSettings from '@/components/football/settings/FootballDataSettings.vue'
 import { paymentsApi } from '@/services/payments'
 import { SOURCE_LABELS, SECURITY_LABELS } from '@/services/emailSettings'
 
@@ -360,7 +366,7 @@ const SECTIONS = {
 
 export default {
   name: 'SystemSettings',
-  components: { EmailSettingsPanel, SignInProviders, AiKeySettings, SecureCallSettings, BriefNotificationSettings, SmsProviderSettings },
+  components: { EmailSettingsPanel, SignInProviders, AiKeySettings, SecureCallSettings, BriefNotificationSettings, SmsProviderSettings, FootballDataSettings },
   data() {
     return {
       settings: null,
@@ -373,7 +379,7 @@ export default {
       saving: false,
       testing: false,
       error: '',
-      tab: ['overview', 'email', 'stripe', 'sms', 'twilio', 'whatsapp', 'notifications', 'signin', 'ai', 'calls', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
+      tab: ['overview', 'email', 'stripe', 'sms', 'twilio', 'whatsapp', 'notifications', 'signin', 'ai', 'calls', 'football', 'activity'].includes(this.$route.query.tab) ? this.$route.query.tab : 'overview',
       testTo: '',
       sendingTest: false,
       testResult: null,
@@ -392,6 +398,7 @@ export default {
         { value: 'signin', label: 'Sign-in providers', icon: 'fa-solid fa-right-to-bracket' },
         { value: 'ai', label: 'AI assistant', icon: 'fa-solid fa-wand-magic-sparkles' },
         { value: 'calls', label: 'Calls', icon: 'fa-solid fa-user-shield' },
+        { value: 'football', label: 'Football data', icon: 'fa-regular fa-futbol' },
         { value: 'activity', label: 'Activity', icon: 'fa-solid fa-list-check' }
       ]
     }

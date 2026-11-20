@@ -1,7 +1,8 @@
 /**
  * Module keys (item.module) are the entitlement units used by subscription
  * plans: core, smallbiz, invoicing, pos, ecommerce, crm, bookings, events,
- * inventory, manufacturing, accounting, hr, projects, documents, communication.
+ * inventory, manufacturing, accounting, hr, projects, documents, communication,
+ * football.
  * Items without a module are always available.
  *
  * Business types (see useAccess): `t(terms)` builds the label from the
@@ -132,6 +133,18 @@ export const navGroups = [
       { label: 'Scheduled', to: '/communication/scheduled', module: 'core', icon: 'fa-regular fa-clock', match: /^\/communication\/scheduled/ },
       { label: 'Video calls', to: '/video-call', module: 'communication', icon: 'fa-solid fa-video' },
       { label: 'Messaging settings', to: '/messaging-settings', module: 'communication', icon: 'fa-solid fa-gear' }
+    ]
+  },
+  {
+    // Football analysis & bet tracker (pkg/football): the `football` module — Nightclub / bar / lounge
+    // and the platform organisation; owners and managers by default, staff only when granted.
+    id: 'football',
+    label: 'Football',
+    icon: 'fa-regular fa-futbol',
+    items: [
+      { label: 'Match centre', to: '/football', module: 'football', icon: 'fa-regular fa-futbol', match: /^\/football(\/match\/[^/]+)?\/?$/ },
+      { label: 'My bets', to: '/football/bets', module: 'football', icon: 'fa-solid fa-receipt', match: /^\/football\/bets/ },
+      { label: 'Model track record', to: '/football/model', module: 'football', icon: 'fa-solid fa-scale-balanced', match: /^\/football\/model/ }
     ]
   },
   {

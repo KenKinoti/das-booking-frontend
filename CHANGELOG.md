@@ -6,6 +6,35 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.16.0] - 2026-11-20
+
+**Football analysis & bet tracker.** A new Football menu for owners and managers of bars and clubs (the Nightclub /
+bar / lounge business type and the platform organisation; staff only when given access). The Match centre lists each
+day's matches — Premier League and the other top European leagues, UEFA competitions, the Kenyan Premier League, CAF
+competitions, AFCON and World Cup qualifiers — with the fair chance from the sharp market (Pinnacle or the bookmakers'
+consensus with the margin removed), DASYIN's model as a second opinion, the best price, live scores and a watchlist.
+Each match has a full analysis page: probabilities from five sources; a Price check that compares the odds on
+SportPesa, Betika, Odibets and other apps with the fair price and the model, showing the expected value and a ¼-Kelly
+stake capped at 2% of the bankroll, and records the bet; score probabilities, over/under, both teams to score and Asian
+handicap (win / half / push); the last 10 results and form (last 5, last 10, home at home, away away, season, weighted
+and opponent-adjusted), rolling goals and xG; league position with its history; head to head; key players with season
+stats and absences and what they are likely to cost; line-ups; bookmaker margins and line movement; live events and
+statistics; the model's track record for that competition; and a Sources panel with the provider and fetch time of
+every figure. My bets settles bets automatically from results (Asian quarter lines included) and tracks P&L, ROI,
+yield, strike rate, closing-line value, bankroll and drawdown, with stake and loss limits, breaks and CSV export. Model
+track record shows the model's calibration and accuracy against the market with their uncertainty. Data comes from
+API-Football (fixtures, results, standings, players, injuries, line-ups, xG, odds) and The Odds API (sharp and
+international odds), shared by all organisations and fetched within the plan's daily budget; super admins manage keys,
+budgets, competitions and team-name matching in System settings → Football data. The model (Dixon–Coles goals model
+plus Elo, refitted daily) was measured on five European leagues since 2019: well calibrated, slightly less accurate
+than Pinnacle's closing odds — so DASYIN shows it next to the market and never promises wins. DASYIN does not take
+bets. New AI tools: football_fixtures, football_match_analysis, football_value_bets, football_bets_summary,
+football_record_bet.
+
+API: `/football/**` (meta, competitions, fixtures, analysis, kelly, value, model/performance, teams, standings, live,
+bets, bankroll, limits, watchlist, odds/manual), `/super-admin/football/**`. New packages `pkg/football`,
+`pkg/football/model`; new module `football`.
+
 ## [2.15.0] - 2026-11-19
 
 **Morning brief.** Everyone can now get a short note each morning — 08:00 in their own time zone by default, every
