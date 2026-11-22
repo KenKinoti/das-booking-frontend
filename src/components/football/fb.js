@@ -386,6 +386,10 @@ export const PROVIDER_NAMES = {
   feeds: 'RSS / Atom feeds',
   news: 'News',
   dasyin: 'DASYIN model',
-  manager: 'A manager'
+  manager: 'A manager',
+  // v2.18
+  apifootball_pred: 'API-Football predictions',
+  polymarket: 'Polymarket',
+  openfootball: 'openfootball'
 }
 export const providerName = (p) => PROVIDER_NAMES[p] || (String(p || '').startsWith('manual') ? 'Typed in (' + String(p).replace('manual: ', '') + ')' : p || '—')

@@ -281,6 +281,7 @@
           </div>
         </section>
       </div>
+      <ConsensusWeights style="margin-top: 16px" />
       <FbFootnote />
     </template>
   </div>
@@ -296,10 +297,11 @@ import FbFootnote from '@/components/football/FbFootnote.vue'
 import FbFigure from '@/components/football/charts/FbFigure.vue'
 import FbLine from '@/components/football/charts/FbLine.vue'
 import FbReliability from '@/components/football/charts/FbReliability.vue'
+import ConsensusWeights from '@/components/football/model/ConsensusWeights.vue'
 
 export default {
   name: 'ModelRecord',
-  components: { FbNoAccess, FbFootnote, FbFigure, FbLine, FbReliability },
+  components: { FbNoAccess, FbFootnote, FbFigure, FbLine, FbReliability, ConsensusWeights },
   data() {
     return { BACKTEST, p: null, competitions: [], competition: typeof this.$route.query.competition === 'string' ? this.$route.query.competition : '', forbidden: '' }
   },

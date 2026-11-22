@@ -8,6 +8,7 @@
  *   /football/match/:id     the match analysis page (probabilities, price check, form, odds, sources …)
  *   /football/bets          bet tracker: bets, bankroll, limits & breaks, P&L analytics
  *   /football/model         the model's track record and how to use it honestly
+ *   /football/scorecard     v2.18: how the frozen picks did (✓/✗), hit rate per tier against expected and history
  *   /football/jackpot       jackpot analyser: your jackpots, history (v2.17)
  *   /football/jackpot/new   paste or search the games of a new jackpot
  *   /football/jackpot/:id   one jackpot: per-game chances, most likely ticket, cover plan, EV, grading
@@ -26,6 +27,7 @@ const records = [
     meta: { requiresAuth: true, title: 'Match analysis' }
   },
   { path: '/football/bets', name: 'FootballBets', component: () => import('@/views/football/BetTracker.vue'), meta: { requiresAuth: true, title: 'My bets' } },
+  { path: '/football/scorecard', name: 'FootballScorecard', component: () => import('@/views/football/Scorecard.vue'), meta: { requiresAuth: true, title: 'Scorecard' } },
   { path: '/football/model', name: 'FootballModel', component: () => import('@/views/football/ModelRecord.vue'), meta: { requiresAuth: true, title: 'Model track record' } },
   { path: '/football/jackpot', name: 'FootballJackpots', component: () => import('@/views/football/JackpotList.vue'), meta: { requiresAuth: true, title: 'Jackpot analyser' } },
   {

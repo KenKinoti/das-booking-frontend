@@ -4,9 +4,10 @@
       <div>
         <div class="ui-eyebrow">Football</div>
         <h1>Match centre</h1>
-        <p>Fair chances from the sharp market (bookmaker margin removed), DASYIN's model as a second opinion, and the best price on offer.</p>
+        <p>One plain pick per match with an honest chance, fair chances from the sharp market (bookmaker margin removed), DASYIN's model as a second opinion, and the best price on offer.</p>
       </div>
       <div class="ui-actions">
+        <router-link class="ui-btn" to="/football/scorecard" data-test="fb-scorecard-link"><i class="fa-solid fa-square-check"></i> Scorecard</router-link>
         <router-link class="ui-btn" to="/football/bets"><i class="fa-solid fa-receipt"></i> My bets</router-link>
         <router-link class="ui-btn ui-btn--ghost" to="/football/model"><i class="fa-solid fa-scale-balanced"></i> Model record</router-link>
       </div>
@@ -22,7 +23,7 @@
         <i class="fa-solid fa-plug-circle-exclamation"></i>
         <span>
           Football data isn't connected yet.
-          <template v-if="isSuper">Add the API-Football and The Odds API keys in <router-link to="/system-settings?tab=football">System settings → Football data</router-link>.</template>
+          <template v-if="isSuper">Add the API-Football key in <router-link to="/system-settings?tab=football">System settings → Football data</router-link>. The Odds API is optional: the free sources (OddsPapi's Pinnacle and Betika prices, ClubElo, Polymarket) can be switched on there too.</template>
           <template v-else>Ask your platform admin to connect the football data providers.</template>
         </span>
       </div>
@@ -38,6 +39,15 @@
           </router-link>
         </div>
       </section>
+
+      <!-- v2.18: the last graded weekend in one line, linking to the scorecard -->
+      <router-link v-if="weekend" to="/football/scorecard?period=weekend" class="fbmc-banner" data-test="fb-weekend-banner">
+        <i class="fa-solid fa-square-check" aria-hidden="true"></i>
+        <span class="fbmc-banner__txt"
+          ><strong>{{ weekend.title }}:</strong> {{ weekend.line }}</span
+        >
+        <span class="fbmc-banner__go">Scorecard <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
+      </router-link>
 
       <!-- Filters: one row above everything they scope -->
       <div class="fbmc-filters">
@@ -68,6 +78,10 @@
             <i class="fa-solid fa-magnifying-glass"></i>
             <input v-model="q" class="ui-input" type="search" placeholder="Team or competition" aria-label="Search teams or competitions" @input="debouncedLoad" />
           </div>
+          <label class="fbmc-toggle" title="Only matches whose pick is Strong (a 60% chance or more)">
+            <input v-model="strongOnly" type="checkbox" data-test="fb-strong-only" @change="syncQuery" />
+            <span><FbTierPips tier="strong" /> Strong picks only</span>
+          </label>
           <label class="fbmc-toggle" title="Model's probability at least this far above the fair (sharp) price">
             <input v-model="valueOnly" type="checkbox" data-test="fb-value-only" @change="syncQuery" />
             <span>Value only</span>
@@ -85,6 +99,7 @@
       <div class="fbmc-info">
         <span v-if="asOf">Data as of {{ fmtDateTime(asOf, tz) }} · times in {{ tzLabel }}</span>
         <span class="fbmc-info__legend" aria-label="Legend">
+          <span v-for="t in tierKey" :key="t.key" :data-tier-key="t.key"><FbTierPips :tier="t.key" />{{ t.label }} {{ t.range }}</span>
           <span><i class="fb-key" style="background: var(--fb-home)"></i>Home</span>
           <span><i class="fb-key" style="background: var(--fb-draw)"></i>Draw</span>
           <span><i class="fb-key" style="background: var(--fb-away)"></i>Away</span>
@@ -117,7 +132,7 @@
             <span class="fb-pill">{{ g.items.length }} {{ g.items.length === 1 ? 'match' : 'matches' }}</span>
           </header>
           <div class="fbmc-cols" aria-hidden="true">
-            <span></span><span>Kick-off</span><span>Match</span><span>Fair chance · H D A</span><span>Model · H D A</span><span>Best price · 1 X 2</span><span></span>
+            <span></span><span>Kick-off</span><span>Match</span><span>Pick</span><span>Fair chance · H D A</span><span>Model · H D A</span><span>Best price · 1 X 2</span><span></span>
           </div>
           <div
             v-for="f in g.items"
@@ -156,6 +171,26 @@
                 ><b v-if="f.score.away != null">{{ f.score.away }}</b></span
               >
             </router-link>
+            <div class="fbmc-pick" :data-verdict="vOf(f) ? vOf(f).pick : ''" :data-tier="vOf(f) ? vOf(f).tier.key : ''">
+              <FbVerdictChip :verdict="vOf(f)" :fixture-id="f.id" :test-id="'fb-verdict-' + f.id" :none-text="noPickText(f)" stack />
+              <span v-if="vOf(f) && vOf(f).draw_alert && !rcOf(f)" class="fb-dalert" :title="vOf(f).draw_alert.why" data-test="fb-draw-alert"
+                ><i class="fa-solid fa-equals" aria-hidden="true"></i>Draw alert<span class="sr-only">: {{ vOf(f).draw_alert.why }}</span></span
+              >
+              <FbResultBadge v-if="rcOf(f)" :check="rcOf(f)" :test-id="'fb-result-' + f.id" />
+              <button
+                v-else-if="vOf(f) && !isFinished(f.status) && !isLive(f.status)"
+                type="button"
+                class="fbmc-combo"
+                :class="{ 'is-on': inCombo(f.id) }"
+                :aria-pressed="inCombo(f.id)"
+                :aria-label="(inCombo(f.id) ? 'Remove from' : 'Add to') + ' combo: ' + vOf(f).pick_label"
+                :title="inCombo(f.id) ? 'In your combo — select to remove' : 'Add to combo'"
+                :data-test="'fb-combo-add-' + f.id"
+                @click.stop="toggleCombo(f, vOf(f))"
+              >
+                <i :class="inCombo(f.id) ? 'fa-solid fa-check' : 'fa-solid fa-plus'" aria-hidden="true"></i><span class="fbmc-combo__t">{{ inCombo(f.id) ? 'In combo' : 'Combo' }}</span>
+              </button>
+            </div>
             <div class="fbmc-fair" :data-fair="f.market_1x2 ? [f.market_1x2.home, f.market_1x2.draw, f.market_1x2.away].map((v) => v.toFixed(4)).join(',') : ''">
               <span class="fbmc-lbl">Fair</span>
               <template v-if="f.market_1x2">
@@ -207,6 +242,7 @@
       </div>
 
       <FbFootnote />
+      <ComboDrawer />
     </template>
   </div>
 </template>
@@ -222,6 +258,13 @@ import FbThin from '@/components/football/charts/FbThin.vue'
 import FbNoAccess from '@/components/football/FbNoAccess.vue'
 import FbFootnote from '@/components/football/FbFootnote.vue'
 import FbPopBtn from '@/components/football/FbPopBtn.vue'
+import FbVerdictChip from '@/components/football/verdict/FbVerdictChip.vue'
+import FbResultBadge from '@/components/football/verdict/FbResultBadge.vue'
+import FbTierPips from '@/components/football/verdict/FbTierPips.vue'
+import ComboDrawer from '@/components/football/verdict/ComboDrawer.vue'
+import { normVerdict, normResult, verdictFromResult, TIERS, TIER_ORDER } from '@/components/football/verdict/verdict'
+import { weekendBanner } from '@/components/football/scorecard/sc'
+import { inCombo, toggleCombo } from '@/components/football/verdict/combo'
 import { fb, loadMeta, forbiddenReason } from '@/components/football/fbState'
 import { DEFAULT_TZ, dayKey, addDaysKey, fmtTime, fmtDateTime, odds, isLive, isFinished, statusText, freshness, ago } from '@/components/football/fb'
 
@@ -236,7 +279,7 @@ const GROUPS = [
 
 export default {
   name: 'MatchCentre',
-  components: { FbCrest, FbThin, FbNoAccess, FbFootnote, FbPopBtn },
+  components: { FbCrest, FbThin, FbNoAccess, FbFootnote, FbPopBtn, FbVerdictChip, FbResultBadge, FbTierPips, ComboDrawer },
   data() {
     const q = this.$route.query
     return {
@@ -250,6 +293,8 @@ export default {
       q: typeof q.q === 'string' ? q.q : '',
       valueOnly: q.value === '1',
       watchOnly: q.watch === '1',
+      strongOnly: q.strong === '1',
+      weekend: null,
       threshold: Number(q.edge) > 0 ? Number(q.edge) : 0.03,
       asOf: null,
       now: null,
@@ -298,7 +343,17 @@ export default {
         .filter((g) => g.items.length)
     },
     shown() {
-      return this.fixtures.filter((f) => (!this.valueOnly || this.edgesOver(f).length > 0) && (!this.watchOnly || f.watched))
+      return this.fixtures.filter(
+        (f) => (!this.valueOnly || this.edgesOver(f).length > 0) && (!this.watchOnly || f.watched) && (!this.strongOnly || this.vOf(f)?.tier.key === 'strong')
+      )
+    },
+    tierKey() {
+      return TIER_ORDER.map((k) => TIERS[k])
+    },
+    verdicts() {
+      const m = new Map()
+      for (const f of this.fixtures) m.set(f.id, normVerdict(f.verdict) || verdictFromResult(f.result_check))
+      return m
     },
     groups() {
       const by = new Map()
@@ -317,11 +372,13 @@ export default {
       return this.jackpots.filter((j) => j.status !== 'graded' && (!j.closes_at || new Date(j.closes_at) > new Date(this.now || Date.now())))
     },
     emptyTitle() {
+      if (this.fixtures.length && this.strongOnly) return 'No strong picks on this day'
       if (this.fixtures.length && this.valueOnly) return 'No matches pass the value filter'
       if (this.fixtures.length && this.watchOnly) return 'No watched matches on this day'
       return 'No matches on this day'
     },
     emptyText() {
+      if (this.fixtures.length && this.strongOnly) return 'Strong picks (a 60% chance or more) are rare — about 1 match in 6. Try another day or switch the filter off.'
       if (this.fixtures.length) return 'Lower the threshold or switch the filter off to see every match.'
       return this.competition || this.q ? 'Try another day, competition or search.' : 'Only the competitions switched on for this platform are listed. Try another day.'
     }
@@ -358,6 +415,21 @@ export default {
     isFinished,
     statusText,
     freshness,
+    inCombo,
+    toggleCombo,
+    vOf(f) {
+      return this.verdicts.get(f.id) || null
+    },
+    /** ✓ / ✗ after the game (null while upcoming or in play; "No pick" is already said by the empty chip). */
+    rcOf(f) {
+      const r = normResult(f.result_check)
+      return r && r.kind !== 'pending' && !(r.kind === 'nopick' && !this.vOf(f)) ? r : null
+    },
+    noPickText(f) {
+      if (isFinished(f.status)) return 'No pick was frozen'
+      if (['PST', 'CANC', 'ABD'].includes(f.status)) return 'No pick'
+      return f.market_1x2 || f.model ? 'No pick yet' : 'No pick yet — no prices'
+    },
     trio(p) {
       return [p.home, p.draw, p.away].map((v) => (v == null ? '—' : Math.round(v * 100))).join(' · ')
     },
@@ -394,7 +466,8 @@ export default {
         q: this.q || undefined,
         value: this.valueOnly ? '1' : undefined,
         edge: this.valueOnly && this.threshold !== (this.meta?.min_edge || 0.03) ? String(this.threshold) : undefined,
-        watch: this.watchOnly ? '1' : undefined
+        watch: this.watchOnly ? '1' : undefined,
+        strong: this.strongOnly ? '1' : undefined
       }
       this.$router.replace({ query: Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)) }).catch(() => {})
     },
@@ -429,6 +502,8 @@ export default {
           }
         }
         this.fixtures = d.fixtures || []
+        // v2.18: the last graded weekend (slim banner linking to the scorecard)
+        this.weekend = weekendBanner(d.last_weekend)
         this.loadNews()
         this.nextDay = null
         if (!this.fixtures.length && !this.q && !this.competition) this.findNext()
@@ -733,7 +808,7 @@ export default {
 .fbmc-cols,
 .fbmc-row {
   display: grid;
-  grid-template-columns: 30px 64px minmax(180px, 1.5fr) minmax(150px, 1.3fr) minmax(90px, 0.8fr) minmax(150px, 1.1fr) 104px;
+  grid-template-columns: 30px 64px minmax(140px, 1.1fr) minmax(240px, 1.6fr) minmax(120px, 0.9fr) minmax(76px, 0.6fr) minmax(130px, 0.9fr) 96px;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
@@ -858,7 +933,90 @@ export default {
   width: 42px;
   flex-shrink: 0;
 }
-@media (max-width: 1180px) {
+/* v2.18: the pick (verdict chip, draw alert, ✓/✗ or "add to combo") */
+.fbmc-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 6px;
+  min-width: 0;
+}
+.fbmc-pick .fb-rc {
+  height: 26px;
+}
+@media (min-width: 1361px) {
+  /* the pick column is narrow on wide screens: chip on top, ✓/✗ or "Combo" under it, the same on every row */
+  .fbmc-pick {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+.fbmc-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-strong);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fbmc-combo:hover {
+  border-color: var(--text-3);
+  color: var(--text);
+}
+.fbmc-combo.is-on {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.fbmc-combo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.fbmc-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  text-decoration: none;
+  min-height: 44px;
+}
+.fbmc-banner:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.fbmc-banner > i {
+  color: var(--accent);
+}
+.fbmc-banner strong {
+  color: var(--text);
+  font-weight: 650;
+}
+.fbmc-banner__txt {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fbmc-banner__go {
+  flex-shrink: 0;
+  font-weight: 650;
+  color: var(--text);
+  white-space: nowrap;
+}
+@media (max-width: 1360px) {
   .fbmc-cols {
     display: none;
   }
@@ -866,9 +1024,13 @@ export default {
     grid-template-columns: 30px 72px minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       'star time teams flags'
+      'star time pick pick'
       'star time fair best'
       'star time model .';
     row-gap: 6px;
+  }
+  .fbmc-pick {
+    grid-area: pick;
   }
   .fbmc-star {
     grid-area: star;
@@ -916,6 +1078,7 @@ export default {
     grid-template-areas:
       'star teams flags'
       'time time time'
+      'pick pick pick'
       'fair fair fair'
       'model model model'
       'best best best';
@@ -933,6 +1096,16 @@ export default {
   .fbmc-search {
     flex: 1 1 100%;
     max-width: none;
+  }
+  .fbmc-combo {
+    min-height: 44px;
+    padding: 0 14px;
+  }
+  .fbmc-toggle {
+    min-height: 44px;
+  }
+  .fbmc-banner {
+    align-items: flex-start;
   }
 }
 </style>

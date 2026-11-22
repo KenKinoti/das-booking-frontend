@@ -67,6 +67,11 @@
           </div>
           <div v-if="tests[u.provider]" class="fbset__test" :class="tests[u.provider].ok ? 'pf-success-text' : 'pf-danger-text'" :data-test="'fb-test-result-' + u.provider">
             <i :class="tests[u.provider].ok ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark'"></i> {{ tests[u.provider].message }}
+            <ul v-if="!tests[u.provider].ok && (tests[u.provider].key_hint || tests[u.provider].key_shape || tests[u.provider].http_status)" class="fbset__diag" :data-test="'fb-test-diag-' + u.provider">
+              <li v-if="tests[u.provider].key_hint">Key we used: <code>{{ tests[u.provider].key_hint }}</code> — compare the last 4 characters with your dashboard.</li>
+              <li v-if="tests[u.provider].key_shape">{{ tests[u.provider].key_shape }}</li>
+              <li v-if="tests[u.provider].http_status">Answer from <code>{{ tests[u.provider].host }}</code>: HTTP {{ tests[u.provider].http_status }}<template v-if="tests[u.provider].provider_code"> · {{ tests[u.provider].provider_code }}</template></li>
+            </ul>
           </div>
           <a :href="u.provider === 'apifootball' ? v.endpoints.apifootball_docs : v.endpoints.oddsapi_docs" target="_blank" rel="noopener noreferrer" class="fb-small">Documentation <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
         </div>
@@ -442,6 +447,7 @@ export default {
       }
     },
     async save() {
+      // Returns true when saved, so a connection test never runs on an old key.
       const body = { ...this.d }
       if (this.keys.apifootball) body.apifootball_key = this.keys.apifootball
       if (this.keys.oddsapi) body.oddsapi_key = this.keys.oddsapi
@@ -451,15 +457,20 @@ export default {
         this.keys = { apifootball: '', oddsapi: '' }
         toast.success('Football data settings saved')
         loadMeta(true)
+        return true
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not save'))
+        return false
       } finally {
         this.saving = false
       }
     },
     async test(provider) {
       // A typed key is saved first so the test uses it.
-      if (this.keys[provider]) await this.save()
+      if (this.keys[provider] && !(await this.save())) {
+        this.tests = { ...this.tests, [provider]: { ok: false, message: 'The key was not saved, so it was not tested. Fix the key and try again.' } }
+        return
+      }
       this.testing = { ...this.testing, [provider]: true }
       try {
         const r = await footballAdminApi.test(provider)
@@ -629,6 +640,15 @@ export default {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+}
+.fbset__diag {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--text-secondary, inherit);
+}
+.fbset__diag code {
+  font-size: 12px;
 }
 .fbset__test {
   font-size: 13px;

@@ -1,0 +1,280 @@
+/* v2.18 verdict chip, tier pips, ✓/✗ result badges, draw alert, combo drawer.
+   Tier colours: an ORDINAL ramp of the brand violet (dataviz validator, --ordinal: monotone lightness, adjacent ΔL ≥ 0.06,
+   light end ≥ 2:1 — light #a99ff6 2.34:1 on #ffffff; dark #5a4fc4 2.90:1 on #121521). The ramp only colours marks
+   (pips, tier bars); text stays in text tokens and the tier is always also a word + 1–4 filled pips.
+   Results: status tokens, always icon + word ("✓ Correct", "✗ Wrong"), never colour alone. */
+.fb {
+  --fb-tier-strong: #3a2db8;
+  --fb-tier-good: #5b4cf0;
+  --fb-tier-close: #7f70f2;
+  --fb-tier-coinflip: #a99ff6;
+  --fb-tier-off: var(--border-strong);
+  --fb-actual: #2a78d6; /* scorecard: the one highlighted series (categorical slot 1) */
+  --fb-expected: #8f8d86; /* neutral reference line / band */
+}
+[data-theme='dark'] .fb {
+  --fb-tier-strong: #cdc7ff;
+  --fb-tier-good: #a399ff;
+  --fb-tier-close: #7a6cff;
+  --fb-tier-coinflip: #5a4fc4;
+  --fb-actual: #3987e5;
+  --fb-expected: #75736d;
+}
+
+/* ---------- tier pips (signal bars: 1–4 filled) ---------- */
+.fb-pips {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.fb-pips i {
+  display: block;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--fb-tier-off);
+}
+.fb-pips i:nth-child(1) {
+  height: 5px;
+}
+.fb-pips i:nth-child(2) {
+  height: 7px;
+}
+.fb-pips i:nth-child(3) {
+  height: 9.5px;
+}
+.fb-pips i:nth-child(4) {
+  height: 12px;
+}
+.fb-pips--strong i.on {
+  background: var(--fb-tier-strong);
+}
+.fb-pips--good i.on {
+  background: var(--fb-tier-good);
+}
+.fb-pips--close i.on {
+  background: var(--fb-tier-close);
+}
+.fb-pips--coinflip i.on {
+  background: var(--fb-tier-coinflip);
+}
+
+/* ---------- verdict chip ---------- */
+.fb-vchip-host {
+  max-width: 100%;
+  min-width: 0;
+}
+.fb-vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  max-width: 100%;
+  padding: 4px 11px 4px 9px;
+  border-radius: 15px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+button.fb-vchip:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+button.fb-vchip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.fb-vchip--strong {
+  border-color: color-mix(in srgb, var(--fb-tier-strong) 35%, var(--border));
+  background: color-mix(in srgb, var(--fb-tier-good) 8%, var(--surface));
+}
+.fb-vchip__txt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fb-vchip__pick {
+  font-weight: 650;
+}
+.fb-vchip__rest {
+  white-space: nowrap;
+}
+.fb-vchip__p {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.fb-vchip__tier {
+  color: var(--text-2);
+}
+.fb-vchip__sep {
+  color: var(--text-3);
+}
+.fb-vchip--none {
+  cursor: default;
+  color: var(--text-3);
+  background: transparent;
+  border-style: dashed;
+}
+.fb-vchip--lg {
+  font-size: 14px;
+  min-height: 40px;
+  padding: 6px 14px 6px 12px;
+}
+
+/* two-line chip for table rows: the pick on top, "64% · Strong" below, pips on the left */
+.fb-vchip--stack {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  border-radius: 12px;
+  padding: 5px 12px 5px 10px;
+  line-height: 1.3;
+}
+.fb-vchip--stack .fb-vchip__txt {
+  display: flex;
+  flex-direction: column;
+}
+.fb-vchip--stack .fb-vchip__rest > .fb-vchip__sep:first-child {
+  display: none;
+}
+.fb-vchip--stack .fb-vchip__rest {
+  font-size: 12px;
+}
+
+/* ---------- draw alert ---------- */
+.fb-dalert {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--warning-soft);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+}
+.fb-dalert i {
+  color: var(--warning);
+  font-size: 11px;
+}
+
+/* ---------- ✓ / ✗ result badge ---------- */
+.fb-rc {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.fb-rc i {
+  font-size: 11.5px;
+}
+.fb-rc--correct {
+  background: var(--success-soft);
+  color: var(--fb-good-text);
+  border-color: color-mix(in srgb, var(--fb-good) 35%, transparent);
+}
+.fb-rc--wrong {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--fb-bad) 35%, transparent);
+}
+[data-theme='dark'] .fb-rc--wrong {
+  color: #ff8a8f;
+}
+.fb-rc--void,
+.fb-rc--none {
+  background: var(--neutral-soft);
+  color: var(--text-2);
+}
+.fb-rc--sm {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+/* a mark inside a line (Result panel, scorecard rows): icon + word, no pill */
+.fb-mk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.fb-mk--correct {
+  color: var(--fb-good-text);
+}
+.fb-mk--wrong {
+  color: var(--danger);
+}
+[data-theme='dark'] .fb-mk--wrong {
+  color: #ff8a8f;
+}
+.fb-mk--none {
+  color: var(--text-3);
+  font-weight: 550;
+}
+
+/* ---------- legend keys used by the scorecard charts ---------- */
+.fb-key--tick {
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+}
+.fb-key--ring {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--text-2);
+}
+
+/* ---------- tier key (legend line) ---------- */
+.fb-tierkey {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.fb-tierkey span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- popover body of the chip ---------- */
+.fb-vpop dl {
+  margin: 6px 0 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.fb-vpop dt {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.fb-vpop dd {
+  margin: 0;
+}
+.fb-vpop .fb-vpop__note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+@media (max-width: 640px) {
+  button.fb-vchip {
+    min-height: 44px;
+  }
+}

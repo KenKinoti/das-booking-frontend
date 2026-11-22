@@ -27,12 +27,13 @@
           <tr>
             <th class="num">#</th>
             <th>Game</th>
+            <th>Pick</th>
+            <th v-if="hasResults">Result</th>
             <th class="num" title="The jackpot's own odds">Odds 1 · X · 2</th>
             <th class="num"><i class="fbjg__sw is-ring" :style="SRC.jackpot.style"></i>Fair %</th>
             <th class="num"><i class="fbjg__sw" :style="SRC.market.style"></i>Market %</th>
             <th class="num"><i class="fbjg__sw" :style="SRC.clubelo.style"></i>ClubElo %</th>
             <th class="num"><i class="fbjg__sw" :style="SRC.model.style"></i>Model %</th>
-            <th>Pick</th>
             <th>2nd choice</th>
             <th>Team news</th>
             <th>Source check</th>
@@ -49,6 +50,25 @@
                   <span class="fb-muted fb-small">{{ g.kickoff ? fmtKo(g.kickoff) : '' }}<template v-if="!g.fixture_id"> · not matched</template></span>
                 </div>
               </td>
+              <td :data-v="g.pPick" :data-tier="tierOf(g).key">
+                <span class="fbjg__pick"
+                  ><b class="fbjg__sym">{{ g.pick }}</b> <span class="fb-num">{{ pct(g.pPick, 0) }}</span>
+                  <span class="fbjg__tier" :data-test="'fb-jp-tier-' + g.n"><FbTierPips :tier="tierOf(g).key" />{{ tierOf(g).label }}</span></span
+                >
+                <span v-if="drawAlert(g)" class="fb-dalert fbjg__da" :title="drawAlert(g)" :data-test="'fb-jp-draw-' + g.n"
+                  ><i class="fa-solid fa-equals" aria-hidden="true"></i>Draw alert<span class="sr-only">: {{ drawAlert(g) }}</span></span
+                >
+              </td>
+              <td v-if="hasResults" :data-mark="markOf(g) || ''">
+                <template v-if="resultOf(g)">
+                  <span v-if="markOf(g)" class="fb-mk" :class="'fb-mk--' + markOf(g)" :data-test="'fb-jp-mark-' + g.n"
+                    ><i :class="markOf(g) === 'correct' ? 'fa-solid fa-check' : 'fa-solid fa-xmark'" aria-hidden="true"></i>{{ markOf(g) === 'correct' ? 'Correct' : 'Wrong' }}</span
+                  >
+                  <span class="fb-muted fb-small"> · it was {{ resultOf(g) }}</span>
+                </template>
+                <span v-else-if="isVoid(g)" class="fb-muted fb-small">void</span>
+                <span v-else class="fb-muted fb-small">not yet</span>
+              </td>
               <td class="num">
                 <div>{{ trioOdds(g.odds) }}</div>
                 <div v-if="g.margin != null" class="fb-muted fb-small">{{ pct(g.margin, 1) }} margin</div>
@@ -58,9 +78,6 @@
                   ><span v-for="(s, j) in SYMS" :key="s"><span v-if="j" class="fb-muted"> · </span><b v-if="s === g.pick">{{ p0(g.sources[k].probs, s) }}</b><template v-else>{{ p0(g.sources[k].probs, s) }}</template></span></template
                 >
                 <span v-else class="fb-muted">—</span>
-              </td>
-              <td :data-v="g.pPick">
-                <span class="fbjg__pick"><b class="fbjg__sym">{{ g.pick }}</b> <span class="fb-num">{{ pct(g.pPick, 0) }}</span></span>
               </td>
               <td>
                 <span v-if="g.second" class="fbjg__pick fb-muted"><b class="fbjg__sym fbjg__sym--2">{{ g.second }}</b> <span class="fb-num">{{ pct(g.pSecond, 0) }}</span></span>
@@ -83,7 +100,7 @@
               </td>
             </tr>
             <tr v-if="open === g.n" class="fbjg__detail" :data-detail="g.n">
-              <td colspan="11">
+              <td :colspan="hasResults ? 12 : 11">
                 <div class="fbjg__dwrap">
                   <FbStack :rows="stackRows(g)" :names="[g.home, 'Draw', g.away]" />
                   <ul class="fbjg__notes">
@@ -117,6 +134,9 @@ import FbJackpotBoard from '../charts/FbJackpotBoard.vue'
 import SourceBadge from '../match/SourceBadge.vue'
 import { toChecks } from '../match/srccheck'
 import FbPopBtn from '../FbPopBtn.vue'
+import FbTierPips from '../verdict/FbTierPips.vue'
+import '../verdict/verdict.css'
+import { TIERS, tierKeyOf, normVerdict } from '../verdict/verdict'
 import { pct, SOURCE_STYLE } from '../fb'
 import { SYMS } from './jp'
 import { pOf } from './jpApi'
@@ -125,11 +145,15 @@ const SRC = Object.fromEntries(Object.entries(SOURCE_STYLE).map(([k, v]) => [k, 
 
 export default {
   name: 'JpGames',
-  components: { FbSection, FbFigure, FbStack, FbJackpotBoard, SourceBadge, FbPopBtn },
+  components: { FbSection, FbFigure, FbStack, FbJackpotBoard, SourceBadge, FbPopBtn, FbTierPips },
   props: {
     an: { type: Object, required: true },
     tz: { type: String, default: 'Africa/Nairobi' },
-    plan: { type: Object, default: null } // chosen cover plan: { picks: ["1","12",…] }
+    plan: { type: Object, default: null }, // chosen cover plan: { picks: ["1","12",…] }
+    // v2.18: the jackpot's games with their results ({ n, result: "1"|"X"|"2"|null, void }) and the grading marks
+    results: { type: Array, default: () => [] },
+    grading: { type: Object, default: null },
+    review: { type: Object, default: null }
   },
   data() {
     return { SRC, SYMS, open: null }
@@ -137,6 +161,9 @@ export default {
   computed: {
     games() {
       return this.an.games
+    },
+    hasResults() {
+      return this.results.some((g) => g && (g.result || g.void))
     },
     subtitle() {
       const n = this.games.length
@@ -175,6 +202,46 @@ export default {
   },
   methods: {
     pct,
+    tierOf(g) {
+      const v = normVerdict(g.verdict)
+      if (v) return v.tier
+      return TIERS[tierKeyOf(g.pPick) || 'coinflip']
+    },
+    /** Draw alert: the API's (verdict.draw_alert), else a draw of 30%+ within 6 points of the top. */
+    drawAlert(g) {
+      const v = normVerdict(g.verdict)
+      if (v) return v.draw_alert ? v.draw_alert.why || 'A draw is about as likely as the pick' : ''
+      if (g.draw_alert && (g.draw_alert.on || g.draw_alert === true)) return g.draw_alert.why || 'A draw is about as likely as the pick'
+      const p = g.probs
+      if (!p || p.d == null) return ''
+      const top = Math.max(p.h || 0, p.d || 0, p.a || 0)
+      return p.d >= 0.3 && top - p.d <= 0.06 ? `A draw is ${Math.round(p.d * 100)}% — close to the top chance` : ''
+    },
+    gameOf(g) {
+      return this.results.find((x) => x && Number(x.n) === Number(g.n)) || null
+    },
+    isVoid(g) {
+      return !!this.gameOf(g)?.void
+    },
+    resultOf(g) {
+      const x = this.gameOf(g)
+      if (!x || x.void) return null
+      const i = this.games.indexOf(g)
+      const r = x.result || x.result_check?.result || this.review?.results?.[i] || this.grading?.results?.[i]
+      return r ? String(r).toUpperCase() : null
+    },
+    /** ✓ / ✗ for the game: the API's games[].result_check (graded against the frozen most likely ticket), else the
+     *  review's marks, else the result against today's pick. */
+    markOf(g) {
+      const st = this.gameOf(g)?.result_check?.status
+      if (st === 'correct' || st === 'wrong') return st
+      if (st === 'void' || st === 'pending') return null
+      const i = this.games.indexOf(g)
+      const m = this.review?.marks?.[i]
+      if (m === true || m === false) return m ? 'correct' : 'wrong'
+      const r = this.resultOf(g)
+      return r ? (r === g.pick ? 'correct' : 'wrong') : null
+    },
     fmtKo(iso) {
       return new Intl.DateTimeFormat(undefined, { timeZone: this.tz, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
     },
@@ -288,6 +355,17 @@ a.fbjg__name:hover {
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .fbjg__lean {
+  margin-left: 6px;
+}
+.fbjg__tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.fbjg__da {
   margin-left: 6px;
 }
 .fbjg__ev {

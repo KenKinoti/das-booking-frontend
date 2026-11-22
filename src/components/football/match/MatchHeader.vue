@@ -23,6 +23,7 @@
           <span v-if="live" class="fb-pill fb-pill--live" data-test="fb-minute"><span class="fb-livedot"></span>{{ statusText(f) }}</span>
           <span v-else class="fb-pill">{{ statusText(f) || f.status_long }}</span>
           <span v-if="f.score.ht_home != null" class="fb-muted fb-small">Half time {{ f.score.ht_home }}–{{ f.score.ht_away }}</span>
+          <a v-if="headerResult" href="#result" class="fbmh__rc" @click.prevent="$emit('jump', 'result')"><FbResultBadge :check="headerResult" test-id="fb-header-result" /></a>
         </template>
         <template v-else>
           <div class="fbmh__ko fb-num">{{ fmtTime(f.kickoff, tz) }}</div>
@@ -82,12 +83,14 @@
 <script>
 import FbCrest from '../FbCrest.vue'
 import SourceBadge from './SourceBadge.vue'
+import FbResultBadge from '../verdict/FbResultBadge.vue'
+import { normResult } from '../verdict/verdict'
 import { checksFor } from './srccheck'
 import { fmtTime, fmtDay, fmtDateTime, statusText, isLive } from '../fb'
 
 export default {
   name: 'MatchHeader',
-  components: { FbCrest, SourceBadge },
+  components: { FbCrest, SourceBadge, FbResultBadge },
   props: {
     f: { type: Object, required: true },
     tz: { type: String, default: 'Africa/Nairobi' },
@@ -101,10 +104,15 @@ export default {
     watched: { type: Boolean, default: false },
     canRefresh: { type: Boolean, default: false },
     refreshing: { type: Boolean, default: false },
-    sourceCheck: { type: Object, default: null }
+    sourceCheck: { type: Object, default: null },
+    resultCheck: { type: Object, default: null }
   },
   emits: ['sources', 'watch', 'refresh', 'jump'],
   computed: {
+    headerResult() {
+      const r = normResult(this.resultCheck)
+      return r && r.kind !== 'pending' ? r : null
+    },
     headerChecks() {
       return checksFor(this.sourceCheck, ['kickoff', 'identity'], this.tz)
     },
@@ -284,5 +292,9 @@ export default {
   .fbmh__ko {
     font-size: 22px;
   }
+}
+.fbmh__rc {
+  text-decoration: none;
+  margin-top: 2px;
 }
 </style>

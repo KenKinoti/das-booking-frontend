@@ -84,7 +84,19 @@ export const footballApi = {
   gradeJackpot: (id) => api.post(`/football/jackpots/${enc(id)}/grade`).then(unwrap),
   jackpotHistory: (params = {}) => api.get('/football/jackpots/history', { params: clean(params) }).then(unwrap),
   /** ?home=&away=&date=&q= → { candidates: [{ fixture_id, home, away, kickoff, competition, competition_id, confidence }] } */
-  jackpotCandidates: (params = {}) => api.get('/football/jackpots/candidates', { params: clean(params) }).then(unwrap)
+  jackpotCandidates: (params = {}) => api.get('/football/jackpots/candidates', { params: clean(params) }).then(unwrap),
+
+  // v2.18 — simple picks, honest win rate, ✓/✗ results (FOOTBALL_WINRATE_SPEC.md §A–D, football-winrate-contract.md)
+  /** ?period=weekend|7d|30d|season|custom&from&to&competition&tier → { period, totals, safer, goals, btts, scores, favourite_baseline, by_tier, by_competition, weekly, rows, jackpots } */
+  scorecard: (params = {}) => api.get('/football/scorecard', { params: clean(params), timeout: 30000 }).then(unwrap),
+  /** ?from&to&min_tier&limit → { picks: [fixture row + verdict] } upcoming verdicts, strongest first */
+  picks: (params = {}) => api.get('/football/picks', { params: clean(params) }).then(unwrap),
+  /** body: { budget } → the budget planner (covered selections per game, combinations, cost, 1 in N, expected correct, bonus chances) */
+  planJackpot: (id, body) => api.post(`/football/jackpots/${enc(id)}/plan`, body, { timeout: 60000 }).then(unwrap),
+  /** { groups: [{ group, label, weights, in_use, n, holdout_n, logloss_default, logloss_learned, sources, fitted_at, note }], defaults, note } */
+  consensusWeights: () => api.get('/football/model/consensus-weights').then(unwrap),
+  /** { source, url, from, to, n, divisions, method, tiers, overall, scores, groups } — the open history tables */
+  history: () => api.get('/football/history').then(unwrap)
 }
 
 // Super admin: the providers' keys, budgets and competitions are the platform's.
@@ -118,5 +130,7 @@ export const footballAdminApi = {
   updateNewsFeed: (id, body) => api.put(`/super-admin/football/news-feeds/${enc(id)}`, body).then(unwrap),
   deleteNewsFeed: (id) => api.delete(`/super-admin/football/news-feeds/${enc(id)}`).then(unwrap),
   newsSources: () => api.get('/super-admin/football/news-sources').then(unwrap),
-  unmatchedNames: (params = {}) => api.get('/super-admin/football/unmatched-names', { params: clean(params) }).then(unwrap)
+  unmatchedNames: (params = {}) => api.get('/super-admin/football/unmatched-names', { params: clean(params) }).then(unwrap),
+  // v2.18 — refit the consensus weights now (weekly on its own)
+  fitConsensusWeights: () => api.post('/super-admin/football/consensus-weights/fit', {}, { timeout: 120000 }).then(unwrap)
 }

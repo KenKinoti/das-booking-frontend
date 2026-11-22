@@ -6,6 +6,29 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.18.0] - 2026-11-23
+
+**Football: simple picks, an honest win rate and ✓/✗ results.** Every match now shows one plain pick — "Arsenal win ·
+64% · Strong" — with its level (Strong 60%+, Good 50–60%, Close call 42–50%, Coin-flip under 42%) and how often picks
+at that level have won in open match history (76,528 matches in 38 divisions, 2019/20–2026: Strong 72%, Good 56%, Close
+call 46%, Coin-flip 39%) and, once 30 are graded, in DASYIN's own record. Each pick also has a safer double-chance
+option, a draw alert, the goals and both-teams-to-score leans, and the three likeliest scores with an honest "exact
+scores land about 1 time in 9". The chance blends Pinnacle, the bookmakers' median, Polymarket crowd prices, ClubElo,
+DASYIN's model and API-Football's prediction; the weights are learned per region only when they beat the defaults on
+held-out matches, and market prices are never "corrected". Picks are frozen before kick-off and marked ✓ Correct or
+✗ Wrong after full time (pick, safer pick, goals, both teams to score, exact score), with openfootball and
+football-data.org as fallbacks when results are late; nothing is regraded. New **Scorecard** (Football → Scorecard):
+picks right against how many their own chances predicted, with the normal range, so a bad weekend can be told apart
+from a broken model; safer picks, goals, the bookmaker's favourite on the same matches, levels against history, a
+weekly line, every graded pick and graded jackpots. The match centre adds "Strong picks only", a last-weekend banner
+and a combo helper (combined chance, fair odds, "1 in N"). Jackpots gain levels and draw alerts per game, ✓/✗ per game,
+a plain review ("4 of 13, the same as the bookmaker's favourites; pick-or-draw would have hit 8") and a budget planner
+for doubles and triples. New optional free sources (off by default): API-Football predictions, Polymarket (public
+Gamma API, thin markets ignored) and openfootball (public domain). The Odds API connection test now cleans pasted keys
+(invisible characters, quotes, whole URLs) and shows the provider's own error code, the key's last four characters and
+whether the key looks like one of theirs. New AI tools: football_scorecard, football_picks. Estimates only, 18+;
+DASYIN takes no bets.
+
 ## [2.17.0] - 2026-11-20
 
 **Football on near-free data, team news and a jackpot analyser.** API-Football stays the backbone; everything else is

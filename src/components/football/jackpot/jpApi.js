@@ -170,7 +170,8 @@ export function normView(v) {
     games,
     tickets: (v.tickets || []).map((t) => ({ ...t, picks: (t.picks || []).map(pick), combos: n(t.combinations), cost: n(t.cost), p: n(t.p_all), oneIn: n(t.one_in), correct: n(t.correct), of: n(t.of) })),
     analysis: normAnalysis(v.analysis),
-    grading: v.grading || null
+    grading: v.grading || null,
+    review: v.review || v.grading?.review || null // v2.18
   }
 }
 

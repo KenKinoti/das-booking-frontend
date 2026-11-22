@@ -28,6 +28,7 @@
           :can-refresh="isSuper"
           :refreshing="refreshing"
           :source-check="a.source_check || null"
+          :result-check="a.result_check || null"
           @jump="jump"
           @sources="sourcesOpen = true"
           @watch="toggleWatch"
@@ -43,6 +44,8 @@
 
           <div class="fbma__main">
             <a v-if="live" href="#live" class="fbma__jumplive" @click.prevent="jump('live')"><span class="fb-livedot"></span> In play — jump to the live block</a>
+            <ResultPanel v-if="showResult" ref="result" :a="a" />
+            <PickCard ref="pick" :a="a" :tz="tz" />
             <ProbSection ref="probabilities" :a="a" :tz="tz" />
             <NewsSection v-if="a.team_news || a.news" ref="team-news" :a="a" :tz="tz" :now="now" @reviewed="load(true)" />
             <PriceCheck ref="price-check" :a="a" :meta="meta" :limits="limits" :tz="tz" @recorded="afterRecord" @saved="load(true)" />
@@ -107,7 +110,7 @@ import { apiErrorMessage } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { toast } from '@/composables/useToast'
 import { fb, loadMeta, forbiddenReason } from '@/components/football/fbState'
-import { DEFAULT_TZ, fmtDateTime, ago, isLive } from '@/components/football/fb'
+import { DEFAULT_TZ, fmtDateTime, ago, isLive, isFinished } from '@/components/football/fb'
 import FbNoAccess from '@/components/football/FbNoAccess.vue'
 import FbFootnote from '@/components/football/FbFootnote.vue'
 import MatchHeader from '@/components/football/match/MatchHeader.vue'
@@ -129,6 +132,8 @@ import ReferenceSection from '@/components/football/match/ReferenceSection.vue'
 import NewsSection from '@/components/football/match/NewsSection.vue'
 import SourceCheckPanel from '@/components/football/match/SourceCheckPanel.vue'
 import { providerName } from '@/components/football/fb'
+import PickCard from '@/components/football/match/PickCard.vue'
+import ResultPanel from '@/components/football/match/ResultPanel.vue'
 
 export default {
   name: 'MatchAnalysis',
@@ -152,11 +157,13 @@ export default {
     TrackSection,
     ReferenceSection,
     NewsSection,
-    SourceCheckPanel
+    SourceCheckPanel,
+    PickCard,
+    ResultPanel
   },
   props: { id: { type: [String, Number], required: true } },
   data() {
-    return { a: null, limits: null, watch: [], error: '', forbidden: '', tz: DEFAULT_TZ, now: '', sourcesOpen: false, active: 'probabilities', io: null, poll: null, refreshing: false, loading: false }
+    return { a: null, limits: null, watch: [], error: '', forbidden: '', tz: DEFAULT_TZ, now: '', sourcesOpen: false, active: 'pick', io: null, poll: null, refreshing: false, loading: false }
   },
   computed: {
     meta() {
@@ -168,11 +175,17 @@ export default {
     live() {
       return !!this.a && isLive(this.a.fixture.status)
     },
+    /** v2.18: the Result panel after full time (the API sends result_check only once the match is over). */
+    showResult() {
+      return !!this.a && !!this.a.result_check && (isFinished(this.a.fixture.status) || !!this.a.result_check.status)
+    },
     watchItem() {
       return this.watch.find((w) => w.kind === 'fixture' && Number(w.ref_id) === Number(this.id)) || null
     },
     nav() {
       const n = [
+        ['result', 'Result'],
+        ['pick', 'The pick'],
         ['probabilities', 'Probabilities'],
         ['team-news', 'Team news & news'],
         ['price-check', 'Price check'],
@@ -191,7 +204,7 @@ export default {
         ['reference', 'Reference'],
         ['sources', 'Sources']
       ]
-      const has = { live: !!(this.a && this.a.live), 'team-news': !!(this.a && (this.a.team_news || this.a.news)), 'source-check': !!(this.a && this.a.source_check) }
+      const has = { result: this.showResult, live: !!(this.a && this.a.live), 'team-news': !!(this.a && (this.a.team_news || this.a.news)), 'source-check': !!(this.a && this.a.source_check) }
       return n.filter(([id]) => has[id] !== false).map(([id, label]) => ({ id, label }))
     }
   },

@@ -37,12 +37,14 @@
                 <input v-model="d.enabled[s.key]" type="checkbox" :data-test="'fb-free-on-' + s.key" />
                 <strong>{{ s.name }}</strong>
               </label>
-              <span v-if="s.needs_key" class="ui-badge" :class="s.has_key ? 'ui-badge--paid' : 'ui-badge--overdue'">{{ s.has_key ? 'Key saved' : 'Needs a key' }}</span>
+              <span v-if="s.key === 'apifootball_pred'" class="ui-badge" :class="s.has_key ? 'ui-badge--paid' : 'ui-badge--overdue'">{{ s.has_key ? "Uses API-Football's key" : 'Needs the API-Football key' }}</span>
+              <span v-else-if="s.needs_key" class="ui-badge" :class="s.has_key ? 'ui-badge--paid' : 'ui-badge--overdue'">{{ s.has_key ? 'Key saved' : 'Needs a key' }}</span>
               <span v-else class="ui-badge">No key needed</span>
             </div>
             <p class="pf-small fbfs__what">{{ s.what }}</p>
             <p class="pf-muted pf-small fbfs__tier">Free tier: {{ s.free_tier }}</p>
-            <div v-if="s.needs_key" class="fbfs__keyrow">
+            <p v-if="s.key === 'apifootball_pred'" class="pf-muted pf-small fbfs__tier">The key is the API-Football key saved above; requests count in its daily budget at the lowest priority.</p>
+            <div v-else-if="s.needs_key" class="fbfs__keyrow">
               <span v-if="s.has_key" class="pf-mono pf-small" :data-test="'fb-free-hint-' + s.key">{{ s.key_hint }}</span>
               <input
                 v-model="keys[s.key]"
@@ -127,6 +129,65 @@
             </label>
           </div>
           <span class="ui-hint">Weights are renormalised over the sources a game has (sum now {{ weightSum.toFixed(2) }}).</span>
+        </fieldset>
+
+        <!-- v2.18: the sources behind the picks' consensus chance -->
+        <fieldset v-if="v.polymarket || v.openfootball || v.apifootball_pred" class="fbfs__jp fbfs__win" data-test="fb-win-sources">
+          <legend class="ui-label">Sources for the picks (v2.18)</legend>
+          <p class="pf-muted pf-small fbfs__p">
+            Each match's pick blends the sharp market, all bookmakers, ClubElo, DASYIN's model and — when switched on above — Polymarket and API-Football's predictions; openfootball
+            checks kick-offs and results and grades matches when API-Football is late. All three start switched off.
+          </p>
+          <div class="fbfs__grid">
+            <div v-if="v.polymarket" class="ui-field" data-test="fb-win-polymarket">
+              <label class="ui-label" for="fbfs-pml">Polymarket: least money in a market (US$)</label>
+              <input id="fbfs-pml" v-model.number="d.polymarket_min_liquidity" class="ui-input" type="number" min="0" step="500" data-test="fb-win-pm-liquidity" />
+              <span class="ui-hint">{{ v.polymarket.label }} · {{ v.polymarket.matched || 0 }} matches matched<template v-if="v.polymarket.last_discovery_at"> · looked {{ fmtDateTime(v.polymarket.last_discovery_at) }}</template></span>
+            </div>
+            <div v-if="v.polymarket" class="ui-field">
+              <label class="ui-label" for="fbfs-pms">Polymarket: widest bid–ask spread</label>
+              <input id="fbfs-pms" v-model.number="d.polymarket_max_spread" class="ui-input" type="number" min="0.005" max="0.5" step="0.005" data-test="fb-win-pm-spread" />
+              <span class="ui-hint">0.04 = 4 points; wider markets are ignored</span>
+            </div>
+            <div v-if="v.polymarket" class="ui-field">
+              <label class="ui-label" for="fbfs-pmg">Polymarket leagues (sport:competition id)</label>
+              <input id="fbfs-pmg" v-model="d.polymarket_leagues" class="ui-input" placeholder="epl:39,lal:140" data-test="fb-win-pm-leagues" />
+            </div>
+            <div v-if="v.openfootball" class="ui-field" data-test="fb-win-openfootball">
+              <label class="ui-label" for="fbfs-off">openfootball files</label>
+              <input id="fbfs-off" v-model="d.openfootball_files" class="ui-input" placeholder="en.1,en.2,de.1,de.2,es.1,es.2,it.1,it.2,fr.1,fr.2" data-test="fb-win-of-files" />
+              <span class="ui-hint"
+                >Season {{ v.openfootball.season }} · {{ v.openfootball.licence }} · {{ (v.openfootball.matches || 0).toLocaleString() }} matches<template v-if="v.openfootball.last_fetch_at">
+                  · fetched {{ fmtDateTime(v.openfootball.last_fetch_at) }}</template
+                ></span
+              >
+            </div>
+            <div v-if="v.apifootball_pred" class="ui-field" data-test="fb-win-apfpred">
+              <span class="ui-label">API-Football predictions</span>
+              <span class="pf-small">
+                Upcoming matches in the next {{ v.apifootball_pred.window_hours }} h, once, plus one refresh about {{ Math.round((v.apifootball_pred.refresh_before_min || 180) / 60) }} h before
+                kick-off · {{ v.apifootball_pred.stored || 0 }} stored
+              </span>
+            </div>
+            <div v-if="consensusDefaults.length" class="ui-field" data-test="fb-win-weights">
+              <span class="ui-label">Default weights</span>
+              <span class="pf-small">{{ consensusDefaults.map(([k, w]) => `${consensusLabel(k)} ${Math.round(w * 100)}%`).join(' · ') }}</span>
+              <span class="ui-hint"
+                >Learned per competition group when enough graded matches beat the defaults — see the <router-link to="/football/model">model page</router-link>.</span
+              >
+            </div>
+          </div>
+          <div v-if="(v.not_used || []).length" class="fbfs__notused" data-test="fb-win-notused">
+            <span class="ui-label">Not used, and why</span>
+            <ul>
+              <li v-for="x in v.not_used" :key="x.name"><strong>{{ x.name }}</strong> — {{ x.why }}</li>
+            </ul>
+          </div>
+          <p v-if="v.history" class="pf-muted pf-small fbfs__p">
+            Tier hit rates (Strong / Good / Close call / Coin-flip) come from
+            <a v-if="v.history.url" :href="v.history.url" target="_blank" rel="noopener noreferrer">{{ v.history.source }}</a><template v-else>{{ v.history.source }}</template
+            ><template v-if="v.history.n">, {{ Number(v.history.n).toLocaleString('en') }} matches</template>.
+          </p>
         </fieldset>
 
         <div class="fbfs__actions">
@@ -250,6 +311,7 @@ import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import { formatDateTime } from '@/utils/format'
 import { providerName, SOURCE_STYLE } from '@/components/football/fb'
+import { consensusLabel } from '@/components/football/verdict/verdict'
 import FbFigure from '@/components/football/charts/FbFigure.vue'
 import FbMeterList from '@/components/football/charts/FbMeterList.vue'
 
@@ -320,6 +382,10 @@ export default {
     usageTable() {
       return { cols: [{ label: 'Source' }, { label: 'Period' }, { label: 'Used', num: true }, { label: 'Budget', num: true }], rows: this.usageRows.map((r) => [r.label, r.sub, r.value, r.max]) }
     },
+    consensusDefaults() {
+      const order = ['sharp', 'market', 'clubelo', 'model', 'polymarket', 'apifootball_pred']
+      return Object.entries(this.v?.consensus?.defaults || {}).sort((a, b) => (order.indexOf(a[0]) + 99) % 99 - ((order.indexOf(b[0]) + 99) % 99))
+    },
     weightSum() {
       return Object.values(this.d.jackpot_weights || {}).reduce((t, x) => t + (Number(x) || 0), 0)
     },
@@ -347,6 +413,7 @@ export default {
   },
   methods: {
     fmtDateTime: formatDateTime,
+    consensusLabel,
     swatch(k) {
       const s = SOURCE_STYLE[k]
       return s.ring ? { boxShadow: `inset 0 0 0 2px ${s.color}` } : { background: s.color }
@@ -376,7 +443,12 @@ export default {
         news_confirm_domains: v.news?.confirm_domains ?? 2,
         news_google: { hl: v.news?.google?.hl || '', gl: v.news?.google?.gl || '', ceid: v.news?.google?.ceid || '' },
         jackpot_weights: { jackpot: 0.25, market: 0.45, clubelo: 0.15, model: 0.15, ...(v.jackpot?.weights || {}) },
-        jackpot_sharing: { tickets_sold: 300000, popularity: 1.5, ...(v.jackpot?.sharing || {}) }
+        jackpot_sharing: { tickets_sold: 300000, popularity: 1.5, ...(v.jackpot?.sharing || {}) },
+        // v2.18
+        polymarket_min_liquidity: v.polymarket?.min_liquidity ?? 5000,
+        polymarket_max_spread: v.polymarket?.max_spread ?? 0.04,
+        polymarket_leagues: (v.polymarket?.leagues || []).map((l) => `${l.sport}:${l.competition_id}`).join(','),
+        openfootball_files: (v.openfootball?.files || []).map((f) => f.code).join(',')
       }
       if (v.news?.languages?.length) this.languages = v.news.languages
     },
@@ -407,6 +479,12 @@ export default {
         jackpot_weights: Object.fromEntries(Object.entries(this.d.jackpot_weights).map(([k, n]) => [k, Number(n) || 0])),
         jackpot_sharing: { tickets_sold: Number(this.d.jackpot_sharing.tickets_sold) || 0, popularity: Number(this.d.jackpot_sharing.popularity) || 1 }
       }
+      if (this.v?.polymarket) {
+        body.polymarket_min_liquidity = Number(this.d.polymarket_min_liquidity) || 0
+        body.polymarket_max_spread = Number(this.d.polymarket_max_spread) || 0.04
+        body.polymarket_leagues = this.d.polymarket_leagues || ''
+      }
+      if (this.v?.openfootball) body.openfootball_files = this.d.openfootball_files || ''
       if (this.keys.oddspapi) body.oddspapi_key = this.keys.oddspapi
       if (this.keys.fdorg) body.fdorg_key = this.keys.fdorg
       this.saving = true
@@ -666,6 +744,22 @@ export default {
   border: 0;
   margin: 0;
   padding: 0;
+}
+.fbfs__win {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.fbfs__p {
+  margin: 0;
+}
+.fbfs__notused ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-2);
 }
 .fbfs__weights {
   display: grid;

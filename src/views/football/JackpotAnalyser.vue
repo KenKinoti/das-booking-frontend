@@ -84,9 +84,11 @@
                 <a v-for="s in nav" :key="s.id" :href="'#' + s.id" :class="{ 'is-on': active === s.id }" @click.prevent="jump(s.id)">{{ s.label }}</a>
               </nav>
               <div class="fbja__main">
+                <JpReview v-if="review" ref="review" :review="review" :n-games="an.nGames" :complete="review.complete !== false" :tz="tz" />
                 <JpTickets ref="tickets" :an="an" :jackpot-id="j.id" :currency="cur" :tickets="v.tickets" @changed="applySaved" />
-                <JpGames ref="games" :an="an" :tz="tz" :plan="plan" />
+                <JpGames ref="games" :an="an" :tz="tz" :plan="plan" :results="v.games" :grading="v.grading" :review="review" />
                 <JpCover ref="cover" :an="an" :price="j.ticket_price || 0" :currency="cur" :plan="plan" :jackpot-id="j.id" @plan="plan = $event" @changed="applySaved" />
+                <JpPlanner ref="planner" :jackpot-id="j.id" :an="an" :price="j.ticket_price || 0" :currency="cur" :bonuses="j.bonuses || []" :results="v.games" @changed="applySaved" />
                 <JpChances ref="chances" :an="an" :bonuses="j.bonuses || []" :currency="cur" />
                 <JpEv ref="value" :key="'ev' + evKey" :an="an" :currency="cur" :jackpot-id="j.id" :sharing="j.sharing" @changed="applySaved" />
                 <JpGrading ref="results" :jackpot-id="j.id" :games="v.games" :tickets="v.tickets" :grading="v.grading" :currency="cur" :tz="tz" @changed="applySaved" />
@@ -136,12 +138,14 @@ import JpCover from '@/components/football/jackpot/JpCover.vue'
 import JpChances from '@/components/football/jackpot/JpChances.vue'
 import JpEv from '@/components/football/jackpot/JpEv.vue'
 import JpGrading from '@/components/football/jackpot/JpGrading.vue'
+import JpReview from '@/components/football/jackpot/JpReview.vue'
+import JpPlanner from '@/components/football/jackpot/JpPlanner.vue'
 import { BOOKMAKERS, fmtClose } from '@/components/football/jackpot/jp'
 import { normView } from '@/components/football/jackpot/jpApi'
 
 export default {
   name: 'JackpotAnalyser',
-  components: { FbNoAccess, FbFootnote, JackpotEditor, JackpotForm, JpGames, JpTickets, JpCover, JpChances, JpEv, JpGrading },
+  components: { FbNoAccess, FbFootnote, JackpotEditor, JackpotForm, JpGames, JpTickets, JpCover, JpChances, JpEv, JpGrading, JpReview, JpPlanner },
   props: { id: { type: String, required: true } },
   data() {
     return { v: null, error: '', forbidden: '', tz: DEFAULT_TZ, editing: false, formOpen: false, busy: false, plan: null, active: 'tickets', io: null, bookmakers: BOOKMAKERS, evKey: 0 }
@@ -187,11 +191,17 @@ export default {
     unmatched() {
       return (this.v?.games || []).filter((g) => !g.fixture_id)
     },
+    /** v2.18 review after grading (grading.review, or the view's review). */
+    review() {
+      return this.v?.grading?.review || this.v?.review || this.v?.analysis?.review || null
+    },
     nav() {
       return [
+        ...(this.review ? [['review', 'How it went']] : []),
         ['tickets', 'Tickets'],
         ['games', 'Each game'],
         ['cover', 'Doubles & triples'],
+        ['planner', 'Budget planner'],
         ['chances', 'How many right'],
         ['value', 'Ticket value'],
         ['results', 'Results']
