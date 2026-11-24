@@ -114,6 +114,7 @@
                   <span class="person__text">
                     <span class="person__name">{{ fullName(c) }} <span v-if="c.country_code" class="name-flag" :title="countryOf(c)">{{ flag(c.country_code) }}</span> <span v-if="c.source === 'zoho'" class="src-badge" title="Imported from Zoho Books">Zoho</span><span v-else-if="c.source === 'csv'" class="src-badge" title="Imported from a CSV file">CSV</span></span>
                     <small>
+                      <span v-if="c.company_name && c.company_name !== fullName(c)" class="person__company"><i class="fa-regular fa-building"></i> {{ c.company_name }} · </span>
                       {{ c.email || c.phone || '—' }}
                       <span v-if="c.contacts_count" class="contacts-pill" :title="`${c.contacts_count} contact${c.contacts_count > 1 ? 's' : ''} copied on emails`"><i class="fa-regular fa-address-card"></i> {{ c.contacts_count }}</span>
                     </small>

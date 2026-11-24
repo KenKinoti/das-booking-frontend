@@ -14,10 +14,31 @@
       <div class="ui-modal__body">
         <div v-if="error" class="ui-alert ui-alert--danger" style="margin-bottom: 16px"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
 
-        <div class="section-label">Contact</div>
+        <div class="ui-tabs cm-kind" role="radiogroup" aria-label="Person or company" data-test="customer-kind">
+          <button type="button" class="ui-tab" role="radio" :aria-checked="!form.is_company" :class="{ 'is-active': !form.is_company }" @click="form.is_company = false"><i class="fa-regular fa-user"></i> Person</button>
+          <button type="button" class="ui-tab" role="radio" :aria-checked="form.is_company" :class="{ 'is-active': form.is_company }" data-test="customer-company" @click="form.is_company = true"><i class="fa-regular fa-building"></i> Company</button>
+        </div>
+
+        <template v-if="form.is_company">
+          <div class="section-label">Company</div>
+          <div class="ui-grid-2">
+            <div class="ui-field">
+              <label for="cm-company">Company name <span class="req">*</span></label>
+              <input id="cm-company" v-model.trim="form.company_name" class="ui-input" :class="{ 'is-invalid': errors.company_name }" autocomplete="organization" data-test="customer-company-name" />
+              <span v-if="errors.company_name" class="field-error">{{ errors.company_name }}</span>
+            </div>
+            <div class="ui-field">
+              <label for="cm-tax">Tax / VAT number <span class="muted">— optional</span></label>
+              <input id="cm-tax" v-model.trim="form.tax_number" class="ui-input" autocomplete="off" />
+            </div>
+          </div>
+          <p class="ui-hint cm-hint">Invoices and quotes for this customer are billed to the company, with the contact below as “Attn:”.</p>
+        </template>
+
+        <div class="section-label">{{ form.is_company ? 'Contact person' : 'Contact' }}</div>
         <div class="ui-grid-2">
           <div class="ui-field">
-            <label for="cm-first">First name <span class="req">*</span></label>
+            <label for="cm-first">First name <span v-if="!form.is_company" class="req">*</span></label>
             <input id="cm-first" ref="first" v-model.trim="form.first_name" class="ui-input" :class="{ 'is-invalid': errors.first_name }" autocomplete="off" />
             <span v-if="errors.first_name" class="field-error">{{ errors.first_name }}</span>
           </div>
@@ -41,7 +62,7 @@
             </div>
             <span v-if="errors.phone" class="field-error">{{ errors.phone }}</span>
           </div>
-          <div class="ui-field">
+          <div v-if="!form.is_company" class="ui-field">
             <label for="cm-dob">Date of birth</label>
             <input id="cm-dob" v-model="form.date_of_birth" type="date" class="ui-input" :max="today" />
           </div>
@@ -154,6 +175,9 @@ function orgDefaultCurrency() {
 }
 
 const blank = () => ({
+  is_company: false,
+  company_name: '',
+  tax_number: '',
   first_name: '',
   last_name: '',
   email: '',
@@ -243,7 +267,11 @@ export default {
         this.form = c
           ? {
               ...blank(),
-              first_name: c.first_name || '',
+              is_company: !!(c.company_name || '').trim(),
+              company_name: c.company_name || '',
+              tax_number: c.tax_number || '',
+              // A company saved without a contact keeps its name as the first name; don't show it twice.
+              first_name: c.company_name && c.first_name === c.company_name && !c.last_name ? '' : c.first_name || '',
               last_name: c.last_name || '',
               email: c.email || '',
               phone: c.phone || '',
@@ -283,7 +311,8 @@ export default {
     },
     validate() {
       const e = {}
-      if (!this.form.first_name) e.first_name = 'First name is required'
+      if (this.form.is_company && !this.form.company_name) e.company_name = 'Company name is required'
+      if (!this.form.is_company && !this.form.first_name) e.first_name = 'First name is required'
       if (this.form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email)) e.email = 'Enter a valid email address'
       if (!this.form.email && !this.form.phone) e.phone = 'Add an email address or a phone number'
       if (this.form.phone && !/^[+\d][\d\s()-]{5,19}$/.test(this.form.phone)) e.phone = 'Enter a valid phone number'
@@ -295,7 +324,14 @@ export default {
       this.saving = true
       this.error = ''
       try {
-        const payload = { ...this.form, address: { ...this.form.address, country: countryName(this.form.country_code) } }
+        const { is_company: isCompany, ...form } = this.form
+        const payload = { ...form, address: { ...form.address, country: countryName(form.country_code) } }
+        if (isCompany) {
+          // A company with no contact person keeps its name as the record's first name.
+          if (!payload.first_name) payload.first_name = payload.company_name
+        } else {
+          payload.company_name = ''
+        }
         const saved = this.isEditing ? await customerService.update(this.customer.id, payload) : await customerService.create(payload)
         let failed = 0
         if (!this.isEditing && saved?.id && this.pendingContacts.length) {
@@ -321,6 +357,20 @@ export default {
 </script>
 
 <style scoped>
+.cm-kind {
+  margin-bottom: 14px;
+}
+
+.cm-hint {
+  margin: 6px 0 16px;
+}
+
+@media (max-width: 860px), (pointer: coarse) {
+  .cm-kind .ui-tab {
+    min-height: 44px;
+  }
+}
+
 .fx-note {
   grid-column: 1 / -1;
   display: flex;

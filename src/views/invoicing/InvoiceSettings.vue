@@ -249,7 +249,7 @@ export default {
       receiptPlaceholders: RECEIPT_PLACEHOLDERS,
       defaultReceiptSubject: DEFAULT_RECEIPT_SUBJECT,
       defaultReceiptMessage: DEFAULT_RECEIPT_MESSAGE,
-      placeholders: ['client', 'number', 'type', 'type_lower', 'total', 'amount_due', 'amount_paid', 'deposit', 'currency', 'issue_date', 'due_date', 'business', 'link', 'pay_link']
+      placeholders: ['client', 'company', 'number', 'type', 'type_lower', 'total', 'amount_due', 'amount_paid', 'deposit', 'currency', 'issue_date', 'due_date', 'business', 'link', 'pay_link']
     }
   },
   async created() {

@@ -22,6 +22,7 @@
       <div>
         <div class="lbl">Bill to</div>
         <strong>{{ doc.client_name }}</strong>
+        <div v-if="doc.client_is_company && doc.client_contact" class="idoc__attn">Attn: {{ doc.client_contact }}</div>
         <div v-if="doc.client_address" class="pre">{{ doc.client_address }}</div>
         <div v-if="doc.client_email">{{ doc.client_email }}</div>
         <div v-if="doc.client_phone">{{ doc.client_phone }}</div>

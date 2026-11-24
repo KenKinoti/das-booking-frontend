@@ -6,6 +6,18 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.18.2] - 2026-11-24
+
+**Bill a company.** Invoices and quotes have a Person / Company switch under "Bill to". For a company, the name field
+becomes "Company name" and an optional "Contact person" appears: the PDF, the online invoice and the receipt show the
+company with "Attn: <contact>" under it, and emails greet the contact person ("Hi Jane") instead of the company. A
+customer whose record has a company name fills all of this in automatically — company, contact and tax number — and
+searching the contact's name finds the company. The customer form has the same Person / Company switch (company
+name and tax/VAT number; a company can be saved without a contact person), and the customer list shows the company
+under the person's name. Edits keep the choice, duplicates and quote → invoice conversions copy it, and switching back
+to Person clears the contact. Email templates gain {{company}}. The AI invoice tools accept client_is_company and
+client_contact.
+
 ## [2.18.1] - 2026-11-24
 
 **DASYIN for Android.** A small Android app (com.dasyin.erp, ≈ 0.5 MB, Android 6.0+) opens DASYIN full screen in the

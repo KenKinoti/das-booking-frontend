@@ -90,7 +90,7 @@ export function customerCountryLabel(c) {
  * too so the form isn't empty while it loads.
  */
 export function newInvoiceLink(c) {
-  const q = new URLSearchParams({ customer_id: c?.id || '', client_name: customerName(c), client_email: c?.email || '' })
+  const q = new URLSearchParams({ customer_id: c?.id || '', client_name: (c?.company_name || '').trim() || customerName(c), client_email: c?.email || '' })
   if (c?.billing_currency) q.set('currency', c.billing_currency)
   return `/invoices/new?${q.toString()}`
 }

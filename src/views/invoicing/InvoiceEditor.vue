@@ -39,18 +39,24 @@
 
         <!-- Client & details -->
         <section class="ui-card">
-          <div class="ui-card__head"><h2><i class="fa-regular fa-user head-ico"></i> Bill to</h2></div>
+          <div class="ui-card__head">
+            <h2><i :class="doc.client_is_company ? 'fa-regular fa-building' : 'fa-regular fa-user'" class="head-ico"></i> Bill to</h2>
+            <div class="ui-tabs bill-kind" role="radiogroup" aria-label="Bill to a person or a company" data-test="bill-kind">
+              <button type="button" class="ui-tab" role="radio" :aria-checked="!doc.client_is_company" :class="{ 'is-active': !doc.client_is_company }" data-test="bill-person" @click="setCompany(false)"><i class="fa-regular fa-user"></i> Person</button>
+              <button type="button" class="ui-tab" role="radio" :aria-checked="!!doc.client_is_company" :class="{ 'is-active': doc.client_is_company }" data-test="bill-company" @click="setCompany(true)"><i class="fa-regular fa-building"></i> Company</button>
+            </div>
+          </div>
           <div class="ui-card__body">
             <div class="ui-grid-2">
               <div class="ui-field client-field">
-                <label for="client_name">Client name <span class="req">*</span></label>
+                <label for="client_name">{{ doc.client_is_company ? 'Company name' : 'Client name' }} <span class="req">*</span></label>
                 <input
                   id="client_name"
                   v-model="doc.client_name"
                   class="ui-input"
                   :class="{ 'is-invalid': touched && !doc.client_name.trim() }"
                   autocomplete="off"
-                  placeholder="Start typing to search saved clients"
+                  :placeholder="doc.client_is_company ? 'e.g. Acme Supplies Ltd — or search saved clients' : 'Start typing to search saved clients'"
                   @focus="clientOpen = true"
                   @blur="closeClients"
                   @keydown.down.prevent="clientIdx = Math.min(clientIdx + 1, clientMatches.length - 1)"
@@ -69,8 +75,8 @@
                   >
                     <span class="suggest__avatar">{{ (c.name || '?')[0].toUpperCase() }}</span>
                     <span class="suggest__text">
-                      <strong>{{ c.name }}</strong>
-                      <small>{{ [c.email, c.phone].filter(Boolean).join(' · ') || 'No contact details' }}</small>
+                      <strong><i v-if="c.is_company" class="fa-regular fa-building suggest__co" aria-label="Company"></i>{{ c.name }}</strong>
+                      <small>{{ [c.contact, c.email, c.phone].filter(Boolean).join(' · ') || 'No contact details' }}</small>
                     </span>
                     <span class="suggest__meta">
                       <span v-if="c.currency" class="suggest__cur" :title="clientCurrencyTitle(c)">{{ c.country_code ? flag(c.country_code) + ' ' : '' }}{{ c.currency }}</span>
@@ -91,6 +97,11 @@
                   <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="doc.customer_id = null">Unlink</button>
                 </div>
                 <div v-else-if="clientsLoaded && !clients.length" class="ui-hint">No saved clients yet — type a name, or add it as a customer.</div>
+              </div>
+              <div v-if="doc.client_is_company" class="ui-field">
+                <label for="client_contact">Contact person <span class="muted">— optional</span></label>
+                <input id="client_contact" v-model="doc.client_contact" class="ui-input" autocomplete="off" placeholder="e.g. Jane Wanjiru, Accounts" data-test="client-contact" />
+                <p class="ui-hint">Printed as “Attn: …” under the company name, and greeted in the email.</p>
               </div>
               <div class="ui-field">
                 <label for="client_email">Email</label>
@@ -404,9 +415,11 @@
           <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon" title="Close" @click="newClient = null"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="ui-modal__body">
+          <label class="nc-company"><input v-model="newClient.is_company" type="checkbox" /> This customer is a company</label>
           <div class="ui-grid-2">
-            <div class="ui-field"><label for="nc_first">First name / company *</label><input id="nc_first" v-model="newClient.first_name" class="ui-input" /></div>
-            <div class="ui-field"><label for="nc_last">Last name</label><input id="nc_last" v-model="newClient.last_name" class="ui-input" /></div>
+            <div v-if="newClient.is_company" class="ui-field span-2"><label for="nc_company">Company name *</label><input id="nc_company" v-model="newClient.company_name" class="ui-input" /></div>
+            <div class="ui-field"><label for="nc_first">{{ newClient.is_company ? 'Contact first name' : 'First name *' }}</label><input id="nc_first" v-model="newClient.first_name" class="ui-input" /></div>
+            <div class="ui-field"><label for="nc_last">{{ newClient.is_company ? 'Contact last name' : 'Last name' }}</label><input id="nc_last" v-model="newClient.last_name" class="ui-input" /></div>
             <div class="ui-field"><label for="nc_email">Email</label><input id="nc_email" v-model="newClient.email" type="email" class="ui-input" /></div>
             <div class="ui-field"><label for="nc_phone">Phone</label><input id="nc_phone" v-model="newClient.phone" class="ui-input" /></div>
           </div>
@@ -544,7 +557,7 @@ export default {
       const scored = []
       for (const c of this.clients) {
         const name = (c.name || '').toLowerCase()
-        const hay = `${name} ${(c.email || '').toLowerCase()} ${(c.phone || '').toLowerCase()}`
+        const hay = `${name} ${(c.contact || '').toLowerCase()} ${(c.email || '').toLowerCase()} ${(c.phone || '').toLowerCase()}`
         const phoneHit = digits.length >= 3 && (c.phone || '').replace(/\D/g, '').includes(digits)
         if (!phoneHit && !tokens.every((t) => hay.includes(t))) continue
         let score = 3
@@ -905,6 +918,8 @@ export default {
         client_phone: '',
         client_address: '',
         client_tax_number: '',
+        client_is_company: false,
+        client_contact: '',
         customer_id: null,
         reference: '',
         title: '',
@@ -959,6 +974,9 @@ export default {
             const cd = await this.loadCustomerDefaults(d.customer_id)
             if (cd) {
               d.client_name = cd.name || d.client_name
+              d.client_is_company = !!cd.is_company
+              d.client_contact = cd.is_company ? cd.contact || '' : ''
+              if (cd.tax_number && !d.client_tax_number) d.client_tax_number = cd.tax_number
               d.client_email = cd.email || d.client_email
               d.client_phone = cd.phone || ''
               d.client_address = cd.address || ''
@@ -1041,8 +1059,11 @@ export default {
       el.style.height = Math.max(38, el.scrollHeight + 2) + 'px'
     },
     openNewClient() {
-      const parts = this.doc.client_name.trim().split(/\s+/)
+      const company = !!this.doc.client_is_company
+      const parts = (company ? this.doc.client_contact || '' : this.doc.client_name).trim().split(/\s+/)
       this.newClient = {
+        is_company: company,
+        company_name: company ? this.doc.client_name.trim() : '',
         first_name: parts.length > 1 ? parts.slice(0, -1).join(' ') : parts[0] || '',
         last_name: parts.length > 1 ? parts[parts.length - 1] : '',
         email: this.doc.client_email || '',
@@ -1054,14 +1075,20 @@ export default {
     },
     async saveNewClient() {
       const n = this.newClient
-      if (!n.first_name.trim()) return toast.error('Add a first name.')
+      if (n.is_company && !n.company_name.trim()) return toast.error('Add the company name.')
+      if (!n.is_company && !n.first_name.trim()) return toast.error('Add a first name.')
       if (!n.email.trim() && !n.phone.trim()) return toast.error('Add an email or a phone number.')
       if (n.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(n.email.trim())) return toast.error('The email address looks invalid.')
       this.savingClient = true
       try {
+        const person = `${n.first_name} ${n.last_name}`.trim()
+        const company = n.is_company ? n.company_name.trim() : ''
         const res = await api.post('/customers', {
-          first_name: n.first_name.trim(),
+          // A company with no contact keeps its name as the record's first name too.
+          first_name: n.first_name.trim() || company,
           last_name: n.last_name.trim(),
+          company_name: company,
+          tax_number: n.is_company ? this.doc.client_tax_number || '' : '',
           email: n.email.trim(),
           phone: n.phone.trim(),
           country_code: n.country_code || '',
@@ -1071,11 +1098,13 @@ export default {
         const cur = cu.billing_currency ? { currency: cu.billing_currency, source: cu.currency_source } : customerCurrency({ country_code: n.country_code }, this.settings.currency)
         const client = {
           customer_id: cu.id || null,
-          name: `${n.first_name} ${n.last_name}`.trim(),
+          name: company || person,
+          is_company: !!company,
+          contact: company ? person : '',
           email: n.email.trim(),
           phone: n.phone.trim(),
           address: [n.street.trim(), n.country_code && n.country_code !== 'AU' ? countryName(n.country_code) : ''].filter(Boolean).join('\n'),
-          tax_number: '',
+          tax_number: company ? this.doc.client_tax_number || '' : '',
           source: 'customers',
           currency: cur.currency,
           currency_source: cur.source,
@@ -1096,8 +1125,15 @@ export default {
     closeClients() {
       setTimeout(() => (this.clientOpen = false), 120)
     },
+    /** Person or company: switching keeps what was typed; a company may name a contact person. */
+    setCompany(on) {
+      this.doc.client_is_company = !!on
+      if (!on) this.doc.client_contact = ''
+    },
     async pickClient(c) {
       this.doc.client_name = c.name
+      this.doc.client_is_company = !!c.is_company
+      this.doc.client_contact = c.is_company ? c.contact || '' : ''
       this.doc.client_email = c.email || this.doc.client_email
       this.doc.client_phone = c.phone || this.doc.client_phone
       this.doc.client_address = c.address || this.doc.client_address
@@ -1191,7 +1227,7 @@ export default {
     },
     validate() {
       const e = []
-      if (!this.doc.client_name.trim()) e.push('Add a client name.')
+      if (!this.doc.client_name.trim()) e.push(this.doc.client_is_company ? 'Add the company name.' : 'Add a client name.')
       if (this.doc.client_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.doc.client_email)) e.push('The client email address looks invalid.')
       const filled = this.doc.items.filter((i) => i.description.trim() || Number(i.unit_price))
       if (!filled.length) e.push('Add at least one line item.')
@@ -1209,6 +1245,8 @@ export default {
         doc_type: this.isQuote ? 'quote' : 'invoice',
         customer_id: d.customer_id || null,
         client_name: d.client_name,
+        client_is_company: !!d.client_is_company,
+        client_contact: d.client_is_company ? (d.client_contact || '').trim() : '',
         client_email: d.client_email,
         client_phone: d.client_phone,
         client_address: d.client_address,
@@ -1422,6 +1460,26 @@ export default {
 
 .inner {
   gap: 12px;
+}
+
+.bill-kind {
+  flex-shrink: 0;
+}
+
+.suggest__co {
+  margin-right: 6px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.nc-company {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 32px;
 }
 
 .span-2 {
@@ -1811,6 +1869,12 @@ export default {
     width: 40px;
     height: 40px;
     font-size: 14px;
+  }
+  .bill-kind .ui-tab {
+    min-height: 44px;
+  }
+  .nc-company {
+    min-height: 44px;
   }
 }
 
