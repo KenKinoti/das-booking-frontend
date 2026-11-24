@@ -6,6 +6,23 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.19.1] - 2026-11-24
+
+**Football: locked picks you can check.** Every match in the next three days now gets its pick locked as soon as it
+can be worked out, refreshed when prices change, and frozen at kick-off — so a pick no longer depends on the server
+happening to run in the last 30 minutes before kick-off (it usually didn't, so every recent match said "No pick").
+After full time the pick shows a large ✓ Correct or ✗ Wrong with the score and when it was locked ("Locked 2 h 10 min
+before kick-off") in the match centre, at the top of the match page, beside each of your bets and on jackpots. A new
+Results view in the match centre lists finished matches for a day or the last 7 days with a one-line tally ("Last 7
+days: 6 ✓ · 12 ✗ · 1 no pick") and a link to the Scorecard. No more nonsense picks: a pick now needs real evidence —
+prices, ClubElo ratings, API-Football's prediction or enough match history — otherwise it says "No pick — not enough
+data" and why, and is counted separately; picks from DASYIN's model alone are marked "less reliable" and never shown
+as Strong. Fixed a rating bug that put big clubs first seen late at about 1280 Elo, and the same default model numbers
+being shown for teams the model knew nothing about. ClubElo, football-data.co.uk and openfootball (free, no key) are
+now on by default unless you switched them off, and football-data.co.uk history loads by itself. A new wake-up link
+(`/api/v1/public/football/tick`) lets an hourly Cloud Scheduler job keep picks and results current while nobody has
+the app open; the server also catches up when it starts and whenever someone opens football after a quiet half hour.
+
 ## [2.19.0] - 2026-11-24
 
 **Pending review — no client message goes out without approval.** Invoice, quote, reminder and receipt emails,

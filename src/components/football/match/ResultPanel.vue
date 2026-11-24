@@ -10,6 +10,18 @@
       <FbResultBadge :check="r" test-id="fb-result-panel-badge" />
     </header>
     <div class="fb-panel__body">
+      <!-- v2.19.1: the locked pick → ✓ / ✗, the score and when it was locked, first thing after full time -->
+      <FbLockedResult
+        class="fbrp__locked"
+        :row="a"
+        :fixture-id="f.id"
+        :finished="true"
+        size="lg"
+        :details="false"
+        root-test-id="fb-locked-result"
+        chip-test-id="fb-locked-pick"
+        badge-test-id="fb-locked-badge"
+      />
       <p class="fbrp__sum" data-test="fb-result-summary">{{ r.summary || defaultSummary }}</p>
       <ul v-if="lines.length" class="fbrp__lines">
         <li v-for="l in lines" :key="l.key" :data-line="l.key" :data-correct="l.kind || ''">
@@ -24,7 +36,8 @@
         </li>
       </ul>
       <p class="fb-muted fb-small fbrp__foot">
-        Graded against the full-time (90 minutes) result{{ sourceText }}. The pick graded is the one frozen before kick-off; a single result says little on its own — see the
+        Graded against the full-time (90 minutes) result{{ sourceText }}. The pick graded is the one locked before kick-off (refreshed until then, never changed
+        afterwards); a single result says little on its own — see the
         <router-link to="/football/scorecard">scorecard</router-link> for the record over many matches.
       </p>
     </div>
@@ -34,6 +47,7 @@
 <script>
 import '../verdict/verdict.css'
 import FbResultBadge from '../verdict/FbResultBadge.vue'
+import FbLockedResult from '../results/FbLockedResult.vue'
 import { pct, providerName } from '../fb'
 import { normResult, normVerdict, markKind } from '../verdict/verdict'
 
@@ -41,7 +55,7 @@ const OUTCOME = { 1: 'home win', X: 'draw', 2: 'away win', H: 'home win', D: 'dr
 
 export default {
   name: 'ResultPanel',
-  components: { FbResultBadge },
+  components: { FbResultBadge, FbLockedResult },
   props: {
     a: { type: Object, required: true }
   },
@@ -72,7 +86,7 @@ export default {
     },
     defaultSummary() {
       return this.r.kind === 'nopick'
-        ? 'No pick was frozen before kick-off.'
+        ? 'No pick — not locked before kick-off.'
         : this.r.kind === 'void'
           ? 'Void — the match did not finish normally, so nothing is graded.'
           : 'Not graded yet.'
@@ -125,6 +139,11 @@ export default {
 <style scoped>
 .fbrp {
   scroll-margin-top: calc(var(--topbar-h, 64px) + 64px);
+}
+.fbrp__locked {
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--border);
 }
 .fbrp__sum {
   margin: 0 0 10px;

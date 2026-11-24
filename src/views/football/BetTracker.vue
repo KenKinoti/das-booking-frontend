@@ -220,6 +220,7 @@
                     <th class="num">Odds</th>
                     <th class="num">Stake</th>
                     <th>Status</th>
+                    <th title="DASYIN's pick for the match, locked before kick-off, and whether it was right">DASYIN's pick</th>
                     <th class="num">P&amp;L</th>
                     <th class="num" title="Your odds ÷ closing odds − 1">CLV</th>
                     <th data-label=""></th>
@@ -241,6 +242,19 @@
                     <td class="num">{{ odds(b.odds) }}</td>
                     <td class="num">{{ money(b.stake, b.currency) }}</td>
                     <td><span class="fb-pill" :class="statusTone(b.status)">{{ statusLabel(b.status) }}</span></td>
+                    <td class="fbbt__dp" :data-dasyin="b.dasyin_pick ? b.dasyin_pick.status : ''" data-test="fb-bet-dasyin">
+                      <template v-if="b.dasyin_pick && b.dasyin_pick.pick">
+                        <span class="fbbt__dp-pick">{{ b.dasyin_pick.pick_label }} · {{ pct(b.dasyin_pick.p, 0) }}</span>
+                        <FbResultBadge
+                          v-if="['correct', 'wrong', 'void'].includes(b.dasyin_pick.status)"
+                          :check="{ status: b.dasyin_pick.status, label: b.dasyin_pick.label, summary: b.dasyin_pick.summary }"
+                          :score="b.dasyin_pick.score ? b.dasyin_pick.score.replace('-', '–') : ''"
+                          :test-id="'fb-bet-dasyin-mark-' + b.id"
+                        />
+                        <span v-else class="fb-muted fb-small">{{ b.dasyin_pick.final ? b.dasyin_pick.label : 'Locked · can still refresh until kick-off' }}</span>
+                      </template>
+                      <span v-else class="fb-muted fb-small" :title="b.dasyin_pick && b.dasyin_pick.reason ? b.dasyin_pick.reason : ''">{{ b.dasyin_pick ? b.dasyin_pick.label : '—' }}</span>
+                    </td>
                     <td class="num" :class="b.pnl > 0 ? 'fb-pos' : b.pnl < 0 ? 'fb-neg' : ''">{{ b.status === 'open' ? '—' : smoney(b.pnl, b.currency) }}</td>
                     <td class="num" :title="b.closing_odds ? `Closing ${odds(b.closing_odds)} (${b.closing_source})` : 'No closing price yet'">{{ b.clv == null ? '—' : spct(b.clv) }}</td>
                     <td class="num fbbt__acts">
@@ -255,7 +269,7 @@
                     </td>
                   </tr>
                   <tr v-if="!bets.length && !loading">
-                    <td colspan="9" class="fb-muted">No bets yet. Find a match in the <router-link to="/football">match centre</router-link> and use its price check to record one.</td>
+                    <td colspan="10" class="fb-muted">No bets yet. Find a match in the <router-link to="/football">match centre</router-link> and use its price check to record one.</td>
                   </tr>
                 </tbody>
               </table>
@@ -296,12 +310,13 @@ import BankrollPanel from '@/components/football/bets/BankrollPanel.vue'
 import LimitsPanel from '@/components/football/bets/LimitsPanel.vue'
 import BetFormModal from '@/components/football/bets/BetFormModal.vue'
 import SettleModal from '@/components/football/bets/SettleModal.vue'
+import FbResultBadge from '@/components/football/verdict/FbResultBadge.vue'
 
 const STATUS = { open: 'Open', won: 'Won', lost: 'Lost', void: 'Void', half_won: 'Half won', half_lost: 'Half lost', cashed_out: 'Cashed out' }
 
 export default {
   name: 'BetTracker',
-  components: { FbNoAccess, FbFootnote, FbFigure, FbLine, FbColumns, BankrollPanel, LimitsPanel, BetFormModal, SettleModal },
+  components: { FbNoAccess, FbFootnote, FbFigure, FbLine, FbColumns, BankrollPanel, LimitsPanel, BetFormModal, SettleModal, FbResultBadge },
   data() {
     return {
       MARKETS,
@@ -690,6 +705,16 @@ export default {
 }
 .fbbt__bets td {
   vertical-align: top;
+}
+/* v2.19.1: DASYIN's locked pick next to each bet */
+.fbbt__dp {
+  min-width: 150px;
+}
+.fbbt__dp-pick {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 .fbbt__acts {
   width: 44px;

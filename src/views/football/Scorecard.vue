@@ -4,7 +4,7 @@
       <div>
         <div class="ui-eyebrow">Football</div>
         <h1>Scorecard</h1>
-        <p>How DASYIN's picks did, counted honestly: only picks frozen before kick-off, graded after full time, compared with what their own chances said.</p>
+        <p>How DASYIN's picks did, counted honestly: only picks locked before kick-off, graded once after full time, compared with what their own chances said.</p>
       </div>
       <div class="ui-actions">
         <router-link class="ui-btn" to="/football"><i class="fa-regular fa-futbol"></i> Match centre</router-link>
@@ -61,8 +61,13 @@
       <div v-if="sc" class="fbsc-body" :style="{ opacity: loading ? 0.6 : 1 }">
         <p class="fbsc-when fb-muted fb-small" data-test="fb-sc-period">
           {{ periodLine }} · times in {{ tz.replace('_', ' ')
-          }}<template v-if="t.no_pick || t.void">
-            · not counted: {{ [t.no_pick ? `${t.no_pick} without a frozen pick` : '', t.void ? `${t.void} void` : ''].filter(Boolean).join(', ') }}</template
+          }}<template v-if="t.no_pick || t.void || t.no_data">
+            · not counted:
+            {{
+              [t.no_data ? `${t.no_data} with no pick (not enough data)` : '', t.no_pick ? `${t.no_pick} not locked before kick-off` : '', t.void ? `${t.void} void` : '']
+                .filter(Boolean)
+                .join(', ')
+            }}</template
           >
         </p>
 
@@ -217,7 +222,7 @@
             <div class="fb-panel__head">
               <div>
                 <h2>Every graded pick</h2>
-                <p>{{ sc.rows.length }} match{{ sc.rows.length === 1 ? '' : 'es' }} · the pick frozen before kick-off and how it went</p>
+                <p>{{ sc.rows.length }} match{{ sc.rows.length === 1 ? '' : 'es' }} · the pick locked before kick-off and how it went</p>
               </div>
             </div>
             <div class="fb-panel__body">
@@ -313,7 +318,7 @@
         <div v-else class="ui-empty fb-panel" data-test="fb-sc-empty">
           <div class="ui-empty__icon"><i class="fa-regular fa-square-check"></i></div>
           <h3>No graded picks in this period</h3>
-          <p>Picks are graded after full time, and only picks frozen before kick-off count. Try a longer period or another competition.</p>
+          <p>Picks are graded after full time, and only picks locked before kick-off count. Try a longer period or another competition.</p>
         </div>
 
         <!-- Graded jackpots -->

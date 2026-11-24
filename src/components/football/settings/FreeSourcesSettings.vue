@@ -30,6 +30,8 @@
       </FbFigure>
 
       <form class="fbfs__form" novalidate @submit.prevent="save">
+        <!-- v2.19.1: the keyless sources are on by default (a choice somebody made is never overridden) -->
+        <p v-if="v.keyless && v.keyless.note" class="fb-honest" data-test="fb-free-keyless"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>{{ v.keyless.note }}</span></p>
         <div class="fbfs__cards">
           <div v-for="s in v.sources" :key="s.key" class="fbfs__card" :class="{ 'is-off': !d.enabled[s.key] }" :data-source="s.key">
             <div class="fbfs__cardhead">

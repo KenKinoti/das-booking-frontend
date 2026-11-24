@@ -11,10 +11,21 @@
     </header>
 
     <div class="fb-panel__body">
-      <div v-if="!v" class="fbpk__none" data-test="fb-pick-none">
+      <div v-if="!v" class="fbpk__none" data-test="fb-pick-none" :data-reason="noPick ? noPick.key : ''">
         <i class="fa-regular fa-circle-question" aria-hidden="true"></i>
-        <span>{{ finished ? 'No pick was frozen before kick-off, so this match is not graded.' : 'No pick yet — there are no prices or ratings for this match so far.' }}</span>
+        <span v-if="noPick && noPick.key === 'not_enough_data'"
+          ><strong>No pick — not enough data.</strong> {{ noPick.reason }}.
+          {{ finished ? 'So this match is not graded.' : 'A pick appears as soon as there is a price, ClubElo ratings or enough match history.' }}</span
+        >
+        <span v-else>{{ finished ? 'No pick — nothing was locked before kick-off, so this match is not graded.' : 'No pick yet — there are no prices or ratings for this match so far.' }}</span>
       </div>
+      <ul v-if="!v && checks.length" class="fbpk__checks" data-test="fb-pick-checks">
+        <li v-for="c in checks" :key="c.key" :data-ok="c.ok ? '1' : '0'">
+          <span class="fb-mk" :class="c.ok ? 'fb-mk--correct' : 'fb-mk--none'"
+            ><i :class="c.ok ? 'fa-solid fa-check' : 'fa-solid fa-minus'" aria-hidden="true"></i>{{ c.label }}</span
+          ><span v-if="!c.ok && c.why" class="fb-muted fb-small"> — {{ c.why }}</span>
+        </li>
+      </ul>
 
       <template v-else>
         <div class="fbpk__main" data-test="fb-pick" :data-pick="v.pick" :data-p="v.p" :data-tier="v.tier.key">
@@ -133,7 +144,7 @@
                     <td class="num">
                       <strong>{{ trioText(blend) }}</strong>
                     </td>
-                    <td class="fb-small">{{ v.frozen_at ? 'frozen ' + fmtDateTime(v.frozen_at, tz) : 'until kick-off' }}</td>
+                    <td class="fb-small">{{ v.locked_at || v.frozen_at ? 'locked ' + fmtDateTime(v.locked_at || v.frozen_at, tz) : 'until kick-off' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -210,6 +221,7 @@ import FbStack from '../charts/FbStack.vue'
 import { pct, fmtDateTime, isFinished } from '../fb'
 import { normVerdict, normResult, verdictFromResult, goalsText, bttsText, CONSENSUS_STYLE, consensusLabel } from '../verdict/verdict'
 import { trio } from '../jackpot/jpApi'
+import { noPickOf } from '../results/lock'
 
 export default {
   name: 'PickCard',
@@ -253,9 +265,21 @@ export default {
       const t = trio(this.apf?.probs)
       return t ? this.trioText(t) : ''
     },
+    noPick() {
+      return noPickOf(this.a, { finished: this.finished })
+    },
+    checks() {
+      const np = this.a.no_pick || null
+      return (np && np.checks) || []
+    },
     subtitle() {
       if (!this.v) return 'One plain pick per match'
-      if (this.v.frozen_at) return `Frozen before kick-off (${fmtDateTime(this.v.frozen_at, this.tz)}) — this is the pick that is graded`
+      // v2.19.1: locked early, refreshed until kick-off, then final.
+      const lock = this.a.lock
+      if (lock && lock.status === 'locked' && lock.label) {
+        return lock.final ? `${lock.label} — this is the pick that is graded` : `${lock.label} · refreshes with the prices until kick-off, then it's final`
+      }
+      if (this.v.frozen_at) return `Locked before kick-off (${fmtDateTime(this.v.frozen_at, this.tz)}) — this is the pick that is graded`
       return `Updates with the prices until kick-off${this.v.as_of ? ' · as of ' + fmtDateTime(this.v.as_of, this.tz) : ''}`
     },
     blend() {
@@ -329,6 +353,15 @@ export default {
   gap: 10px;
   color: var(--text-2);
   font-size: 13.5px;
+  line-height: 1.45;
+}
+.fbpk__checks {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
 }
 .fbpk__main {
   display: flex;

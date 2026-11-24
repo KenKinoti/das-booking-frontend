@@ -91,6 +91,13 @@ export const footballApi = {
   scorecard: (params = {}) => api.get('/football/scorecard', { params: clean(params), timeout: 30000 }).then(unwrap),
   /** ?from&to&min_tier&limit → { picks: [fixture row + verdict] } upcoming verdicts, strongest first */
   picks: (params = {}) => api.get('/football/picks', { params: clean(params) }).then(unwrap),
+  // v2.19.1 — locked picks you can check (pkg/football/lock*.go)
+  /** { period: {from, to, label, timezone, date?, days}, tally: {correct, wrong, no_pick, not_enough_data, void, pending, total, hit_rate, line},
+   *    days: [{ date, label, tally, rows: [{ fixture_id, kickoff, status, competition, home, away, score, pick, lock, result_check, mark }] }],
+   *    scorecard, note, last_pass_at, last_result_at } — params: date (YYYY-MM-DD) | days (1–14), competition */
+  results: (params = {}) => api.get('/football/results', { params: clean(params), timeout: 30000 }).then(unwrap),
+  /** { last_pass_at, last_trigger, last_pass, last_tick_at, ticks, scheduler_on, lock_window_days, keyless, … } */
+  lockStatus: () => api.get('/football/lock-status').then(unwrap),
   /** body: { budget } → the budget planner (covered selections per game, combinations, cost, 1 in N, expected correct, bonus chances) */
   planJackpot: (id, body) => api.post(`/football/jackpots/${enc(id)}/plan`, body, { timeout: 60000 }).then(unwrap),
   /** { groups: [{ group, label, weights, in_use, n, holdout_n, logloss_default, logloss_learned, sources, fitted_at, note }], defaults, note } */

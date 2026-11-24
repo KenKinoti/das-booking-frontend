@@ -49,6 +49,16 @@
         <span class="fbmc-banner__go">Scorecard <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
       </router-link>
 
+      <!-- v2.19.1: Matches | Results (remembered in the URL: ?view=results) -->
+      <div class="ui-tabs fbmc-views" role="tablist" aria-label="Matches or results">
+        <button type="button" role="tab" class="ui-tab" :class="{ 'is-active': view === 'matches' }" :aria-selected="view === 'matches'" data-test="fb-view-matches" @click="setView('matches')">
+          <i class="fa-regular fa-futbol" aria-hidden="true"></i> Matches
+        </button>
+        <button type="button" role="tab" class="ui-tab" :class="{ 'is-active': view === 'results' }" :aria-selected="view === 'results'" data-test="fb-view-results" @click="setView('results')">
+          <i class="fa-solid fa-square-check" aria-hidden="true"></i> Results
+        </button>
+      </div>
+
       <!-- Filters: one row above everything they scope -->
       <div class="fbmc-filters">
         <div ref="dates" class="fbmc-dates" role="tablist" aria-label="Day">
@@ -58,8 +68,8 @@
             type="button"
             role="tab"
             class="fbmc-day"
-            :class="{ 'is-on': d.key === date, 'is-today': d.key === today }"
-            :aria-selected="d.key === date"
+            :class="{ 'is-on': d.key === date && !(view === 'results' && range === '7d'), 'is-today': d.key === today }"
+            :aria-selected="d.key === date && !(view === 'results' && range === '7d')"
             :data-day="d.key"
             @click="pickDate(d.key)"
           >
@@ -78,6 +88,7 @@
             <i class="fa-solid fa-magnifying-glass"></i>
             <input v-model="q" class="ui-input" type="search" placeholder="Team or competition" aria-label="Search teams or competitions" @input="debouncedLoad" />
           </div>
+          <template v-if="view === 'matches'">
           <label class="fbmc-toggle" title="Only matches whose pick is Strong (a 60% chance or more)">
             <input v-model="strongOnly" type="checkbox" data-test="fb-strong-only" @change="syncQuery" />
             <span><FbTierPips tier="strong" /> Strong picks only</span>
@@ -93,8 +104,22 @@
             <input v-model="watchOnly" type="checkbox" @change="syncQuery" />
             <span><i class="fa-solid fa-star"></i> Watchlist</span>
           </label>
+          </template>
         </div>
       </div>
+
+      <ResultsView
+        v-if="view === 'results'"
+        :date="date"
+        :range="range"
+        :tz="tz"
+        :competition="competition"
+        :q="q"
+        :now="now || ''"
+        :day-label="dayLabelOf(date)"
+        @range="setRange"
+      />
+      <template v-else>
 
       <div class="fbmc-info">
         <span v-if="asOf">Data as of {{ fmtDateTime(asOf, tz) }} · times in {{ tzLabel }}</span>
@@ -171,8 +196,21 @@
                 ><b v-if="f.score.away != null">{{ f.score.away }}</b></span
               >
             </router-link>
-            <div class="fbmc-pick" :data-verdict="vOf(f) ? vOf(f).pick : ''" :data-tier="vOf(f) ? vOf(f).tier.key : ''">
+            <div
+              v-if="doneRow(f)"
+              class="fbmc-pick fbmc-pick--done"
+              :data-verdict="vOf(f) ? vOf(f).pick : ''"
+              :data-tier="vOf(f) ? vOf(f).tier.key : ''"
+              :data-mark="markOf(f)"
+            >
+              <FbLockedResult :row="f" :fixture-id="f.id" :finished="true" compact :chip-test-id="'fb-verdict-' + f.id" :badge-test-id="'fb-result-' + f.id" />
+            </div>
+            <div v-else class="fbmc-pick" :data-verdict="vOf(f) ? vOf(f).pick : ''" :data-tier="vOf(f) ? vOf(f).tier.key : ''">
               <FbVerdictChip :verdict="vOf(f)" :fixture-id="f.id" :test-id="'fb-verdict-' + f.id" :none-text="noPickText(f)" stack />
+              <span v-if="!vOf(f) && f.no_pick && f.no_pick.reason" class="fbmc-why" data-test="fb-nopick-why">{{ f.no_pick.reason }}</span>
+              <span v-if="vOf(f) && f.lock && f.lock.status === 'locked'" class="fbmc-locked" :title="lockText(f.lock, { upcoming: !isLive(f.status) })" data-test="fb-locked"
+                ><i class="fa-solid fa-lock" aria-hidden="true"></i>Locked<span class="sr-only">: {{ lockText(f.lock, { upcoming: !isLive(f.status) }) }}</span></span
+              >
               <span v-if="vOf(f) && vOf(f).draw_alert && !rcOf(f)" class="fb-dalert" :title="vOf(f).draw_alert.why" data-test="fb-draw-alert"
                 ><i class="fa-solid fa-equals" aria-hidden="true"></i>Draw alert<span class="sr-only">: {{ vOf(f).draw_alert.why }}</span></span
               >
@@ -199,7 +237,7 @@
               </template>
               <span v-else class="fb-muted fb-small">No market price yet</span>
             </div>
-            <div class="fbmc-model" :data-model="f.model ? [f.model.home, f.model.draw, f.model.away].join(',') : ''">
+            <div class="fbmc-model" :data-model="f.model ? [f.model.home, f.model.draw, f.model.away].join(',') : ''" :title="f.model_note || null">
               <span class="fbmc-lbl">Model</span>
               <span v-if="f.model" class="fbmc-trio fb-num">{{ trio(f.model) }}</span>
               <span v-else class="fb-muted fb-small">—</span>
@@ -241,6 +279,7 @@
         </div>
       </div>
 
+      </template>
       <FbFootnote />
       <ComboDrawer />
     </template>
@@ -262,6 +301,9 @@ import FbVerdictChip from '@/components/football/verdict/FbVerdictChip.vue'
 import FbResultBadge from '@/components/football/verdict/FbResultBadge.vue'
 import FbTierPips from '@/components/football/verdict/FbTierPips.vue'
 import ComboDrawer from '@/components/football/verdict/ComboDrawer.vue'
+import FbLockedResult from '@/components/football/results/FbLockedResult.vue'
+import ResultsView from '@/components/football/results/ResultsView.vue'
+import { lockText, noPickOf } from '@/components/football/results/lock'
 import { normVerdict, normResult, verdictFromResult, TIERS, TIER_ORDER } from '@/components/football/verdict/verdict'
 import { weekendBanner } from '@/components/football/scorecard/sc'
 import { inCombo, toggleCombo } from '@/components/football/verdict/combo'
@@ -279,7 +321,7 @@ const GROUPS = [
 
 export default {
   name: 'MatchCentre',
-  components: { FbCrest, FbThin, FbNoAccess, FbFootnote, FbPopBtn, FbVerdictChip, FbResultBadge, FbTierPips, ComboDrawer },
+  components: { FbCrest, FbThin, FbNoAccess, FbFootnote, FbPopBtn, FbVerdictChip, FbResultBadge, FbTierPips, ComboDrawer, FbLockedResult, ResultsView },
   data() {
     const q = this.$route.query
     return {
@@ -294,6 +336,8 @@ export default {
       valueOnly: q.value === '1',
       watchOnly: q.watch === '1',
       strongOnly: q.strong === '1',
+      view: q.view === 'results' ? 'results' : 'matches',
+      range: q.range === 'day' || (q.view === 'results' && typeof q.date === 'string' && q.range !== '7d') ? 'day' : '7d',
       weekend: null,
       threshold: Number(q.edge) > 0 ? Number(q.edge) : 0.03,
       asOf: null,
@@ -426,9 +470,37 @@ export default {
       return r && r.kind !== 'pending' && !(r.kind === 'nopick' && !this.vOf(f)) ? r : null
     },
     noPickText(f) {
-      if (isFinished(f.status)) return 'No pick was frozen'
+      // v2.19.1: say why — not enough data, or nothing was locked before kick-off.
+      const np = noPickOf(f, { finished: isFinished(f.status) || isLive(f.status) })
+      if (np) return np.title
       if (['PST', 'CANC', 'ABD'].includes(f.status)) return 'No pick'
       return f.market_1x2 || f.model ? 'No pick yet' : 'No pick yet — no prices'
+    },
+    lockText,
+    /** a finished (or void) row: the locked pick and its ✓ / ✗ */
+    doneRow(f) {
+      return isFinished(f.status) || ['CANC', 'ABD', 'AWD', 'WO'].includes(f.status) || !!(f.result_check && f.result_check.status)
+    },
+    markOf(f) {
+      const s = f.result_check?.status
+      return s || (this.vOf(f) ? 'pending' : 'no_pick')
+    },
+    setView(v) {
+      if (this.view === v) return
+      this.view = v
+      if (v === 'results' && !this.$route.query.date) this.range = '7d'
+      this.syncQuery()
+      if (v === 'matches') this.load()
+    },
+    setRange(r) {
+      this.range = r
+      this.syncQuery()
+    },
+    dayLabelOf(k) {
+      if (!k) return ''
+      if (k === this.today) return 'Today'
+      if (k === addDaysKey(this.today, -1)) return 'Yesterday'
+      return new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(k + 'T12:00:00Z'))
     },
     trio(p) {
       return [p.home, p.draw, p.away].map((v) => (v == null ? '—' : Math.round(v * 100))).join(' · ')
@@ -467,12 +539,19 @@ export default {
         value: this.valueOnly ? '1' : undefined,
         edge: this.valueOnly && this.threshold !== (this.meta?.min_edge || 0.03) ? String(this.threshold) : undefined,
         watch: this.watchOnly ? '1' : undefined,
-        strong: this.strongOnly ? '1' : undefined
+        strong: this.strongOnly ? '1' : undefined,
+        view: this.view === 'results' ? 'results' : undefined,
+        range: this.view === 'results' ? this.range : undefined
       }
       this.$router.replace({ query: Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)) }).catch(() => {})
     },
     pickDate(k) {
       this.date = k
+      if (this.view === 'results') {
+        this.range = 'day'
+        this.syncQuery()
+        return
+      }
       this.syncQuery()
       this.load()
     },
@@ -951,6 +1030,35 @@ export default {
     align-items: flex-start;
   }
 }
+/* v2.19.1: Matches | Results, the locked pick on finished rows, "Locked", no-pick reasons */
+.fbmc-views {
+  margin: 0 0 12px;
+}
+.fbmc-views .ui-tab {
+  height: 36px;
+  padding: 0 16px;
+}
+.fbmc-pick--done {
+  display: block;
+}
+.fbmc-why {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.35;
+}
+.fbmc-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.fbmc-locked i {
+  font-size: 10px;
+}
 .fbmc-combo {
   display: inline-flex;
   align-items: center;
@@ -1103,6 +1211,14 @@ export default {
   }
   .fbmc-toggle {
     min-height: 44px;
+  }
+  .fbmc-views {
+    display: flex;
+  }
+  .fbmc-views .ui-tab {
+    flex: 1 1 0;
+    justify-content: center;
+    height: 44px;
   }
   .fbmc-banner {
     align-items: flex-start;

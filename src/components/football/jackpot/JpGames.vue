@@ -61,7 +61,7 @@
               </td>
               <td v-if="hasResults" :data-mark="markOf(g) || ''">
                 <template v-if="resultOf(g)">
-                  <span v-if="markOf(g)" class="fb-mk" :class="'fb-mk--' + markOf(g)" :data-test="'fb-jp-mark-' + g.n"
+                  <span v-if="markOf(g)" class="fb-rc fbjg__mk" :class="'fb-rc--' + markOf(g)" :data-test="'fb-jp-mark-' + g.n" :data-result="markOf(g)"
                     ><i :class="markOf(g) === 'correct' ? 'fa-solid fa-check' : 'fa-solid fa-xmark'" aria-hidden="true"></i>{{ markOf(g) === 'correct' ? 'Correct' : 'Wrong' }}</span
                   >
                   <span class="fb-muted fb-small"> · it was {{ resultOf(g) }}</span>
@@ -287,6 +287,11 @@ export default {
 </script>
 
 <style scoped>
+/* v2.19.1: per-game ✓ / ✗ as a clear pill (icon + word) */
+.fbjg__mk {
+  height: 28px;
+  font-size: 12.5px;
+}
 .fbjg__head {
   margin: 22px 0 6px;
 }
