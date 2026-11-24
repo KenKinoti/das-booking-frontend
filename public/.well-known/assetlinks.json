@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.dasyin.erp",
+      "sha256_cert_fingerprints": [
+        "CB:F9:CC:6E:7F:20:05:CE:2D:F2:F0:03:FF:50:91:4E:2D:70:56:50:62:04:71:23:82:2F:FB:98:14:D2:AE:0E"
+      ]
+    }
+  }
+]

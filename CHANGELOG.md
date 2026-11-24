@@ -6,6 +6,18 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.18.1] - 2026-11-24
+
+**DASYIN for Android.** A small Android app (com.dasyin.erp, ≈ 0.5 MB, Android 6.0+) opens DASYIN full screen in the
+phone's Chrome as a Trusted Web Activity, so every module and feature works as in Chrome — Google/Microsoft sign-in,
+camera scanning at the POS, secure calls, downloads, offline pages, dark mode — and each web deploy updates every
+phone without a new APK. It has its own icon, splash screen and long-press shortcuts (New invoice, Point of sale, New
+booking, Ask DASYIN), opens DASYIN links from emails in the app, and falls back to a built-in browser screen
+(camera, microphone, uploads, downloads to Downloads/DASYIN) on phones without a supported browser. The web app now
+serves `/.well-known/assetlinks.json` linking it to the app's signing key (`firebase.json` no longer hides
+dot-folders), which removes the address bar. The app's source lives in `das-erp-android/` next to the backend and
+frontend.
+
 ## [2.18.0] - 2026-11-23
 
 **Football: simple picks, an honest win rate and ✓/✗ results.** Every match now shows one plain pick — "Arsenal win ·
