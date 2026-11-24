@@ -122,6 +122,9 @@ export const navGroups = [
     label: 'Communication',
     icon: 'fa-solid fa-comments',
     items: [
+      // Pending review (v2.19, pkg/outbox): every client message waits here for approval. Core: every plan and role
+      // (approvers act; others see what they queued). `badge` shows the waiting count (components/outbox/outboxState.js).
+      { label: 'Pending review', to: '/outbox', module: 'core', icon: 'fa-solid fa-inbox', badge: 'outbox', match: /^\/outbox/ },
       { label: 'Meetings & calls', to: '/meetings', module: 'communication', icon: 'fa-solid fa-calendar-plus', match: /^\/meetings/ },
       // End-to-end encrypted call links. Core (every plan and business type) for
       // managers and above, so the Communication group shows it even when the

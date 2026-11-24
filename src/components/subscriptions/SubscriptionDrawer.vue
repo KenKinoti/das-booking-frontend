@@ -43,6 +43,12 @@
           <div v-else-if="d.status === 'cancelled'" class="ui-alert"><i class="fa-solid fa-circle-xmark"></i><span>Cancelled on {{ fmt(d.cancelled_at) }}{{ d.cancel_reason === 'end_of_term' ? ' at the end of its term' : '' }}.</span></div>
           <div v-if="d.end_date && d.status !== 'cancelled'" class="ui-alert"><i class="fa-solid fa-flag-checkered"></i><span>Ends on {{ fmt(d.end_date) }} — no invoices after that.</span></div>
 
+          <!-- Pending review (v2.19): the suspension waits until the final notice is approved and sent -->
+          <div v-if="d.review_hold" class="ui-alert ui-alert--warning" data-testid="sd-review-hold">
+            <i class="fa-solid fa-inbox"></i>
+            <span>{{ d.review_hold.message || 'The suspension waits until the notice to the client is approved in Pending review.' }} <router-link :to="{ path: '/outbox', query: d.review_hold.review_id ? { open: d.review_hold.review_id } : {} }" data-testid="sd-review-hold-link">Review the notice</router-link></span>
+          </div>
+
           <!-- One-click actions -->
           <div v-if="d.status !== 'cancelled'" class="actions" data-testid="sd-actions">
             <template v-if="d.open">
@@ -127,6 +133,7 @@
                 <span class="tl__body">
                   <span class="tl__title">{{ t.title }}<span v-if="t.audience" class="aud">{{ t.audience === 'client' ? 'client' : t.audience === 'admin' ? 'admins' : '' }}</span></span>
                   <small v-if="t.detail" class="sub">{{ t.detail }}</small>
+                  <router-link v-if="t.status === 'waiting' && t.review_id" :to="{ path: '/outbox', query: { open: t.review_id } }" class="tl__review" data-testid="sd-timeline-review"><i class="fa-solid fa-list-check"></i> Review</router-link>
                 </span>
                 <span class="tl__side">
                   <span class="tl__date">{{ fmt(t.date, 'short') }}</span>
@@ -184,6 +191,7 @@ import { subscriptionsApi, periodLabel, periodNoun, kindIcon, statusLabel, statu
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
+import { reviewOf, queuedToast } from '@/components/outbox/outboxState'
 import { formatDate, addDays } from '@/utils/format'
 import { formatCurrency } from '@/utils/currencies'
 
@@ -248,7 +256,7 @@ export default {
     },
     statusWord(t) {
       if (t.status === 'planned') return t.date === this.d.today ? 'Today' : 'Planned'
-      return { sent: 'Sent', done: 'Done', failed: 'Failed', skipped: 'Skipped', open: 'To do', sending: 'Sending' }[t.status] || t.status
+      return { sent: 'Sent', done: 'Done', failed: 'Failed', skipped: 'Skipped', open: 'To do', sending: 'Sending', waiting: 'Waiting for approval', rejected: 'Rejected — not sent', superseded: 'Not needed' }[t.status] || t.status
     },
     scrollTo(id) {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -358,6 +366,13 @@ export default {
       this.busy = true
       try {
         const r = await subscriptionsApi.remind(this.d.id)
+        const queued = reviewOf(r)
+        if (queued) {
+          // Pending review: the reminder waits for approval — "Waiting for approval — Review".
+          queuedToast(queued, { what: `The reminder for ${this.d.name}`, to: r.sent_to || r.to || '' })
+          await this.changed()
+          return
+        }
         await this.changed(`Reminder emailed to ${r.sent_to}`)
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not send the reminder'))
@@ -667,6 +682,18 @@ export default {
   display: block;
   font-size: 11.5px;
   color: var(--text-3);
+}
+.tl__st.st-waiting {
+  color: var(--warning);
+  font-weight: 600;
+}
+.tl__review {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-top: 2px;
 }
 .tl__st.st-failed {
   color: var(--danger);

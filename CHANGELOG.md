@@ -6,6 +6,28 @@ sidebar footer, the account menu, the sign-in page, Help → About and Settings 
 About. Entries below 2.0.0 belong to the earlier NDIS CRM codebase this product
 grew out of.
 
+## [2.19.0] - 2026-11-24
+
+**Pending review — no client message goes out without approval.** Invoice, quote, reminder and receipt emails,
+recall notices, scheduled customer messages and statements (email, SMS and WhatsApp), subscription notices and renewal
+invoices, meeting invitations to guests, and WhatsApp replies now wait in the new Communication → Pending review page
+until an owner or admin approves them. This is on for every organisation (Settings → Review before sending) and can be
+switched off. Each message opens exactly as the client will see it. Reviewers can fix the recipients, subject, text or
+WhatsApp values with a live preview, then approve and send now, approve for its planned time, or reject with a note —
+one at a time, in bulk or with j/k on the keyboard. Every edit and decision is recorded. Owners and admins can tick
+"Send now — I've reviewed it" in any Send dialog; staff messages always wait. Before anything goes, DASYIN checks it
+again: a reminder for an invoice that has since been paid, or an invitation to a cancelled meeting, is dropped instead
+of sent. Messages waiting more than 7 days are marked stale, and a subscription is never suspended while its final
+notice is still waiting. Reviewers get an email about 15 minutes after messages start waiting (at most one an hour), a
+summary at 07:30 in the organisation's time zone (new "Who gets emails" category: messages waiting for approval), a
+notification in the app, a line in the morning brief, a count in the menu and top bar, and a dashboard card.
+Invoices, the invoice list, scheduled messages, subscriptions and meetings show "Waiting for approval" with a link.
+New AI tools: outbox_list, outbox_approve, outbox_reject.
+
+**Recall notices copy the BCC.** Whoever was BCC'd on a recalled email (usually you, for your records) now also gets a
+blind copy of the "Please disregard" notice, so you can see it went out; the client can't see that copy. The Recall
+dialog says who gets it.
+
 ## [2.18.2] - 2026-11-24
 
 **Bill a company.** Invoices and quotes have a Person / Company switch under "Bill to". For a company, the name field

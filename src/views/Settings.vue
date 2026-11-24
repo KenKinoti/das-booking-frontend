@@ -209,11 +209,25 @@
           </div>
         </section>
 
+        <!-- Pending review (v2.19, pkg/outbox): client messages wait for approval -->
+        <section id="review-before-sending" class="ui-card" data-testid="review-settings-card">
+          <div class="ui-card__head">
+            <div>
+              <h2>Review before sending</h2>
+              <p class="sub">Check every message to a client before it goes — invoices, reminders, receipts, notices and messages wait in Pending review.</p>
+            </div>
+            <router-link to="/outbox" class="ui-btn ui-btn--sm"><i class="fa-solid fa-inbox"></i> Pending review</router-link>
+          </div>
+          <div class="ui-card__body">
+            <ReviewSettingsCard />
+          </div>
+        </section>
+
         <section v-if="isOrgAdmin" id="who-gets-emails" class="ui-card">
           <div class="ui-card__head">
             <div>
               <h2>Who gets emails</h2>
-              <p class="sub">Choose who receives the emails DASYIN sends your team: booking emails, the daily agenda, bill reminders, the bar night report and the strategy brief.</p>
+              <p class="sub">Choose who receives the emails DASYIN sends your team: booking emails, the daily agenda, bill reminders, the bar night report, the strategy brief and messages waiting for approval.</p>
             </div>
           </div>
           <div class="ui-card__body">
@@ -299,6 +313,7 @@ import { orgDefaults } from '@/utils/orgDefaults'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
 import SeasonOrgSettings from '@/components/seasons/SeasonOrgSettings.vue'
+import ReviewSettingsCard from '@/components/outbox/ReviewSettingsCard.vue'
 
 const FALLBACK_TZ = ['Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Adelaide', 'Australia/Perth', 'Pacific/Auckland', 'Asia/Singapore', 'Asia/Dubai', 'Africa/Nairobi', 'Africa/Lagos', 'Africa/Johannesburg', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'UTC']
 
@@ -308,7 +323,7 @@ function blankOrg() {
 
 export default {
   name: 'Settings',
-  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel, BusinessTypeSettings, EmailRecipientsPanel, SeasonOrgSettings },
+  components: { AboutCard, OrgLogoUploader, CountryPicker, EmailSettingsPanel, PaymentSettingsPanel, SsoDomains, BillRemindersPanel, BookingEmailSettingsPanel, BusinessTypeSettings, EmailRecipientsPanel, SeasonOrgSettings, ReviewSettingsCard },
   data() {
     return {
       org: blankOrg(),
@@ -331,6 +346,7 @@ export default {
         { id: 'bill-reminders', label: 'Bill reminders', icon: 'fa-solid fa-file-invoice-dollar' },
         { id: 'booking-emails', label: 'Booking emails', icon: 'fa-regular fa-calendar-check' },
         { id: 'email', label: 'Outgoing email', icon: 'fa-regular fa-paper-plane' },
+        { id: 'review-before-sending', label: 'Review before sending', icon: 'fa-solid fa-inbox' },
         { id: 'who-gets-emails', label: 'Who gets emails', icon: 'fa-solid fa-envelope-circle-check' },
         { id: 'payments', label: 'Online payments', icon: 'fa-regular fa-credit-card' },
         { id: 'security', label: 'Security', icon: 'fa-solid fa-shield-halved' },

@@ -16,7 +16,7 @@ export const schedsendApi = {
   get: (id, run) => api.get(`/schedsend/messages/${id}`, { params: run ? { run } : {} }).then(d),
   create: (body) => api.post('/schedsend/messages', body).then(d),
   update: (id, body) => api.put(`/schedsend/messages/${id}`, body).then(d),
-  act: (id, action) => api.post(`/schedsend/messages/${id}/${action}`).then(d),
+  act: (id, action, body) => api.post(`/schedsend/messages/${id}/${action}`, body).then(d),
   preview: (body, pick) => api.post('/schedsend/preview', body, { params: pick ? { pick } : {}, timeout: 40000 }).then(d),
   badges: (ids) => api.get('/schedsend/badges', { params: { ids: ids.join(',') } }).then((r) => d(r)?.badges || {}),
   optOut: (customerId) => api.get(`/schedsend/customers/${customerId}/marketing`).then(d),
@@ -59,7 +59,8 @@ export const RESULT_LABELS = {
   failed: { label: 'Failed', badge: 'ui-badge--danger' },
   skipped: { label: 'Skipped', badge: 'ui-badge--draft' },
   missed: { label: 'Missed', badge: 'ui-badge--danger' },
-  sending: { label: 'Sending', badge: 'ui-badge--info' }
+  sending: { label: 'Sending', badge: 'ui-badge--info' },
+  waiting: { label: 'Waiting for approval', badge: 'ui-badge--warning' }
 }
 
 export const STATUS_LABELS = {
@@ -78,7 +79,8 @@ export const DELIVERY_LABELS = {
   delivered: { label: 'Delivered', badge: 'ui-badge--success', icon: 'fa-solid fa-check-double' },
   read: { label: 'Read', badge: 'ui-badge--success', icon: 'fa-regular fa-eye' },
   failed: { label: 'Failed', badge: 'ui-badge--danger', icon: 'fa-solid fa-triangle-exclamation' },
-  skipped: { label: 'Skipped', badge: 'ui-badge--draft', icon: 'fa-solid fa-forward' }
+  skipped: { label: 'Skipped', badge: 'ui-badge--draft', icon: 'fa-solid fa-forward' },
+  waiting: { label: 'Waiting for approval', badge: 'ui-badge--warning', icon: 'fa-solid fa-inbox' }
 }
 
 export const WEEKDAYS = [

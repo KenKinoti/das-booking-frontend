@@ -81,6 +81,7 @@
 </template>
 
 <script>
+import { reviewOf, queuedToast } from '@/components/outbox/outboxState'
 import '@/styles/module-page.css'
 import api, { apiErrorMessage } from '@/services/api'
 import { messagingService } from '@/services/messaging'
@@ -203,8 +204,11 @@ export default {
       }
       this.sending = true
       try {
-        await api.post('/messaging/whatsapp/send', { to, message: 'Test message from DASYIN ERP' })
-        toast.success('Test message sent')
+        const r = await api.post('/messaging/whatsapp/send', { to, message: 'Test message from DASYIN ERP' })
+        // Pending review (v2.19): only owners and admins send WhatsApp messages at once; others wait for approval.
+        const queued = reviewOf(r.data?.data ?? r.data)
+        if (queued) queuedToast(queued, { what: 'The test message', to })
+        else toast.success('Test message sent')
       } catch (e) {
         toast.error(apiErrorMessage(e, 'Could not send the test message'))
       } finally {

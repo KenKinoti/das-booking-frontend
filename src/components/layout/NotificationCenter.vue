@@ -149,7 +149,8 @@ const TYPE_ICONS = [
   [/^event\./, 'fa-solid fa-ticket'],
   [/^ai\./, 'fa-solid fa-wand-magic-sparkles'],
   [/^plan\./, 'fa-solid fa-gem'],
-  [/^org\./, 'fa-solid fa-code-merge']
+  [/^org\./, 'fa-solid fa-code-merge'],
+  [/^outbox\./, 'fa-solid fa-inbox']
 ]
 const SEV_ICONS = { success: 'fa-solid fa-circle-check', warning: 'fa-solid fa-triangle-exclamation', error: 'fa-solid fa-circle-exclamation', info: 'fa-solid fa-bell' }
 

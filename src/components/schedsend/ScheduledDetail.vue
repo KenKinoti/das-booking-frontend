@@ -33,6 +33,8 @@
             <div v-if="m.doc_number"><dt>Document</dt><dd><router-link :to="docLink" @click="$emit('close')">{{ m.doc_number }}</router-link></dd></div>
             <div v-if="m.ended_reason"><dt>Ended</dt><dd>{{ m.ended_reason }}</dd></div>
             <div><dt>Scheduled by</dt><dd>{{ m.created_by_name || '—' }} · {{ dt(m.created_at) }}</dd></div>
+            <div v-if="m.reviewed"><dt>Reviewed</dt><dd data-testid="detail-reviewed">{{ m.reviewed_by_name || 'An admin' }}{{ m.reviewed_at ? ' · ' + dt(m.reviewed_at) : '' }} — goes at its time without waiting</dd></div>
+            <div v-else-if="waitsForReview"><dt>Review</dt><dd data-testid="detail-review-note">Each send waits in <router-link to="/outbox">Pending review</router-link> until it is approved.</dd></div>
           </dl>
 
           <section v-if="m.subject || m.body || m.sms_body" class="msg">
@@ -61,6 +63,7 @@
                     <strong>{{ x.name || '—' }}</strong>
                     <small><i :class="chanIcon(x.channel)"></i> {{ x.address || chanLabel(x.channel) }}<template v-if="x.mode"> · {{ x.mode === 'template' ? 'template ' + (x.template || '') : 'free text' }}</template></small>
                     <small v-if="x.reason" class="dl-reason">{{ x.reason }}</small>
+                    <router-link v-if="x.status === 'waiting' && x.review_id" :to="{ path: '/outbox', query: { open: x.review_id } }" class="dl-review" data-testid="delivery-review"><i class="fa-solid fa-list-check"></i> Review</router-link>
                   </span>
                   <span class="dl-side">
                     <span class="ui-badge" :class="deliveryInfo(x.status).badge">{{ deliveryInfo(x.status).label }}</span>
@@ -79,6 +82,19 @@
           </section>
         </template>
       </div>
+
+      <!-- Send now with Pending review on: the note, and for approvers "Send now — I've reviewed it" -->
+      <div v-if="ask" class="ssd-ask" role="dialog" aria-modal="true" aria-labelledby="ssd-ask-title" data-testid="send-now-ask" @keydown.esc.stop="ask = null">
+        <div class="ssd-ask__card">
+          <h3 id="ssd-ask-title">Send it now?</h3>
+          <p class="muted small">{{ ask.text }}</p>
+          <OutboxSendNote v-model="ask.sendNow" :thing="'the message'" />
+          <div class="ssd-ask__btns">
+            <button type="button" class="ui-btn" @click="ask = null">Cancel</button>
+            <button type="button" class="ui-btn ui-btn--primary" :disabled="busy" data-testid="send-now-confirm" @click="confirmSendNow"><i :class="ask.sendNow ? 'fa-solid fa-paper-plane' : 'fa-solid fa-inbox'"></i> {{ ask.sendNow ? 'Send now' : 'Prepare for review' }}</button>
+          </div>
+        </div>
+      </div>
     </aside>
   </div>
 </template>
@@ -89,14 +105,17 @@ import { apiErrorMessage } from '@/services/api'
 import { formatDateTime } from '@/utils/format'
 import { toast } from '@/composables/useToast'
 import { confirmDialog } from '@/composables/useConfirm'
+import OutboxSendNote from '@/components/outbox/OutboxSendNote.vue'
+import { outbox, ensureOutboxMe, reviewOn, refreshOutboxCounts, queuedToast } from '@/components/outbox/outboxState'
 
 /** One scheduled message: facts, actions and per-recipient results of each send. */
 export default {
   name: 'ScheduledDetail',
+  components: { OutboxSendNote },
   props: { id: { type: String, required: true } },
   emits: ['close', 'changed', 'edit'],
   data() {
-    return { d: null, recipientsText: '', error: '', busy: false, poll: null }
+    return { d: null, recipientsText: '', error: '', busy: false, poll: null, ask: null }
   },
   computed: {
     m() {
@@ -112,6 +131,10 @@ export default {
     },
     statusInfo() {
       return STATUS_LABELS[this.m?.status] || { label: this.m?.status, badge: '' }
+    },
+    /** Pending review (v2.19): client messages wait for approval (team messages never do). */
+    waitsForReview() {
+      return !!this.m && this.m.kind !== 'team' && reviewOn()
     },
     docLink() {
       return (this.m.doc_type === 'quote' ? '/quotes/' : '/invoices/') + this.m.invoice_id
@@ -137,6 +160,7 @@ export default {
   },
   created() {
     this.load()
+    ensureOutboxMe()
   },
   beforeUnmount() {
     clearTimeout(this.poll)
@@ -165,11 +189,13 @@ export default {
     loadRun(id) {
       this.load(id)
     },
-    async act(action, msg) {
+    async act(action, msg, body) {
       this.busy = true
       try {
-        await schedsendApi.act(this.id, action)
-        toast.success(msg)
+        const r = await schedsendApi.act(this.id, action, body)
+        if (action === 'send-now' && this.waitsForReview && !body?.send_now) {
+          queuedToast(r?.review || null, { text: `The messages for “${this.m.title || 'this schedule'}” are in Pending review. Nothing has been sent yet.` })
+        } else toast.success(msg)
         await this.load()
         this.$emit('changed')
       } catch (e) {
@@ -179,10 +205,24 @@ export default {
       }
     },
     async sendNow() {
-      const ok = await confirmDialog({ title: 'Send it now?', message: this.m.repeat && this.m.repeat.freq !== 'none' ? 'It is sent once now; the schedule stays as it is.' : 'It is sent now instead of at the scheduled time.', confirmText: 'Send now' })
+      const repeat = this.m.repeat && this.m.repeat.freq !== 'none'
+      const text = repeat ? 'It is sent once now; the schedule stays as it is.' : 'It is sent now instead of at the scheduled time.'
+      if (this.waitsForReview) {
+        // Pending review: the messages wait for approval unless an approver ticks "Send now — I've reviewed it".
+        this.ask = { text, sendNow: false }
+        return
+      }
+      const ok = await confirmDialog({ title: 'Send it now?', message: text, confirmText: 'Send now' })
       if (!ok) return
       this.d = { ...this.d, run: null }
       await this.act('send-now', 'Sending now…')
+    },
+    async confirmSendNow() {
+      const sendNow = !!(this.ask?.sendNow && outbox.me?.can_send_now)
+      this.ask = null
+      this.d = { ...this.d, run: null }
+      await this.act('send-now', 'Sending now…', { send_now: sendNow })
+      refreshOutboxCounts()
     },
     async cancel() {
       const ok = await confirmDialog({ title: 'Cancel this scheduled send?', message: 'Nothing more is sent. You can duplicate it later.', confirmText: 'Cancel send', danger: true })
@@ -439,7 +479,59 @@ h3 {
 .pad {
   padding: 4px 0;
 }
+.dl-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.drawer {
+  position: relative;
+}
+.ssd-ask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.ssd-ask__card {
+  width: min(480px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ssd-ask__card h3 {
+  margin: 0;
+  font-size: 17px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+  padding: 0;
+}
+.ssd-ask__card p {
+  margin: 0;
+}
+.ssd-ask__btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 @media (max-width: 520px) {
+  .ssd-ask__btns .ui-btn,
+  .dl-review {
+    min-height: 44px;
+  }
   .facts > div {
     grid-template-columns: 1fr;
     gap: 2px;

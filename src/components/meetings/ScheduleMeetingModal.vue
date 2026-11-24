@@ -138,6 +138,8 @@
           </label>
           <p v-if="form.send_invites && smtpConfigured" class="ui-hint"><i class="fa-solid fa-envelope-circle-check"></i> Invites are emailed with an .ics calendar file so people can Accept or Decline.</p>
           <p v-else-if="form.send_invites" class="ui-hint warn"><i class="fa-solid fa-triangle-exclamation"></i> Email isn't set up on the server, so nothing is emailed automatically. After saving you'll get a .ics file to download and a pre-filled email to send yourself.</p>
+          <!-- Pending review (v2.19): invitations to people outside the organisation wait for approval; your own team is invited at once -->
+          <OutboxSendNote v-if="form.send_invites && smtpConfigured && form.participants.length" v-model="sendNow" compact thing="the invitation" title="Invitations to people outside your organisation wait in Pending review" />
         </div>
       </form>
 
@@ -154,6 +156,8 @@
 
 <script>
 import api, { listFrom, apiErrorMessage } from '@/services/api'
+import OutboxSendNote from '@/components/outbox/OutboxSendNote.vue'
+import { outbox } from '@/components/outbox/outboxState'
 import { meetingsApi, browserTimezone, timezoneList, partsInZone, initials } from '@/services/meetings'
 
 const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/
@@ -168,6 +172,7 @@ function nextSlot() {
 
 export default {
   name: 'ScheduleMeetingModal',
+  components: { OutboxSendNote },
   props: {
     meeting: { type: Object, default: null },
     smtpConfigured: { type: Boolean, default: false },
@@ -180,6 +185,7 @@ export default {
     const start = m ? partsInZone(m.start_at, tz) : partsInZone(nextSlot(), tz)
     const duration = m ? Math.max(5, Math.round((new Date(m.end_at) - new Date(m.start_at)) / 60000)) : 30
     return {
+      sendNow: false, // Pending review: an approver ticked "Send now — I've reviewed it"
       form: {
         title: m?.title || '',
         date: this.presetDate || start.date,
@@ -374,7 +380,8 @@ export default {
         recurrence: f.recurrence,
         recurrence_count: f.recurrence === 'none' ? 0 : Number(f.recurrence_count),
         participants: f.participants,
-        send_invites: f.send_invites
+        send_invites: f.send_invites,
+        send_now: !!(f.send_invites && this.sendNow && outbox.me?.can_send_now)
       }
       this.saving = true
       try {

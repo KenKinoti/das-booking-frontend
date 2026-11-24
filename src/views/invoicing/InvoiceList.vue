@@ -138,8 +138,12 @@
               <td>
                 <span class="st-cell">
                   <StatusBadge :domain="isQuote ? 'quote' : 'invoice'" :status="inv.display_status" :label="label(inv.display_status)" />
-                  <span v-if="inv.email_status && inv.email_status.state !== 'none'" class="em-ic" :class="'em-' + inv.email_status.state" :title="emailTip(inv.email_status)" :aria-label="emailTip(inv.email_status)" data-testid="list-email-icon">
+                  <span v-if="inv.email_status && inv.email_status.state !== 'none' && inv.email_status.state !== 'awaiting_approval'" class="em-ic" :class="'em-' + inv.email_status.state" :title="emailTip(inv.email_status)" :aria-label="emailTip(inv.email_status)" data-testid="list-email-icon">
                     <i :class="inv.email_status.state === 'failed' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-envelope-circle-check'"></i><small v-if="inv.email_status.sent > 1">{{ inv.email_status.sent }}</small>
+                  </span>
+                  <!-- Pending review (v2.19): an email about it waits for approval -->
+                  <span v-if="inv.email_status && inv.email_status.awaiting_approval > 0" class="em-ic em-awaiting" :title="awaitTip(inv.email_status)" :aria-label="awaitTip(inv.email_status)" data-testid="list-awaiting-icon">
+                    <i class="fa-solid fa-inbox"></i><small v-if="inv.email_status.awaiting_approval > 1">{{ inv.email_status.awaiting_approval }}</small>
                   </span>
                   <span v-if="openedBadge(inv.email_status)" class="em-open" :class="{ 'is-none': !inv.email_status.opened }" :title="openedBadge(inv.email_status)" :aria-label="openedBadge(inv.email_status)" data-testid="list-opened">
                     <i class="fa-regular fa-envelope-open"></i>{{ inv.email_status.opened }}/{{ inv.email_status.people }}
@@ -267,6 +271,12 @@ export default {
       if (es.state === 'failed') return `Last email failed ${d(es.last_at)}${es.last_error ? ': ' + es.last_error : ''}${es.sent ? ` · ${es.sent} sent before` : ''}`
       const opened = this.openedBadge(es) ? ' · ' + this.openedBadge(es) : ''
       return `Emailed ${es.sent}× · last ${d(es.last_sent_at)} to ${es.last_to}${opened || viewed}`
+    },
+    /** Pending review: "Invoice email waiting for approval — nothing sent yet". */
+    awaitTip(es) {
+      const kind = { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt', notice: 'Disregard notice' }[es.awaiting_kind] || 'Email'
+      const n = es.awaiting_approval || 0
+      return n > 1 ? `${n} emails waiting for approval in Pending review` : `${kind} email waiting for approval in Pending review — nothing sent yet`
     },
     /** "Opened by 2 of 3 · viewed by 1" for the last email when each person got their own copy. */
     openedBadge(es) {
@@ -426,6 +436,9 @@ export default {
   font-size: 10.5px;
   font-weight: 600;
   color: var(--text-3);
+}
+.em-ic.em-awaiting {
+  color: var(--warning);
 }
 .em-ic.em-failed {
   color: var(--danger);

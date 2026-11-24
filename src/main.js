@@ -19,6 +19,7 @@ import './components/subscriptions/install' // client subscriptions: /subscripti
 import './components/brief/install' // morning brief: /brief and /brief/:date
 import './components/schedsend/install' // schedule send: Communication → Scheduled (/communication/scheduled)
 import './components/football/install' // football analysis & bet tracker: /football, /football/match/:id, /football/bets, /football/model
+import './components/outbox/install' // pending review (v2.19): Communication → Pending review (/outbox)
 
 initTheme()
 

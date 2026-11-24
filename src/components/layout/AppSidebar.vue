@@ -53,9 +53,10 @@
           :title="rail ? group.label : undefined"
           @click="onGroupClick(group)"
         >
-          <span class="sb__group-icon"><i :class="group.icon"></i></span>
+          <span class="sb__group-icon"><i :class="group.icon"></i><span v-if="rail && groupBadge(group)" class="sb__rail-badge" aria-hidden="true">{{ groupBadge(group) > 99 ? '99+' : groupBadge(group) }}</span></span>
           <span class="sb__group-label" v-show="!rail">{{ group.label }}</span>
-          <span v-if="!rail && !isOpen(group.id) && groupActive(group)" class="sb__dot" aria-hidden="true"></span>
+          <span v-if="!rail && !isOpen(group.id) && groupBadge(group)" class="sb__badge" :aria-label="`${groupBadge(group)} waiting for approval`" data-testid="nav-group-badge">{{ groupBadge(group) > 99 ? '99+' : groupBadge(group) }}</span>
+          <span v-else-if="!rail && !isOpen(group.id) && groupActive(group)" class="sb__dot" aria-hidden="true"></span>
           <i v-show="!rail" class="fa-solid fa-chevron-down sb__chev"></i>
         </button>
         <div class="sb__items" v-show="!rail && isOpen(group.id)">
@@ -69,6 +70,7 @@
           >
             <i :class="item.icon"></i>
             <span>{{ item.label }}</span>
+            <span v-if="badgeFor(item)" class="sb__badge" :class="{ 'is-urgent': badgeUrgent(item) }" :aria-label="`${badgeFor(item)} waiting for approval`" :data-testid="'nav-badge-' + item.badge">{{ badgeFor(item) > 99 ? '99+' : badgeFor(item) }}</span>
           </router-link>
         </div>
       </section>
@@ -116,6 +118,7 @@ import BrandMark from './BrandMark.vue'
 import { useBranding, loadBranding, initialsOf, tokenOrgId } from '@/composables/useBranding'
 import { loadOrgPrefs } from '@/composables/useOrgPrefs'
 import { isImpersonating } from '@/services/platform'
+import { outbox } from '@/components/outbox/outboxState'
 
 const STORAGE_KEY = 'nav.openGroups'
 
@@ -244,6 +247,17 @@ export default {
     },
     groupActive(group) {
       return group.items.some((i) => this.active(i))
+    },
+    // Live counts on nav items (`badge` in navigation.js): Pending review's waiting messages (v2.19).
+    badgeFor(item) {
+      if (item.badge === 'outbox') return outbox.counts.waiting || 0
+      return 0
+    },
+    badgeUrgent(item) {
+      return item.badge === 'outbox' && !!(outbox.counts.time_sensitive || outbox.counts.failed)
+    },
+    groupBadge(group) {
+      return group.items.reduce((n, i) => n + this.badgeFor(i), 0)
     },
     isOpen(id) {
       return this.openGroups.includes(id)
@@ -558,6 +572,49 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sb__badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.sb__badge.is-urgent {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.sb__group-icon {
+  position: relative;
+}
+
+.sb__rail-badge {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .sb__dot {

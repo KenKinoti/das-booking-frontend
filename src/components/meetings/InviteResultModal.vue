@@ -13,12 +13,24 @@
       </div>
 
       <div class="ui-modal__body">
+        <!-- Pending review (v2.19): invitations to people outside the organisation wait for approval -->
+        <div v-if="invite && invite.waiting" class="ui-alert ui-alert--warning" data-testid="invite-waiting">
+          <i class="fa-solid fa-inbox"></i>
+          <span>
+            <strong>{{ invite.waiting }} {{ invite.waiting === 1 ? 'invitation waits' : 'invitations wait' }} for approval</strong> in Pending review — {{ invite.waiting === 1 ? 'that person gets it' : 'they get it' }} once an owner or admin approves it.
+            <router-link :to="reviewTo" data-testid="invite-waiting-review" @click="$emit('close')">Review</router-link>
+          </span>
+        </div>
         <template v-if="invite && invite.emailed">
           <p class="lead">{{ cancelled ? 'Cancellation' : 'Calendar invitation' }} emailed to <strong>{{ invite.sent }} {{ invite.sent === 1 ? 'person' : 'people' }}</strong>. {{ cancelled ? 'It will be removed from their calendars.' : 'They can Accept or Decline from their inbox.' }}</p>
           <div v-if="invite.failed && invite.failed.length" class="ui-alert ui-alert--warning">
             <i class="fa-solid fa-triangle-exclamation"></i>
             <span>Couldn't email {{ invite.failed.map((f) => f.email).join(', ') }} — {{ invite.failed[0].error }}</span>
           </div>
+        </template>
+
+        <template v-else-if="invite && invite.waiting">
+          <p class="lead">Nothing has been emailed yet — the calendar invitation goes out once it is approved.</p>
         </template>
 
         <template v-else-if="!recipients.length">
@@ -88,6 +100,10 @@ export default {
     mailto() {
       return mailtoLink(this.meeting, { cancelled: this.cancelled })
     },
+    reviewTo() {
+      const ids = this.invite?.review_ids || []
+      return ids.length === 1 ? { path: '/outbox', query: { open: ids[0] } } : { path: '/outbox' }
+    },
     heading() {
       if (this.cancelled) return 'Meeting cancelled'
       if (this.mode === 'edit') return 'Meeting updated'
@@ -96,10 +112,12 @@ export default {
     },
     tone() {
       if (this.cancelled) return 'danger'
+      if (this.invite?.waiting && !this.invite?.emailed) return 'warning'
       return this.invite?.emailed || !this.recipients.length ? 'success' : 'warning'
     },
     icon() {
       if (this.cancelled) return 'fa-solid fa-calendar-xmark'
+      if (this.invite?.waiting && !this.invite?.emailed) return 'fa-solid fa-inbox'
       return this.invite?.emailed || !this.recipients.length ? 'fa-solid fa-calendar-check' : 'fa-solid fa-envelope-open-text'
     }
   },

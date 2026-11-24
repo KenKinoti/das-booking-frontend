@@ -45,6 +45,9 @@
         </transition>
       </div>
 
+      <!-- Pending review (v2.19): "N waiting for approval", only while something waits -->
+      <OutboxTopbarButton />
+
       <NotificationCenter />
 
       <button class="tb__btn tb__theme" @click="toggleTheme" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" aria-label="Toggle theme">
@@ -100,6 +103,7 @@ import { VERSION_LABEL } from '@/version'
 import { assistant, toggleAssistant } from '@/composables/useAssistant'
 import { pwa, canInstall, promptInstall } from '@/composables/usePwa'
 import NotificationCenter from './NotificationCenter.vue'
+import OutboxTopbarButton from '@/components/outbox/OutboxTopbarButton.vue'
 import BusinessTypeBanner from './BusinessTypeBanner.vue'
 import ViewAsBar from './ViewAsBar.vue'
 import { access, can, term, termLower, atLeast } from '@/composables/useAccess'
@@ -107,7 +111,7 @@ import { navLabel } from '@/navigation'
 
 export default {
   name: 'AppTopbar',
-  components: { NotificationCenter, BusinessTypeBanner, ViewAsBar },
+  components: { NotificationCenter, BusinessTypeBanner, ViewAsBar, OutboxTopbarButton },
   emits: ['toggle-menu', 'open-search'],
   data() {
     return {

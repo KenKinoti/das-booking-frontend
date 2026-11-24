@@ -25,6 +25,9 @@
             <button type="button" class="email-chip" :class="'ec-' + emailState.state" data-testid="email-status-chip" :data-state="emailState.state" :title="emailState.title" @click="showEmails">
               <i :class="emailState.icon"></i> <span>{{ emailState.text }}</span>
             </button>
+            <router-link v-if="awaiting" :to="awaiting.to" class="await-chip" data-testid="email-awaiting-link" :title="awaiting.title">
+              <i class="fa-solid fa-inbox"></i> <span>{{ awaiting.text }}</span> <strong>Review</strong>
+            </router-link>
             <button v-if="emailState.state === 'failed'" type="button" class="ui-btn ui-btn--sm" data-testid="email-retry" @click="openSend(es.last_kind === 'receipt' ? 'invoice' : es.last_kind || 'invoice')"><i class="fa-solid fa-rotate-right"></i> Retry</button>
             <button v-if="openSummary" type="button" class="open-chip" :class="openSummary.cls" data-testid="email-open-chip" :title="openSummary.title" @click="showEmails">
               <i class="fa-regular fa-envelope-open"></i> <span>{{ openSummary.text }}</span>
@@ -102,6 +105,7 @@
                       <span v-if="p.revised_at" class="ui-badge ui-badge--warning dep-badge" :title="`Edited ${dt(p.revised_at)}`">Revised</span>{{ date(p.date) }} · {{ methodLabel(p.method) }}{{ p.reference ? ' · ' + p.reference : '' }}
                     </small>
                     <small v-if="receiptSent(p)" class="sent-note"><i class="fa-regular fa-envelope"></i> Receipt emailed {{ dt(receiptSent(p).created_at) }}</small>
+                    <small v-else-if="receiptWaiting(p)" class="sent-note await-note" data-testid="receipt-awaiting"><i class="fa-solid fa-inbox"></i> Receipt waiting for approval · <router-link :to="{ path: '/outbox', query: { open: receiptWaiting(p).review_id || receiptWaiting(p).id } }">Review</router-link></small>
                   </span>
                   <span class="pay-actions">
                     <button v-if="doc.status !== 'void'" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" title="Edit payment" aria-label="Edit payment" data-testid="edit-payment" @click="openEditPayment(p)"><i class="fa-regular fa-pen-to-square"></i></button>
@@ -232,6 +236,15 @@
                   </span>
                 </div>
                 <p v-else-if="e.status === 'cancelled'" class="erc-single muted small" data-testid="email-undone"><i class="fa-solid fa-rotate-left"></i> {{ e.response || 'Undone — nothing was sent' }}</p>
+                <!-- Pending review (v2.19): waiting for approval, or not sent after review -->
+                <div v-else-if="e.status === 'awaiting_approval'" class="elog-held elog-await" data-testid="email-awaiting" :data-log="e.id">
+                  <i class="fa-solid fa-inbox"></i>
+                  <span>Waiting for approval in Pending review — nothing has been sent yet.</span>
+                  <span class="elog-held__btns">
+                    <router-link :to="{ path: '/outbox', query: { open: e.review_id || e.id } }" class="ui-btn ui-btn--sm" data-testid="email-awaiting-review"><i class="fa-solid fa-list-check"></i> Review</router-link>
+                  </span>
+                </div>
+                <p v-else-if="e.status === 'rejected' || e.status === 'superseded'" class="erc-single muted small" data-testid="email-not-sent"><i :class="e.status === 'rejected' ? 'fa-solid fa-ban' : 'fa-solid fa-forward'"></i> {{ e.response || 'Not sent' }}<router-link v-if="e.review_id" :to="{ path: '/outbox', query: { open: e.review_id } }" class="elog-link"> See in Pending review</router-link></p>
                 <ul v-if="e.tracking === 'per_recipient' && e.recipients && e.recipients.length" class="erc" data-testid="email-recipients">
                   <li v-for="r in e.recipients" :key="r.role + r.email" class="erc-item" :data-email="r.email" :data-state="r.state" data-testid="email-recipient">
                     <div class="erc-who">
@@ -387,6 +400,7 @@
             <span class="ui-hint">
               <template v-if="!emailEnabled">Email sending isn’t set up — <router-link to="/settings#email">connect an email account</router-link> to email receipts. You can still download the receipt PDF.</template>
               <template v-else-if="!payRecipient">No client email on this invoice — add one to email the receipt.</template>
+              <template v-else-if="pay.email && reviewOn && !pay.review">The receipt PDF{{ payEdit && payEdit.receipt_number ? ` (${payEdit.receipt_number})` : '' }} for <strong>{{ payRecipient }}</strong> waits in Pending review until {{ canApprove ? 'you approve' : 'an owner or admin approves' }} it.{{ canApprove ? ' To send it at once, choose “Let me review the email first”.' : '' }}</template>
               <template v-else-if="pay.email">The receipt PDF{{ payEdit && payEdit.receipt_number ? ` (${payEdit.receipt_number})` : '' }} is emailed to <strong>{{ payRecipient }}</strong> and anyone copied on receipts.</template>
               <template v-else>You can send the receipt later from the payments list.</template>
             </span>
@@ -450,6 +464,7 @@ import { schedsendApi, localLabel } from '@/services/schedsend'
 import RecallDialog from '@/components/invoicing/RecallDialog.vue'
 import ScheduledEmails from '@/components/invoicing/ScheduledEmails.vue'
 import { holdToast, secondsLeft, settleHoldToast, countdown } from '@/components/invoicing/heldEmail'
+import { outbox, ensureOutboxMe, reviewOn, reviewOf, queuedToast, refreshOutboxCounts } from '@/components/outbox/outboxState'
 
 /** Settle the countdown toast of a held email; false when there was none. */
 function settleHoldToastFor(logId, message, type = 'success') {
@@ -520,6 +535,9 @@ export default {
         return { state: 'none', icon: 'fa-regular fa-envelope', text: s && s.recorded ? 'Opened in your email app (not sent from here)' : 'Not emailed yet', title: 'No email about this document has been sent from DASYIN' }
       }
       const cc = s.last_cc ? ` (+${s.last_cc} CC)` : ''
+      if (s.state === 'awaiting_approval') {
+        return { state: 'awaiting', icon: 'fa-solid fa-inbox', text: `${kind(s.awaiting_kind)} email waiting for approval — nothing has been sent yet`, title: 'In Pending review: it goes to the client once an owner or admin approves it.' }
+      }
       if (s.held) {
         return { state: 'held', icon: 'fa-regular fa-clock', text: `${kind(s.held_kind)} email waiting to go — you can still undo it`, title: 'Held for the undo window (Invoice settings → Email). Nothing has been sent yet.' }
       }
@@ -529,6 +547,25 @@ export default {
       const times = s.sent > 1 ? ` · ${s.sent} emails` : ''
       const recalled = s.recalled ? ` · recalled for ${s.recalled}` : ''
       return { state: 'sent', icon: 'fa-solid fa-circle-check', text: `${kind(s.last_kind)} emailed ${this.dtz(s.last_sent_at)} to ${s.last_to}${cc}${times}${recalled}`, title: 'Last email accepted by the mail server' }
+    },
+    /** Pending review (v2.19): an email about this document waits for approval → link to it. */
+    awaiting() {
+      const s = this.es
+      if (!s || !(s.awaiting_approval > 0)) return null
+      const kind = { invoice: 'Invoice', quote: 'Quote', reminder: 'Reminder', receipt: 'Receipt', notice: 'Disregard notice' }[s.awaiting_kind] || 'Email'
+      const n = s.awaiting_approval
+      const id = s.awaiting_review_id || s.awaiting_log_id
+      return {
+        to: id && n === 1 ? { path: '/outbox', query: { open: id } } : { path: '/outbox', query: { q: this.doc.number } },
+        text: n > 1 ? `${n} emails waiting for approval` : s.state === 'awaiting_approval' ? 'In Pending review' : `${kind} waiting for approval`,
+        title: 'Nothing has been sent yet — open Pending review to check and approve it'
+      }
+    },
+    reviewOn() {
+      return reviewOn()
+    },
+    canApprove() {
+      return !!outbox.me?.can_approve
     },
     /** "Opened by 2 of 3 · 1 viewed" for the last email, when it was tracked per person. */
     openSummary() {
@@ -693,6 +730,7 @@ export default {
   },
   created() {
     this.load()
+    ensureOutboxMe()
   },
   mounted() {
     document.addEventListener('click', this.onDocClick)
@@ -816,6 +854,9 @@ export default {
     receiptSent(p) {
       return this.emailLog.find((e) => e.kind === 'receipt' && e.payment_id === p.id && e.status === 'sent' && e.mode === 'email') || null
     },
+    receiptWaiting(p) {
+      return this.emailLog.find((e) => e.kind === 'receipt' && e.payment_id === p.id && e.status === 'awaiting_approval') || null
+    },
     async loadRecipient() {
       this.payRecipient = this.doc.client_email || ''
       try {
@@ -880,7 +921,10 @@ export default {
           this.doc = res
           toast.success(this.doc.status === 'paid' ? `${this.doc.number} is fully paid` : `Payment recorded — balance ${this.money(this.doc.balance_due)}`)
         }
-        if (rec) {
+        const recQueued = reviewOf(rec)
+        if (recQueued) {
+          queuedToast(recQueued, { what: 'The receipt', to: rec.to })
+        } else if (rec) {
           if (rec.held) holdToast(this.doc.id, { log_id: rec.log_id, seconds: rec.seconds, seconds_left: rec.seconds }, { what: 'Receipt', to: rec.to, onChange: this.afterHold })
           else if (rec.emailed) toast.success(`Receipt emailed to ${rec.to}${rec.cc?.length ? ` (CC ${rec.cc.length})` : ''} with ${rec.attachment}`)
           else toast.warning(`The receipt wasn’t emailed: ${rec.reason || 'unknown problem'}. Use “Send receipt” to try again.`, { duration: 9000 })
@@ -926,6 +970,10 @@ export default {
       if (res?.held && res.hold) {
         holdToast(this.doc.id, res.hold, { what: res.held_label || 'Email', to: res.held_to || res.to, onChange: this.afterHold })
         this.showEmails()
+      } else if (res?.queued) {
+        // Pending review: the Emails tab shows "Waiting for approval · Review" (the toast was shown by the dialog).
+        this.showEmails()
+        refreshOutboxCounts()
       }
     },
     /** A held email was undone, sent now, or its time came: show the truth. */
@@ -1038,7 +1086,10 @@ export default {
           blocked: { label: 'Blocked', cls: 'ui-badge--warning' },
           recorded: { label: 'Email app', cls: 'ui-badge--draft' },
           held: { label: 'Waiting', cls: 'ui-badge--warning' },
-          cancelled: { label: 'Undone', cls: 'ui-badge--draft' }
+          cancelled: { label: 'Undone', cls: 'ui-badge--draft' },
+          awaiting_approval: { label: 'To approve', cls: 'ui-badge--warning' },
+          rejected: { label: 'Rejected', cls: 'ui-badge--draft' },
+          superseded: { label: 'Not needed', cls: 'ui-badge--draft' }
         }[e.status] || { label: e.status, cls: 'ui-badge--draft' }
       )
     },
@@ -1463,6 +1514,60 @@ export default {
 .erc-recall-line i {
   font-size: 11px;
   margin-right: 2px;
+}
+.email-chip.ec-awaiting {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  background: var(--warning-soft);
+  color: var(--text);
+}
+.email-chip.ec-awaiting i {
+  color: var(--warning);
+}
+.await-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  background: var(--warning-soft);
+  color: var(--text);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.await-chip i {
+  color: var(--warning);
+}
+.await-chip strong {
+  color: var(--accent);
+}
+.await-chip:hover {
+  border-color: var(--warning);
+}
+.elog-await {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.elog-await > i {
+  margin-top: 3px;
+}
+.elog-await > i + span {
+  flex: 1;
+  min-width: 0;
+}
+.elog-link {
+  margin-left: 6px;
+}
+.await-note a {
+  font-weight: 600;
+}
+.timeline .dot.t-awaiting_approval {
+  background: var(--warning);
+}
+.timeline .dot.t-review_rejected,
+.timeline .dot.t-review_superseded {
+  background: var(--text-3);
 }
 .email-chip.ec-held {
   border-color: var(--warning);

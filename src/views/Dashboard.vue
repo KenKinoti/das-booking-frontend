@@ -26,6 +26,9 @@
       </div>
     </div>
 
+    <!-- Pending review (v2.19): "N messages waiting for approval" while client messages wait (pkg/outbox) -->
+    <OutboxDashboardCard />
+
     <!-- Getting started: how to use DASYIN in this person's role (pkg/onboarding) -->
     <GettingStartedCard />
 
@@ -421,6 +424,7 @@ import IndustryLatestCard from '@/components/insights/IndustryLatestCard.vue'
 import BarTonightCard from '@/components/bar/BarTonightCard.vue'
 import GettingStartedCard from '@/components/onboarding/GettingStartedCard.vue'
 import MorningBriefPrompt from '@/components/brief/MorningBriefPrompt.vue'
+import OutboxDashboardCard from '@/components/outbox/OutboxDashboardCard.vue'
 import { insightsApi } from '@/services/insights'
 import { hasModule } from '@/composables/useEntitlements'
 import {
@@ -443,7 +447,7 @@ const PREF = 'dash.period'
 
 export default {
   name: 'DashboardView',
-  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard, IndustryLatestCard, BarTonightCard, GettingStartedCard, MorningBriefPrompt },
+  components: { KpiCard, PeriodPicker, MarketsPanel, RankList, ActivityFeed, TimeChart, DonutChart, PnlCard, ExpensesCard, SnapshotRow, HistoryCard, HostingCard, CashForecastCard, IndustryLatestCard, BarTonightCard, GettingStartedCard, MorningBriefPrompt, OutboxDashboardCard },
   data() {
     return {
       data: null,

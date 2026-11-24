@@ -72,8 +72,10 @@
               </div>
               <div class="rc-preview" data-testid="recall-notice-preview">
                 <i class="fa-regular fa-envelope"></i>
-                <span><strong>{{ p.notice_subject }}</strong> — a short branded email to {{ noticeTo }}, tracked like your other emails.</span>
+                <span><strong>{{ p.notice_subject }}</strong> — a short branded email to {{ noticeTo }}, tracked like your other emails.<template v-if="(p.notice_bcc || []).length"> A blind copy goes to {{ p.notice_bcc.join(', ') }}, as on the original.</template></span>
               </div>
+              <!-- Pending review (v2.19): the links go off at once; only the notice waits for approval -->
+              <OutboxSendNote v-model="sendNow" thing="this notice" compact />
             </div>
           </div>
 
@@ -112,6 +114,8 @@ import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatCurrency } from '@/utils/currencies'
 import { toast } from '@/composables/useToast'
+import OutboxSendNote from '@/components/outbox/OutboxSendNote.vue'
+import { outbox, reviewOf, queuedToast } from '@/components/outbox/outboxState'
 
 /**
  * Recall a sent invoice / quote / reminder / receipt email (pkg/invoicing recall.go): switch off its links (per person
@@ -120,6 +124,7 @@ import { toast } from '@/composables/useToast'
  */
 export default {
   name: 'RecallDialog',
+  components: { OutboxSendNote },
   props: {
     doc: { type: Object, required: true },
     log: { type: Object, required: true },
@@ -135,7 +140,8 @@ export default {
       error: '',
       p: null,
       picked: [],
-      f: { all_links: false, notice: true, reason: '', replacement_id: '', correct: '', editPayment: false }
+      f: { all_links: false, notice: true, reason: '', replacement_id: '', correct: '', editPayment: false },
+      sendNow: false
     }
   },
   computed: {
@@ -221,18 +227,22 @@ export default {
         notice: this.f.notice && this.p.email_enabled,
         reason: this.f.notice ? this.f.reason : '',
         replacement_id: this.f.notice ? this.f.replacement_id : '',
-        correct: this.isReceipt ? '' : this.f.correct
+        correct: this.isReceipt ? '' : this.f.correct,
+        send_now: !!(this.f.notice && this.sendNow && outbox.me?.can_send_now)
       }
       try {
         const res = await invoicingApi.recallEmail(this.doc.id, this.log.id, body)
         const who = (res.recalled || []).map((r) => r.email).join(', ')
         const parts = [`Links switched off for ${who}.`]
         if (res.all_links) parts.push(`Every link to ${this.doc.number} is off — sending it again issues new ones.`)
-        if (res.notice?.sent) parts.push('Disregard notice sent.')
+        const noticeQueued = reviewOf(res.notice)
+        if (noticeQueued) parts.push('The disregard notice waits in Pending review.')
+        else if (res.notice?.sent) parts.push('Disregard notice sent.')
         else if (res.notice?.error) parts.push(`No notice sent: ${res.notice.error}`)
         if (res.attachment_note) parts.push(res.attachment_note)
         toast.success(parts.join(' '), { title: 'Email recalled', duration: 9000 })
         if (res.correct_error) toast.warning(res.correct_error)
+        if (noticeQueued) queuedToast(noticeQueued, { what: 'The disregard notice', to: this.noticeTo })
         this.$emit('done', { res, editPayment: this.isReceipt && this.f.editPayment, paymentId: this.log.payment_id })
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not recall the email')

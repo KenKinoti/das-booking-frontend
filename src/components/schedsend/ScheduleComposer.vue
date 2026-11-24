@@ -138,6 +138,9 @@
               <h3>When</h3>
               <SendTimePicker v-model="form.when" :meta="meta" :allow-repeat="!isInvoiceKind && form.kind !== 'reminder'" :reminder="form.kind === 'reminder'" />
             </section>
+            <!-- Pending review (v2.19): client messages wait for approval when their time comes (team messages never do) -->
+            <OutboxSendNote v-if="form.kind !== 'team'" v-model="reviewed" scheduled :allow-now="oneOff" :thing="form.kind === 'reminder' ? 'this reminder' : 'these messages'" />
+            <p v-if="form.kind !== 'team' && !oneOff && reviewOn && canApprove" class="ui-hint m0" data-testid="sc-review-repeat">Repeating messages are checked each time — every send waits in Pending review (prepared up to a day before its time).</p>
             <div v-if="error" class="ui-alert ui-alert--danger" data-testid="sc-error"><i class="fa-solid fa-circle-exclamation"></i><span>{{ error }}</span></div>
           </div>
 
@@ -185,6 +188,7 @@
       </div>
 
       <div class="ui-modal__foot">
+        <span v-if="meta && form.kind !== 'team' && reviewOn && !(reviewed && oneOff)" class="sc-review-foot" data-testid="sc-review-foot"><i class="fa-solid fa-inbox"></i> Waits in Pending review before it goes</span>
         <button type="button" class="ui-btn" @click="close">Cancel</button>
         <button type="submit" class="ui-btn ui-btn--primary" :disabled="saving || !meta" data-testid="sc-save">
           <i :class="saving ? 'fa-solid fa-circle-notch spin' : 'fa-regular fa-clock'"></i> {{ message ? 'Save changes' : 'Schedule' }}
@@ -201,6 +205,8 @@ import WaTemplatePicker from './WaTemplatePicker.vue'
 import { schedsendApi, KIND_LABELS, CHANNEL_LABELS, CHANNEL_ICONS, localLabel } from '@/services/schedsend'
 import { apiErrorMessage } from '@/services/api'
 import { toast } from '@/composables/useToast'
+import OutboxSendNote from '@/components/outbox/OutboxSendNote.vue'
+import { outbox, reviewOn, refreshOutboxCounts } from '@/components/outbox/outboxState'
 
 const STATEMENT_SUBJECT = 'Statement of account — {month}'
 const STATEMENT_BODY = "Hi {first_name},\n\nHere is your statement from {business}. You have {open_invoices} unpaid invoice(s) with {balance} still to pay:\n\n{statement}\n\nPay online: {pay_link}\n\nIf you've already paid, thank you — please ignore this message.\n\n{business}"
@@ -214,7 +220,7 @@ const REMINDER_TEXT = 'Hi {first_name}, invoice {invoice_number} for {amount_due
  */
 export default {
   name: 'ScheduleComposer',
-  components: { CustomerPicker, SendTimePicker, WaTemplatePicker },
+  components: { CustomerPicker, SendTimePicker, WaTemplatePicker, OutboxSendNote },
   props: {
     message: { type: Object, default: null }, // editing
     kind: { type: String, default: 'customer' },
@@ -240,6 +246,8 @@ export default {
       timer: null,
       names: {},
       pickerValue: '',
+      // Pending review: an approver ticked "Approve it now — I've reviewed it" (one-off messages only)
+      reviewed: !!this.message?.reviewed,
       oneCustomer: aud.mode === 'one' ? aud.customer_ids?.[0] || '' : this.customerId,
       teamMode: aud.user_ids?.length ? 'chosen' : aud.levels?.length ? 'managers' : 'all',
       form: {
@@ -271,6 +279,17 @@ export default {
   computed: {
     isInvoiceKind() {
       return this.form.kind === 'invoice' || this.form.kind === 'receipt'
+    },
+    /** A single send (no repeat): an approver may approve it now (pkg/outbox `reviewed`). */
+    oneOff() {
+      const r = this.form.when?.repeat
+      return !r || !r.freq || r.freq === 'none'
+    },
+    reviewOn() {
+      return reviewOn()
+    },
+    canApprove() {
+      return !!outbox.me?.can_approve
     },
     kindLabel() {
       if (this.form.kind === 'invoice' && this.message?.doc_type === 'quote') return 'Quote email'
@@ -454,7 +473,8 @@ export default {
         whatsapp: f.channels.includes('whatsapp') ? f.whatsapp : {},
         local_send_at: f.when.local_send_at,
         timezone: f.when.timezone,
-        repeat: f.when.repeat
+        repeat: f.when.repeat,
+        reviewed: f.kind !== 'team' && this.oneOff && !!(this.reviewed && outbox.me?.can_send_now)
       }
       if (f.kind === 'team') b.audience = { mode: 'staff', user_ids: this.teamMode === 'chosen' ? f.audience.user_ids : [], levels: f.audience.levels }
       else if (f.kind === 'customer' || f.kind === 'statement') b.audience = { ...f.audience, user_ids: [], levels: [] }
@@ -508,7 +528,10 @@ export default {
       try {
         const res = this.message ? await schedsendApi.update(this.message.id, this.body()) : await schedsendApi.create(this.body())
         const m = res.message
-        toast.success(`${this.message ? 'Saved' : 'Scheduled'} — ${m.next_local ? localLabel(m.next_local) + ' (' + (m.timezone || '').replace(/_/g, ' ') + ')' : 'paused'}`)
+        const waits = this.reviewOn && m.kind !== 'team' && !m.reviewed ? ' · it waits in Pending review before it goes' : ''
+        toast.success(`${this.message ? 'Saved' : 'Scheduled'} — ${m.next_local ? localLabel(m.next_local) + ' (' + (m.timezone || '').replace(/_/g, ' ') + ')' : 'paused'}${waits}`)
+        if (res.review_note) toast.info(res.review_note)
+        refreshOutboxCounts()
         this.$emit('saved', m)
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not schedule it')
@@ -521,6 +544,17 @@ export default {
 </script>
 
 <style scoped>
+.sc-review-foot {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.sc-review-foot i {
+  color: var(--warning);
+}
 .sc {
   max-width: 1120px;
   width: 100%;

@@ -28,6 +28,11 @@
           <i class="fa-regular fa-paper-plane"></i>
           <span>Sending from <strong>{{ localSender.from }}</strong></span>
         </div>
+        <!-- Pending review (v2.19): the client gets nothing until it is approved -->
+        <p v-if="localEmailEnabled && reviewOn" class="review-line span" data-testid="outbox-compose-note">
+          <i class="fa-solid fa-inbox"></i>
+          <span>After you check it on the next step, it waits in <strong>Pending review</strong> until {{ canApprove ? 'you (or another admin) approve' : 'an owner or admin approves' }} it.</span>
+        </p>
         <div class="ui-field span">
           <label for="s_to">To</label>
           <div v-if="loading" class="ui-skeleton" style="height: 40px"></div>
@@ -82,6 +87,7 @@
           <div v-if="!laterMeta" class="ui-skeleton" style="height: 120px"></div>
           <SendTimePicker v-else v-model="laterWhen" :meta="laterMeta" />
         </section>
+        <OutboxSendNote v-if="localEmailEnabled && result" v-model="sendNow" :thing="kind === 'receipt' ? 'this receipt' : kind === 'reminder' ? 'this reminder' : 'this email'" :scheduled="later" />
         <div v-if="checking" class="sd-checking"><i class="fa-solid fa-circle-notch spin"></i> Checking the {{ docWord }} and rendering the email…</div>
         <template v-else-if="result">
           <div class="sd-verdict" :class="verdict.cls" data-testid="preflight-verdict">
@@ -145,7 +151,7 @@
           </template>
           <button v-if="!later && localEmailEnabled" type="button" class="ui-btn" :disabled="busy || checking || !result || result.errors > 0" data-testid="send-later" @click="openLater"><i class="fa-regular fa-clock"></i> Send later</button>
           <button v-if="!later" type="submit" class="ui-btn ui-btn--primary" :disabled="busy || checking || !result || result.errors > 0" data-testid="send-confirm">
-            <i :class="busy ? 'fa-solid fa-circle-notch spin' : result && result.errors ? 'fa-solid fa-ban' : localEmailEnabled ? 'fa-solid fa-paper-plane' : 'fa-solid fa-arrow-up-right-from-square'"></i>
+            <i :class="busy ? 'fa-solid fa-circle-notch spin' : result && result.errors ? 'fa-solid fa-ban' : willQueue ? 'fa-solid fa-inbox' : localEmailEnabled ? 'fa-solid fa-paper-plane' : 'fa-solid fa-arrow-up-right-from-square'"></i>
             {{ confirmLabel }}
           </button>
         </template>
@@ -162,6 +168,8 @@ import { invoicingApi } from '@/services/invoicing'
 import { apiErrorMessage } from '@/services/api'
 import { formatCurrency } from '@/utils/currencies'
 import { toast } from '@/composables/useToast'
+import OutboxSendNote from '@/components/outbox/OutboxSendNote.vue'
+import { outbox, ensureOutboxMe, reviewOn, reviewOf, queuedToast, refreshOutboxCounts } from '@/components/outbox/outboxState'
 
 /**
  * Send an invoice, quote, reminder or payment receipt: compose → server-side
@@ -171,7 +179,7 @@ import { toast } from '@/composables/useToast'
  */
 export default {
   name: 'SendDialog',
-  components: { EmailChips, SendTimePicker },
+  components: { EmailChips, SendTimePicker, OutboxSendNote },
   props: {
     doc: { type: Object, required: true },
     kind: { type: String, default: 'invoice' }, // invoice | reminder | receipt (quotes use "invoice")
@@ -202,6 +210,8 @@ export default {
       localEmailEnabled: this.emailEnabled,
       localSender: this.sender,
       later: false,
+      // Pending review (v2.19): an admin ticked "Send now — I've reviewed it"
+      sendNow: false,
       laterMeta: null,
       laterWhen: { local_send_at: '', timezone: '', repeat: { freq: 'none' } }
     }
@@ -266,12 +276,23 @@ export default {
       const r = this.result
       if (!r) return {}
       if (r.errors) return { cls: 'is-error', icon: 'fa-solid fa-circle-xmark', title: `${r.errors} problem${r.errors > 1 ? 's' : ''} must be fixed before sending`, text: 'Nothing has been sent. Go back to edit the message, or fix the document.' }
-      if (r.warnings) return { cls: 'is-warn', icon: 'fa-solid fa-triangle-exclamation', title: `Ready — ${r.warnings} warning${r.warnings > 1 ? 's' : ''} to review`, text: 'Check them below. You can still send with “Send anyway”.' }
+      if (r.warnings) return { cls: 'is-warn', icon: 'fa-solid fa-triangle-exclamation', title: `Ready — ${r.warnings} warning${r.warnings > 1 ? 's' : ''} to review`, text: `Check them below. You can still go ahead with “${this.willQueue ? 'Send to Pending review anyway' : 'Send anyway'}”.` }
       return { cls: 'is-ok', icon: 'fa-solid fa-circle-check', title: 'All checks passed', text: 'This is exactly what the client will receive.' }
+    },
+    reviewOn() {
+      return reviewOn()
+    },
+    canApprove() {
+      return !!outbox.me?.can_approve
+    },
+    /** Pressing Send puts it in Pending review (review on, sending from DASYIN, no "Send now" tick). */
+    willQueue() {
+      return this.localEmailEnabled && this.reviewOn && !(this.sendNow && outbox.me?.can_send_now)
     },
     confirmLabel() {
       const r = this.result
       if (r && r.errors) return 'Fix errors to send'
+      if (this.willQueue) return r && r.warnings ? 'Send to Pending review anyway' : 'Send to Pending review'
       if (r && r.warnings) return 'Send anyway'
       if (!this.localEmailEnabled) return 'Open in email app'
       if (this.kind === 'reminder') return 'Send reminder'
@@ -281,6 +302,7 @@ export default {
   },
   created() {
     this.load()
+    ensureOutboxMe()
     document.addEventListener('keydown', this.onKey)
   },
   beforeUnmount() {
@@ -431,9 +453,12 @@ export default {
           invoice_send: { to: p.to, cc: p.cc, bcc: p.bcc, subject: p.subject, message: p.message, app_url: window.location.origin, accept_warnings: this.result.warnings > 0, set: true },
           local_send_at: this.laterWhen.local_send_at,
           timezone: this.laterWhen.timezone,
-          repeat: { freq: 'none' }
+          repeat: { freq: 'none' },
+          // Pending review: an approver who ticked "Approve it now — I've reviewed it" lets it go at its time without waiting.
+          reviewed: !!(this.sendNow && outbox.me?.can_send_now)
         })
-        toast.success(`Scheduled for ${localLabel(res.message.next_local)} (${(res.message.timezone || '').replace(/_/g, ' ')})`)
+        const waitNote = this.reviewOn && !res.message?.reviewed ? ' — it waits in Pending review before it goes' : ''
+        toast.success(`Scheduled for ${localLabel(res.message.next_local)} (${(res.message.timezone || '').replace(/_/g, ' ')})${waitNote}`)
         this.$emit('scheduled', res.message)
       } catch (e) {
         this.error = apiErrorMessage(e, 'Could not schedule it')
@@ -449,10 +474,17 @@ export default {
       const to = this.send.to[0] || ''
       try {
         // hold: the server keeps it for the organisation's undo window (Invoice settings → Email) — "Sending in 1:58 · Undo".
-        const res = await invoicingApi.send(this.doc.id, { ...this.payload(), app_url: window.location.origin, accept_warnings: this.result.warnings > 0, hold: this.localEmailEnabled })
+        const sendNow = !!(this.sendNow && this.localEmailEnabled && outbox.me?.can_send_now)
+        const res = await invoicingApi.send(this.doc.id, { ...this.payload(), app_url: window.location.origin, accept_warnings: this.result.warnings > 0, hold: this.localEmailEnabled, send_now: sendNow })
         const ccText = [res.cc?.length ? `CC ${res.cc.length}` : '', res.bcc?.length ? `BCC ${res.bcc.length}` : ''].filter(Boolean).join(', ')
         const copyNote = ccText ? ` (${ccText})` : ''
-        if (res.held && res.hold) {
+        const queued = reviewOf(res)
+        if (queued) {
+          // Pending review: nothing was sent — "Waiting for approval — Review" (the page links to the item).
+          const what = this.kind === 'reminder' ? `Reminder for ${this.doc.number}` : this.kind === 'receipt' ? `Receipt ${this.payment?.receipt_number || ''}`.trim() : `${this.isQuote ? 'Quote' : 'Invoice'} ${this.doc.number}`
+          res.queued_review = queued
+          queuedToast(queued, { what, to: `${res.to || this.send.to[0] || ''}${copyNote}` })
+        } else if (res.held && res.hold) {
           // Held for undo: the page shows "Sending in 1:58 · Undo" (heldEmail.js) — it outlives this dialog.
           res.held_label = this.kind === 'reminder' ? 'Reminder' : this.kind === 'receipt' ? 'Receipt' : this.isQuote ? 'Quote' : 'Invoice'
           res.held_to = `${res.to}${copyNote}`
@@ -468,6 +500,7 @@ export default {
           toast.success(this.kind === 'invoice' ? `${this.doc.number} marked as sent` : 'Recorded — finish sending it in your email app')
         }
         if (res.skipped?.length) toast.warning(`Skipped invalid address${res.skipped.length > 1 ? 'es' : ''}: ${res.skipped.join(', ')}`)
+        if (sendNow || queued) refreshOutboxCounts()
         this.$emit('sent', res)
       } catch (e) {
         const checks = e?.response?.data?.error?.checks
@@ -561,6 +594,17 @@ export default {
   align-items: center;
   font-size: 13px;
   color: var(--text-2);
+}
+.review-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.review-line i {
+  color: var(--warning);
 }
 .attach-note {
   display: flex;

@@ -106,6 +106,8 @@
           </div>
           <div class="switches">
             <label class="ui-switch"><input v-model="f.auto_send" type="checkbox" data-testid="sm-autosend" /> <span>Email each invoice with the View / Pay link</span></label>
+            <!-- Pending review (v2.19): automatic client emails wait for approval too -->
+            <p v-if="f.auto_send && reviewOn" class="ui-hint review-hint" data-testid="sm-review-hint"><i class="fa-solid fa-inbox"></i> Each invoice email and reminder to the client waits in <router-link to="/outbox">Pending review</router-link> until it is approved — a suspension waits for its final notice too.</p>
             <label class="ui-switch"><input v-model="f.auto_suspend" type="checkbox" data-testid="sm-autosuspend" /> <span>Suspend automatically when unpaid after the grace period</span></label>
             <label class="ui-switch"><input v-model="f.prorate" type="checkbox" :disabled="locked" data-testid="sm-prorate" /> <span>Bill on a fixed day — prorate the first period</span></label>
           </div>
@@ -209,6 +211,7 @@ import { toast } from '@/composables/useToast'
 import { currencyGroups, formatCurrency } from '@/utils/currencies'
 import { orgCurrency } from '@/utils/orgDefaults'
 import { formatDate, addDays } from '@/utils/format'
+import { reviewOn, ensureOutboxMe } from '@/components/outbox/outboxState'
 
 let seq = 0
 const blankLine = (tax = 0) => ({ key: ++seq, service_id: '', description: '', quantity: 1, price: '', tax_rate: tax, quoted: null })
@@ -250,6 +253,9 @@ export default {
     }
   },
   computed: {
+    reviewOn() {
+      return reviewOn()
+    },
     editing() {
       return !!this.sub
     },
@@ -341,6 +347,7 @@ export default {
     }
   },
   async created() {
+    ensureOutboxMe()
     try {
       const [st, sites] = await Promise.all([subscriptionsApi.settings().catch(() => null), subscriptionsApi.synergySites().catch(() => ({ sites: [] }))])
       this.settings = st?.settings || null
@@ -549,6 +556,15 @@ export default {
 </script>
 
 <style scoped>
+.review-hint {
+  margin: -2px 0 2px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.review-hint i {
+  color: var(--warning);
+}
 .sec {
   padding: 4px 0 14px;
   border-bottom: 1px solid var(--border);

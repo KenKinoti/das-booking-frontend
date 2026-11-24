@@ -7,7 +7,7 @@
  * tests and unusual tooling working when the constants are not defined.
  */
 /* global __APP_VERSION__, __BUILD_DATE__ */
-export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.18.2'
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.19.0'
 
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : ''
 
@@ -26,13 +26,13 @@ export function buildDateLabel(locale) {
 }
 
 /** One-line summary of this release for the "What's new" notice. */
-export const RELEASE_LEAD = 'Football made simple and honest: one plain pick per match, ✓ or ✗ after full time, and a scorecard of how often the picks really come off.'
+export const RELEASE_LEAD = 'Pending review: no email, SMS or WhatsApp reaches a client until you have checked it — fix it, approve it or reject it in one place.'
 
 /** Highlights shown in the "What's new" notice and the About card. */
 export const RELEASE_HIGHLIGHTS = [
-  { icon: 'fa-solid fa-bullseye', text: 'One pick per match — e.g. "Arsenal win · 64% · Strong" — with a safer pick, a draw alert, the goals lean and how often that level of pick has won in past matches' },
-  { icon: 'fa-solid fa-circle-check', text: 'After full time every match says ✓ Correct or ✗ Wrong for the pick that was frozen before kick-off — never regraded' },
-  { icon: 'fa-solid fa-chart-column', text: 'New Scorecard: picks right against what their chances said, with the normal range, by level, week by week and against the bookmaker\'s favourite' },
-  { icon: 'fa-solid fa-ticket', text: 'Jackpots: ✓/✗ per game, a plain review of how it went and a budget planner for doubles and triples' },
-  { icon: 'fa-solid fa-database', text: 'More free sources: API-Football predictions, Polymarket crowd prices and openfootball results, plus clearer The Odds API key checks' }
+  { icon: 'fa-solid fa-inbox', text: 'Communication → Pending review: every client message waits — invoices, quotes, reminders, receipts, scheduled messages, subscription notices, meeting invitations and WhatsApp replies' },
+  { icon: 'fa-solid fa-pen-to-square', text: 'See exactly what the client will get, fix the recipients, subject or text, then send now, send at its planned time, or reject — one at a time or in bulk' },
+  { icon: 'fa-solid fa-envelope-open-text', text: 'An email to you about 15 minutes after messages start waiting (at most one an hour) and a summary every morning at 7:30' },
+  { icon: 'fa-solid fa-shield-halved', text: 'Checked again before sending: a reminder for an invoice that has since been paid is dropped, and no subscription is suspended while its final notice waits' },
+  { icon: 'fa-solid fa-building', text: 'Bill a company: company name with "Attn:" contact on invoices and quotes, and recall notices now copy whoever was BCC\'d on the original' }
 ]
